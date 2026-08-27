@@ -1,0 +1,12 @@
+# Fur Elise - Ludwig van Beethoven
+# Virtual Piano Sheet
+# BPM: 130
+
+[8u] w y u [8o] w y o | [9i] e y i [9p] e y p
+[8u] w y u [8o] w y o | [7y] w r y [7u] w r u
+[8u] w y u [8o] w y o | [9i] e y i [9p] e y p
+[0o] r u o [0p] r u p | [8u] w y u [8o] w y o
+
+[5w] 9 w e [5r] 9 w r | [8u] w y u [8o] w y o
+[9i] e y i [9p] e y p | [8u] w y u [8o] w y o
+[7y] w r y [7u] w r u | [8u] w y u [8o] w y o

@@ -1,0 +1,12 @@
+# Canon in D - Johann Pachelbel
+# Virtual Piano Sheet
+# BPM: 90
+
+[18t] w u o [5w] 9 r y | [68e] 0 u p [38w] 0 r o
+[48q] 8 e i [18t] w u o | [48q] 8 e i [58w] 9 r y
+
+[18t] w u o [5w] 9 r y | [68e] 0 u p [38w] 0 r o
+[48q] 8 e i [18t] w u o | [48q] 8 e i [58w] 9 r y
+
+[8os] w u o [5oa] 9 r y | [6ip] 0 u p [3uo] 0 r o
+[4yi] 8 e i [1tu] w u o | [4yi] 8 e i [5ro] 9 r y

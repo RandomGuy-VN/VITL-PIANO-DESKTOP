@@ -1,0 +1,55 @@
+[package]
+name = "vitl-piano-desktop"
+version = "1.0.0"
+edition = "2021"
+authors = ["VITL Piano Team"]
+description = "High-performance VITL Piano Autoplayer & Audio Synthesizer in Rust"
+
+[dependencies]
+# Native Desktop Window & Embedded WebView (Tauri Engine)
+wry = "0.47"
+tao = "0.30"
+
+# Audio synthesis & streaming
+cpal = "0.15"
+hound = "3.5"
+
+# MIDI parsing, writing & device I/O
+midly = "0.5"
+midir = "0.10"
+
+# Input simulation & Global Hotkeys
+rdev = "0.5"
+
+# Async runtime & Web server / IPC
+tokio = { version = "1.38", features = ["full"] }
+tokio-tungstenite = "0.23"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+axum = { version = "0.7", features = ["ws", "macros", "multipart"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "trace"] }
+
+# Serialization & Configuration
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "5.0"
+
+# Networking & nanoMIDI API client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Utilities & Performance
+rand = "0.8"
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+open = "5.3"
+chrono = { version = "0.4", features = ["serde"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+evdev = "0.13.2"
+
+[dev-dependencies]
+# Used only by integration tests to read back injected events from /dev/input
+evdev = "0.13.2"

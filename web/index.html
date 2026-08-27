@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VITL Piano — Native Desktop Autoplayer & Synthesizer for Linux</title>
+<meta name="description" content="VITL Piano Desktop — Hardware-level kernel virtual keyboard autoplayer and built-in synthesizer for Roblox Piano on Linux." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;450;500;550;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f6f4ef;
+    --paper-raised: #fbf9f4;
+    --paper-sunk:   #efece4;
+
+    --ink-900: #1a1916;
+    --ink-800: #2a2925;
+    --ink-700: #44423d;
+    --ink-600: #5e5b54;
+    --ink-500: #7a766d;
+    --ink-400: #9c978c;
+    --ink-300: #c2bdb1;
+    --ink-200: #dcd7ca;
+    --ink-100: #ece8de;
+
+    --line:        rgba(26, 25, 22, 0.10);
+    --line-soft:   rgba(26, 25, 22, 0.06);
+    --line-strong: rgba(26, 25, 22, 0.16);
+
+    --accent:        #4a6b4d;
+    --accent-deep:   #345037;
+    --accent-soft:   #e7ede2;
+    --accent-line:   rgba(74, 107, 77, 0.22);
+
+    --shadow-xs: 0 1px 2px rgba(26, 25, 22, 0.04);
+    --shadow-sm: 0 1px 2px rgba(26, 25, 22, 0.04), 0 2px 4px rgba(26, 25, 22, 0.03);
+    --shadow-md: 0 2px 4px rgba(26, 25, 22, 0.04), 0 8px 16px rgba(26, 25, 22, 0.05);
+    --shadow-lg: 0 2px 6px rgba(26, 25, 22, 0.05), 0 16px 32px rgba(26, 25, 22, 0.07);
+
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-xl: 20px;
+
+    --maxw: 1180px;
+    --gutter: clamp(20px, 5vw, 40px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--paper);
+    color: var(--ink-800);
+    line-height: 1.6;
+    font-size: 16px;
+    font-weight: 450;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0.025 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.5;
+    mix-blend-mode: multiply;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--ink-900); }
+
+  .container {
+    width: 100%;
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 var(--gutter);
+    position: relative;
+    z-index: 1;
+  }
+
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(246, 244, 239, 0.85);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 22px;
+    color: var(--ink-900);
+    text-decoration: none;
+  }
+  .logo-mark {
+    width: 28px; height: 28px;
+    border-radius: var(--r-sm);
+    background: var(--ink-900);
+    display: grid; place-items: center;
+    color: var(--paper);
+  }
+  .logo em { font-style: italic; color: var(--accent); }
+
+  .nav-links { display: flex; align-items: center; gap: 8px; }
+  .nav-links a {
+    color: var(--ink-600);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 14px;
+    border-radius: var(--r-sm);
+    transition: all 0.15s ease;
+  }
+  .nav-links a:hover { color: var(--ink-900); background: var(--paper-sunk); }
+  .nav-links .nav-cta {
+    background: var(--ink-900);
+    color: var(--paper);
+    font-weight: 550;
+  }
+  .nav-links .nav-cta:hover { background: var(--ink-800); color: #fff; }
+
+  /* Hero */
+  .hero {
+    padding: clamp(60px, 10vw, 110px) 0 40px;
+    text-align: center;
+  }
+  .eyebrow-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px 5px 10px;
+    border-radius: 999px;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-700);
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-xs);
+  }
+  .eyebrow-pill .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  h1 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: clamp(40px, 6.5vw, 76px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    color: var(--ink-900);
+    margin-bottom: 20px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  h1 em { font-style: italic; color: var(--accent); font-weight: 400; }
+  .sub {
+    font-size: clamp(16px, 2vw, 19px);
+    color: var(--ink-600);
+    max-width: 660px;
+    margin: 0 auto 36px;
+    line-height: 1.6;
+  }
+
+  .hero-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 48px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: var(--r-md);
+    font-size: 14.5px;
+    font-weight: 550;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background: var(--ink-900);
+    color: var(--paper);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:hover { background: var(--ink-800); transform: translateY(-1px); color: #fff; }
+  .btn-ghost {
+    background: var(--paper-raised);
+    border-color: var(--line);
+    color: var(--ink-800);
+  }
+  .btn-ghost:hover { background: var(--paper-sunk); border-color: var(--line-strong); }
+
+  /* Installer Terminal Box */
+  .terminal-box {
+    max-width: 720px;
+    margin: 0 auto 60px;
+    background: #1e1d1a;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    text-align: left;
+  }
+  .terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #171614;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .traffic-dots { display: flex; gap: 6px; }
+  .traffic-dots span {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .traffic-dots span:nth-child(1) { background: #ff5f56; }
+  .traffic-dots span:nth-child(2) { background: #ffbd2e; }
+  .traffic-dots span:nth-child(3) { background: #27c93f; }
+  .terminal-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #8e8b82;
+  }
+  .terminal-body {
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .terminal-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    color: #e6e3da;
+    line-height: 1.5;
+    word-break: break-all;
+  }
+  .terminal-cmd .prompt { color: #52ba5c; margin-right: 8px; user-select: none; }
+  .copy-btn {
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--r-sm);
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+  }
+  .copy-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .copy-btn.copied {
+    background: #27c93f;
+    border-color: #27c93f;
+  }
+
+  /* Grid & Cards */
+  .block { padding: 60px 0; }
+  .section-head {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto 48px;
+  }
+  .section-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 8px;
+  }
+  .section-head h2 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: clamp(32px, 4.5vw, 48px);
+    letter-spacing: -0.02em;
+    color: var(--ink-900);
+    margin-bottom: 12px;
+  }
+  .section-head h2 em { font-style: italic; color: var(--accent); }
+  .section-head p { color: var(--ink-600); font-size: 16px; }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+  }
+  .feature {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 28px 24px;
+    box-shadow: var(--shadow-xs);
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .feature:hover {
+    border-color: var(--line-strong);
+    transform: translateY(-2px);
+  }
+  .feature-icon {
+    width: 38px; height: 38px;
+    border-radius: var(--r-md);
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    display: grid; place-items: center;
+    margin-bottom: 18px;
+  }
+  .feature h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink-900);
+    margin-bottom: 8px;
+  }
+  .feature p {
+    font-size: 14px;
+    color: var(--ink-600);
+    line-height: 1.6;
+  }
+
+  /* Download Cards */
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  @media (max-width: 768px) { .install-grid { grid-template-columns: 1fr; } }
+  .install-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-xl);
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: var(--shadow-sm);
+  }
+  .install-card.primary {
+    background: #fff;
+    border-color: var(--accent-line);
+    box-shadow: var(--shadow-md);
+    position: relative;
+  }
+  .install-card.primary::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px; right: -1px;
+    height: 3px;
+    background: var(--accent);
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+  }
+  .install-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .install-card h3 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-size: 28px;
+    color: var(--ink-900);
+    margin-bottom: 10px;
+  }
+  .install-card p {
+    font-size: 14px;
+    color: var(--ink-600);
+    margin-bottom: 24px;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 48px 0;
+    text-align: center;
+    color: var(--ink-500);
+    font-size: 13.5px;
+  }
+  footer .foot-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 20px;
+    color: var(--ink-900);
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container nav-inner">
+    <a href="#" class="logo">
+      <span class="logo-mark">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </span>
+      VITL <em>Piano</em>
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="vitl-piano-linux.zip" class="nav-cta">Download .zip</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <div class="eyebrow-pill"><span class="dot"></span> Native Linux Desktop Edition v1.0.0</div>
+    <h1>The quiet <em>auto-player</em> & synth<br>for Roblox Piano<span style="color:var(--accent);">.</span></h1>
+    <p class="sub">Direct Linux kernel <code>/dev/uinput</code> keystroke injection, built-in sound engine, 480+ nanoMIDI songs, and global hotkeys across Wayland & X11.</p>
+    
+    <div class="hero-actions">
+      <a href="#install" class="btn btn-primary">
+        Install Now
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </a>
+      <a href="vitl-piano-linux.zip" class="btn btn-ghost">
+        Download .zip (9.9 MB)
+      </a>
+    </div>
+
+    <!-- Terminal Box -->
+    <div class="terminal-box">
+      <div class="terminal-header">
+        <div class="traffic-dots"><span></span><span></span><span></span></div>
+        <span class="terminal-title">bash · one-line install</span>
+      </div>
+      <div class="terminal-body">
+        <div class="terminal-cmd">
+          <span class="prompt">$</span>curl -fsSL https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.sh | bash
+        </div>
+        <button class="copy-btn" id="hero-copy-btn" data-clipboard="curl -fsSL https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.sh | bash">
+          Copy
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section class="block" id="features">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-eyebrow">— Native Performance</span>
+      <h2>Engineered for <em>absolute</em> precision</h2>
+      <p>Built completely in Rust & C++ for zero latency, kernel input simulation, and pure standalone reliability.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/></svg>
+        </div>
+        <h3>Kernel <code>/dev/uinput</code> Macro</h3>
+        <p>Hardware-level USB virtual keyboard creates real physical key events at the kernel level. Fully bypasses Wayland and X11 compositor isolation in Roblox.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </div>
+        <h3>Built-in Audio Synthesizer</h3>
+        <p>High-fidelity polyphonic synth with configurable volume, reverb mix, ADSR envelopes, and velocity scaling for practicing without game audio.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <h3>nanoMIDI Hub (480+ Songs)</h3>
+        <p>Direct integration with nanoMIDI API. Search, stream, and save hundreds of virtual piano sheets directly to your local library in one click.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <h3>Global <code>evdev</code> Hotkeys</h3>
+        <p>Kernel-level physical keyboard listeners capture hotkeys (F1–F5, Space, Esc, Speed, Transpose) regardless of window focus.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>100% External & Safe</h3>
+        <p>Zero injection into Roblox, no memory modifications, no Lua executors required. Operates as a completely external native app.</p>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+        </div>
+        <h3>Humanizer Engine</h3>
+        <p>Configurable micro-timing jitter, chord arpeggiation delay, and transposition offsets for expressive and natural performances.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="install">
+  <div class="container">
+    <div class="section-head">
+      <span class="section-eyebrow">— Linux Installation</span>
+      <h2>Get started in <em>seconds</em></h2>
+      <p>Choose the automatic one-line installer or download the standalone package.</p>
+    </div>
+
+    <div class="install-grid">
+      <!-- One-line Installer -->
+      <div class="install-card primary">
+        <div>
+          <div class="install-tag">Recommended</div>
+          <h3>One-Line Installer</h3>
+          <p>Installs binary, configures desktop shortcuts, registers icons, and verifies `/dev/uinput` permissions automatically.</p>
+          
+          <div style="background:#171614;border-radius:var(--r-md);padding:14px;margin-bottom:20px;border:1px solid rgba(0,0,0,0.1);">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:#e6e3da;word-break:break-all;">
+              curl -fsSL https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.sh | bash
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary copy-btn" style="width:100%;justify-content:center;" data-clipboard="curl -fsSL https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.sh | bash">
+          Copy Install Command
+        </button>
+      </div>
+
+      <!-- Standalone Zip -->
+      <div class="install-card">
+        <div>
+          <div class="install-tag" style="color:var(--ink-500);">Manual Archive</div>
+          <h3>Standalone .zip</h3>
+          <p>Extract anywhere and run directly. Contains pre-compiled binary, launcher, and full nanoMIDI library support.</p>
+          
+          <div style="background:var(--paper-sunk);border-radius:var(--r-md);padding:14px;margin-bottom:20px;border:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-700);">
+            unzip vitl-piano-linux.zip<br>
+            ./vitl-piano.sh
+          </div>
+        </div>
+
+        <a href="vitl-piano-linux.zip" class="btn btn-ghost" style="width:100%;justify-content:center;">
+          Download vitl-piano-linux.zip
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="foot-logo">
+      <span class="logo-mark" style="width:22px;height:22px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </span>
+      VITL <em>Piano</em>
+    </div>
+    <p>High-Performance Native Linux Autoplayer & Audio Synthesizer.</p>
+    <p style="font-size:12px;color:var(--ink-400);margin-top:8px;">© 2026 VITL Piano Team. Free & Open Source for Linux.</p>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const text = btn.dataset.clipboard;
+      try {
+        await navigator.clipboard.writeText(text);
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied to Clipboard!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = orig;
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch(e) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.textContent = '✓ Copied!';
+      }
+    });
+  });
+</script>
+</body>
+</html>

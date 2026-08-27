@@ -1,0 +1,5 @@
+[target.x86_64-unknown-linux-gnu]
+# --disable-new-dtags emits legacy DT_RPATH instead of DT_RUNPATH so that the
+# $ORIGIN/lib search path is inherited transitively (e.g. libwebkit2gtk's own
+# libjxl.so.0.12 lookup resolves against bundled shims in ./lib).
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN/lib:$ORIGIN", "-C", "link-arg=-Wl,--disable-new-dtags"]

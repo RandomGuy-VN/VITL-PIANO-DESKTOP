@@ -1,0 +1,12 @@
+# Rush E - Sheet Music Boss
+# Virtual Piano Sheet
+# BPM: 160
+
+[8e] e e e [8e] e e e | [8e] [8e] [8e] [8e] [8e] e e e
+[6e] [6e] [6e] [6e] [6e] e e e | [4q] [4q] [4q] [4q] [4q] q q q
+[5w] [5w] [5w] [5w] [5w] w w w | [8e] [8e] [8e] [8e] [8e] e e e
+
+[8e] [8u] [8o] [8p] | [9y] [9i] [9p] [9a]
+[0u] [0o] [0a] [0s] | [8e] [8u] [8o] [8p]
+[6e] [6u] [6o] [6p] | [4q] [4t] [4i] [4p]
+[5w] [5y] [5o] [5a] | [8e] [8u] [8o] [8p]

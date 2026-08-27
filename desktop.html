@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VITL Piano Desktop</title>
+<link rel="icon" type="image/svg+xml" href="vitl-brand-logo.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;450;500;550;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:        #f6f4ef;
+    --paper-raised: #ffffff;
+    --paper-sunk:   #ede9df;
+    --paper-card:   #ffffff;
+
+    --ink-900: #1a1916;
+    --ink-800: #2a2925;
+    --ink-700: #44423d;
+    --ink-600: #5e5b54;
+    --ink-500: #7a766d;
+    --ink-400: #9c978c;
+    --ink-300: #c2bdb1;
+    --ink-200: #dcd7ca;
+    --ink-100: #ece8de;
+
+    --line:       rgba(26, 25, 22, 0.08);
+    --line-strong:rgba(26, 25, 22, 0.14);
+
+    --accent:        #4a6b4d;
+    --accent-deep:   #345037;
+    --accent-soft:   #e7ede2;
+    --accent-line:   rgba(74, 107, 77, 0.22);
+
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    
+    --shadow-sm: 0 1px 2px rgba(26, 25, 22, 0.04), 0 2px 4px rgba(26, 25, 22, 0.03);
+    --shadow-md: 0 2px 6px rgba(26, 25, 22, 0.05), 0 10px 20px rgba(26, 25, 22, 0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body, html {
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--paper);
+    color: var(--ink-800);
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 13.5px;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  #app-root {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+  }
+
+  /* 1. macOS Traffic Lights & Drag Regions */
+  .traffic-lights {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 2px 6px;
+    -webkit-app-region: no-drag;
+    width: fit-content;
+  }
+  .mac-btn {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    outline: none;
+    position: relative;
+    transition: transform 0.1s ease, filter 0.15s ease;
+  }
+  .mac-btn svg {
+    width: 7px;
+    height: 7px;
+    stroke: rgba(0, 0, 0, 0.65);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .traffic-lights:hover .mac-btn svg {
+    opacity: 1;
+  }
+  .mac-btn.close { background: #ff5f56; border-color: #e0443e; }
+  .mac-btn.min { background: #ffbd2e; border-color: #dea123; }
+  .mac-btn.max { background: #27c93f; border-color: #1aab29; }
+  .mac-btn:hover { filter: brightness(1.06); transform: scale(1.06); }
+  .mac-btn:active { filter: brightness(0.88); transform: scale(0.94); }
+
+  /* 2. Main App Body (Sidebar + Content) */
+  .app-body {
+    display: flex;
+    flex: 1;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    width: 240px;
+    background: var(--paper-raised);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 14px;
+    flex-shrink: 0;
+  }
+
+  .logo-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    padding-left: 8px;
+  }
+  .logo-block img {
+    width: 32px;
+    height: 32px;
+  }
+  .logo-block h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--ink-900);
+    line-height: 1.05;
+  }
+  .logo-block span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  .nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--r-md);
+    color: var(--ink-700);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 13px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .nav-item:hover {
+    background: var(--paper-sunk);
+    color: var(--ink-900);
+  }
+  .nav-item.active {
+    background: var(--ink-900);
+    color: #ffffff;
+  }
+
+  .status-badge {
+    margin-top: auto;
+    padding: 8px 10px;
+    border-radius: var(--r-md);
+    background: var(--paper-sunk);
+    border: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-600);
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+  .status-dot.disconnected {
+    background: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+  }
+
+  .main-content {
+    flex: 1;
+    background: var(--paper);
+    padding: 24px 32px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .main-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .main-header h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 30px;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--ink-900);
+  }
+
+  .song-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    margin-bottom: 18px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .song-title-text {
+    font-weight: 600;
+    color: var(--ink-900);
+    font-size: 14.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 480px;
+  }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-500);
+    margin-bottom: 8px;
+    padding-left: 2px;
+  }
+
+  .card {
+    background: var(--paper-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  
+  .slider-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--paper-sunk);
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+  }
+
+  .accent-badge {
+    padding: 3px 10px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    min-width: 65px;
+    text-align: center;
+  }
+  
+  input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    background: transparent;
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--line-strong);
+    outline: none;
+  }
+  
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 15px;
+    width: 15px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.1s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+  
+  .val-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-700);
+    min-width: 50px;
+    text-align: right;
+  }
+
+  .view-container {
+    display: none;
+    animation: fadeIn 0.2s ease;
+  }
+  .view-container.active {
+    display: block;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .file-drop {
+    border: 2px dashed var(--line-strong);
+    border-radius: var(--r-md);
+    padding: 22px 16px;
+    text-align: center;
+    background: var(--paper-raised);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 18px;
+  }
+  .file-drop:hover, .file-drop.dragover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .file-drop svg {
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .file-drop h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--ink-900);
+    margin-bottom: 2px;
+  }
+  .file-drop p {
+    font-size: 12px;
+    color: var(--ink-500);
+  }
+
+  .timeline-bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .timeline-slider {
+    width: 100%;
+    cursor: pointer;
+  }
+  .timeline-time-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-500);
+  }
+
+  .playback-buttons-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .big-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: var(--r-md);
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--ink-900);
+    color: #ffffff;
+    box-shadow: var(--shadow-sm);
+  }
+  .big-btn:hover {
+    background: var(--ink-800);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .big-btn.secondary {
+    background: var(--paper-raised);
+    color: var(--ink-800);
+    border: 1px solid var(--line);
+    flex: 0 0 110px;
+  }
+  .big-btn.secondary:hover {
+    background: var(--paper-sunk);
+  }
+
+  /* 88-Key Interactive Piano */
+  .piano-keyboard-container {
+    width: 100%;
+    height: 110px;
+    background: var(--ink-900);
+    border-radius: var(--r-md);
+    border: 1px solid var(--line-strong);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    margin-bottom: 20px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+  }
+  .pk-white {
+    flex: 1;
+    background: linear-gradient(180deg, #ffffff 0%, #ede8de 100%);
+    border-right: 1px solid rgba(0, 0, 0, 0.15);
+    height: 100%;
+    cursor: pointer;
+    transition: background 0.05s;
+    position: relative;
+    z-index: 1;
+  }
+  .pk-white.active, .pk-white:active {
+    background: #84cc16 !important;
+    box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+  }
+  .pk-black {
+    position: absolute;
+    top: 0;
+    width: 1.25%;
+    height: 62%;
+    background: linear-gradient(180deg, #333 0%, #111 100%);
+    border-radius: 0 0 3px 3px;
+    z-index: 2;
+    cursor: pointer;
+    transition: background 0.05s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+  }
+  .pk-black.active, .pk-black:active {
+    background: #4ade80 !important;
+  }
+
+  .hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    gap: 12px;
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 6px 20px 2px;
+  }
+  .hub-card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 110px;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .hub-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    box-shadow: var(--shadow-md);
+  }
+  .hub-card h4 {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--ink-900);
+    margin-bottom: 4px;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .hub-card p {
+    font-size: 11.5px;
+    color: var(--ink-500);
+    margin-bottom: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hub-card .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+  }
+  .hub-card button {
+    flex: 1;
+    padding: 6px 12px;
+    border-radius: var(--r-sm);
+    background: var(--paper-sunk);
+    border: 1px solid var(--line);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .hub-card button:hover {
+    background: var(--ink-900);
+    color: #fff;
+    border-color: var(--ink-900);
+  }
+
+  .row-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .row-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+  }
+  .hotkey-box {
+    padding: 4px 10px;
+    background: var(--paper-sunk);
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-800);
+    min-width: 55px;
+    text-align: center;
+  }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    margin-bottom: 8px;
+  }
+  .queue-item.current {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* Toast Notification System */
+  .toast-container {
+    position: fixed;
+    top: 48px;
+    right: 16px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .toast {
+    padding: 10px 16px;
+    border-radius: var(--r-md);
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-md);
+    font-size: 12.5px;
+    color: var(--ink-800);
+    pointer-events: auto;
+    animation: toastIn 0.25s ease, toastOut 0.3s ease 3.5s forwards;
+    max-width: 360px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toast.error { border-left: 3px solid #ef4444; }
+  .toast.success { border-left: 3px solid #10b981; }
+  .toast.info { border-left: 3px solid var(--accent); }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes toastOut {
+    from { opacity: 1; }
+    to { opacity: 0; transform: translateY(-10px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="app-root">
+  <!-- MAIN APP BODY -->
+  <div class="app-body">
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <!-- macOS Traffic Lights -->
+      <div class="traffic-lights">
+        <button class="mac-btn close" id="win-close-btn" title="Close">
+          <svg viewBox="0 0 12 12"><line x1="3" y1="3" x2="9" y2="9"></line><line x1="9" y1="3" x2="3" y2="9"></line></svg>
+        </button>
+        <button class="mac-btn min" id="win-min-btn" title="Minimize">
+          <svg viewBox="0 0 12 12"><line x1="2.5" y1="6" x2="9.5" y2="6"></line></svg>
+        </button>
+        <button class="mac-btn max" id="win-max-btn" title="Maximize">
+          <svg viewBox="0 0 12 12"><rect x="3" y="3" width="6" height="6" rx="0.5" ry="0.5"></rect></svg>
+        </button>
+      </div>
+
+      <div class="logo-block">
+        <img src="vitl-brand-logo.svg" alt="VITL Piano">
+        <div>
+          <h2>VITL <em>Piano</em></h2>
+          <span>AUTOPLAYER & SYNTH</span>
+        </div>
+      </div>
+
+      <div class="nav-menu">
+        <a class="nav-item active" data-view="view-player">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Player
+        </a>
+        <a class="nav-item" data-view="view-library">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          Library <span id="library-badge" style="margin-left: auto; font-size: 10px; background: var(--accent-soft); color: var(--accent-deep); padding: 1px 6px; border-radius: 99px; font-weight: 600; display: none;">0</span>
+        </a>
+        <a class="nav-item" data-view="view-midihub">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          MIDI Hub
+        </a>
+        <a class="nav-item" data-view="view-settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          Settings
+        </a>
+      </div>
+
+      <div class="status-badge">
+        <div class="status-dot" id="ws-status-dot"></div>
+        <span id="ws-status-text">Rust Backend: Active</span>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      <div class="main-header">
+        <h1 id="view-title">Player</h1>
+        <div id="quick-song-info" style="font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--ink-500);">
+          BPM: <strong id="header-bpm" style="color: var(--ink-900);">120</strong>
+        </div>
+      </div>
+
+      <!-- PLAYER VIEW -->
+      <div class="view-container active" id="view-player">
+        <div class="song-banner" id="current-song-banner">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          <div>
+            <div class="song-title-text" id="player-song-title">No MIDI or Sheet Loaded</div>
+            <div style="font-size: 11px; color: var(--ink-500);" id="player-song-subtitle">Drop a .mid / .midi / .txt file below or browse MIDI Hub</div>
+          </div>
+        </div>
+
+        <div class="file-drop" id="file-drop-zone">
+          <input type="file" id="file-input" accept=".mid,.midi,.txt" style="position: absolute; width: 1px; height: 1px; opacity: 0;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <h3>Select MIDI / Virtual Piano Sheet</h3>
+          <p>Drag & drop or click to browse (.mid, .midi, .txt)</p>
+        </div>
+
+        <div class="section-label">TIMELINE & PLAYBACK PROGRESS</div>
+        <div class="card" style="padding: 14px 18px; margin-bottom: 16px;">
+          <div class="timeline-bar-wrapper">
+            <input type="range" min="0" max="1000" value="0" id="timelineSlider" class="timeline-slider">
+            <div class="timeline-time-row">
+              <span id="time-current">0:00</span>
+              <span id="time-total">0:00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label">PLAYBACK TUNING</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div class="accent-badge">Speed</div>
+            <div class="slider-wrapper">
+              <input type="range" min="10" max="300" value="100" id="speedSlider">
+            </div>
+            <div class="val-text" id="speedVal">100%</div>
+          </div>
+          <div class="control-row">
+            <div class="accent-badge" style="background: var(--paper-sunk); color: var(--ink-700); border: 1px solid var(--line);">Delay</div>
+            <div class="slider-wrapper">
+              <input type="range" min="0" max="50" value="15" id="delaySlider">
+            </div>
+            <div class="val-text" id="delayVal">15ms</div>
+          </div>
+          <div class="control-row">
+            <div class="accent-badge" style="background: var(--paper-sunk); color: var(--ink-700); border: 1px solid var(--line);">Transpose</div>
+            <div class="slider-wrapper">
+              <input type="range" min="-12" max="12" value="0" id="transposeSlider">
+            </div>
+            <div class="val-text" id="transposeVal">0 st</div>
+          </div>
+        </div>
+        
+        <div class="playback-buttons-row">
+          <button class="big-btn" id="main-play-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span id="main-play-btn-text">Start Playing</span>
+          </button>
+          <button class="big-btn secondary" id="main-stop-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="4" y="4" width="16" height="16"></rect></svg>
+            Stop
+          </button>
+        </div>
+
+        <div class="section-label" style="margin-top: 20px;">LIVE 88-KEY PIANO VISUALIZER</div>
+        <div class="piano-keyboard-container" id="player-piano-keyboard"></div>
+      </div>
+
+      <!-- LIBRARY VIEW -->
+      <div class="view-container" id="view-library">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div class="section-label" style="margin-bottom: 0;">LOCAL MIDI LIBRARY</div>
+          <button id="refresh-library-btn" style="padding: 4px 10px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11px; cursor: pointer; font-family: inherit;">Refresh</button>
+        </div>
+        <div id="library-container">
+          <div class="card" style="padding: 24px; text-align: center; color: var(--ink-500);">
+            Loading local MIDI files...
+          </div>
+        </div>
+      </div>
+
+      <!-- MIDI HUB VIEW -->
+      <div class="view-container" id="view-midihub">
+        <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <div class="card" style="flex: 1; padding: 8px 14px; margin-bottom: 0;">
+            <input type="text" id="hub-search" placeholder="Search songs on nanoMIDI Hub..." style="width: 100%; border: none; background: transparent; outline: none; font-family: inherit; font-size: 13.5px; color: var(--ink-900);">
+          </div>
+          <button id="refresh-hub-btn" style="padding: 0 14px; border-radius: var(--r-md); background: var(--paper-raised); border: 1px solid var(--line); cursor: pointer; font-family: inherit; font-weight: 500;">
+            Refresh
+          </button>
+        </div>
+        
+        <div class="hub-grid" id="hub-grid">
+          <div style="grid-column: 1 / -1; text-align: center; color: var(--ink-500); padding: 40px 0;">
+            Loading nanoMIDI songs library...
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS VIEW -->
+      <div class="view-container" id="view-settings">
+        <div class="section-label">SYNTHESIZER & AUDIO ENGINE</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div style="font-weight: 500; color: var(--ink-900);">Built-in Audio Synthesizer</div>
+            <input type="checkbox" id="synthEnabledToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Volume</div>
+            <div class="slider-wrapper">
+              <input type="range" min="0" max="100" value="80" id="synthVolumeSlider">
+            </div>
+            <div class="val-text" id="synthVolumeVal">80%</div>
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Reverb</div>
+            <div class="slider-wrapper">
+              <input type="range" min="0" max="100" value="30" id="synthReverbSlider">
+            </div>
+            <div class="val-text" id="synthReverbVal">30%</div>
+          </div>
+        </div>
+
+        <div class="section-label">HUMANIZATION & TIMING</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div class="accent-badge">Jitter</div>
+            <div class="slider-wrapper">
+              <input type="range" min="0" max="50" value="5" id="jitterSlider">
+            </div>
+            <div class="val-text" id="jitterVal">±5ms</div>
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Mistake %</div>
+            <div class="slider-wrapper">
+              <input type="range" min="0" max="15" value="0" id="mistakeSlider">
+            </div>
+            <div class="val-text" id="mistakeVal">0%</div>
+          </div>
+        </div>
+
+        <div class="section-label">ROBLOX & MACRO BEHAVIOR</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Simulate Keystrokes (Macro Mode)</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Send keystrokes to Virtual Piano games</div>
+            </div>
+            <input type="checkbox" id="macroEnabledToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Auto-Focus Game Window</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Focuses Roblox window when playing starts</div>
+            </div>
+            <input type="checkbox" id="autoFocusToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div style="font-weight: 500; color: var(--ink-900);">Keyboard Layout</div>
+            <select id="layoutSelect" style="margin-left: auto; padding: 5px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); font-family: inherit; color: var(--ink-900); outline: none;">
+              <option value="QwertyUS">QWERTY (US Standard)</option>
+              <option value="AzertyFR">AZERTY (French)</option>
+              <option value="QwertzDE">QWERTZ (German)</option>
+              <option value="Dvorak">Dvorak</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-label">GLOBAL HOTKEYS</div>
+        <div class="row-list">
+          <div class="row-item">
+            <div style="font-weight: 500;">Play / Pause</div>
+            <div class="hotkey-box">F1</div>
+          </div>
+          <div class="row-item">
+            <div style="font-weight: 500;">Pause</div>
+            <div class="hotkey-box">F2</div>
+          </div>
+          <div class="row-item">
+            <div style="font-weight: 500;">Stop</div>
+            <div class="hotkey-box">F3</div>
+          </div>
+          <div class="row-item">
+            <div style="font-weight: 500;">Speed Up</div>
+            <div class="hotkey-box">F4</div>
+          </div>
+          <div class="row-item">
+            <div style="font-weight: 500;">Slow Down</div>
+            <div class="hotkey-box">F5</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script type="module">
+  // ── 0. Toast Notification System ──
+  const toastContainer = document.getElementById('toast-container');
+  function showToast(message, level = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${level}`;
+    toast.textContent = message;
+    toastContainer.appendChild(toast);
+    setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
+  }
+
+  // ── 1. Window Controls & Dragging (IPC to Rust Native Window) ──
+  const postIPC = (action) => {
+    if (window.ipc && window.ipc.postMessage) {
+      window.ipc.postMessage(action);
+    }
+  };
+
+  const headerEl = document.querySelector('.main-header');
+  if (headerEl) {
+    headerEl.addEventListener('mousedown', (e) => {
+      if (!e.target.closest('button, input, select, a, textarea')) {
+        postIPC('drag');
+      }
+    });
+    headerEl.addEventListener('dblclick', (e) => {
+      if (!e.target.closest('button, input, select, a, textarea')) {
+        postIPC('maximize');
+      }
+    });
+  }
+
+  const sidebarEl = document.querySelector('.sidebar');
+  if (sidebarEl) {
+    sidebarEl.addEventListener('mousedown', (e) => {
+      if (!e.target.closest('button, input, select, a, textarea, .nav-item, .mac-btn')) {
+        postIPC('drag');
+      }
+    });
+  }
+
+  const minBtn = document.getElementById('win-min-btn');
+  const maxBtn = document.getElementById('win-max-btn');
+  const closeBtn = document.getElementById('win-close-btn');
+  if (minBtn) minBtn.addEventListener('click', () => postIPC('minimize'));
+  if (maxBtn) maxBtn.addEventListener('click', () => postIPC('maximize'));
+  if (closeBtn) closeBtn.addEventListener('click', () => postIPC('close'));
+
+  // ── 2. Navigation ──
+  const navItems = document.querySelectorAll('.nav-item');
+  const viewTitle = document.getElementById('view-title');
+  const views = document.querySelectorAll('.view-container');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      const target = e.currentTarget;
+      const viewId = target.getAttribute('data-view');
+      navItems.forEach(nav => nav.classList.remove('active'));
+      target.classList.add('active');
+      const textNode = Array.from(target.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+      viewTitle.textContent = textNode ? textNode.textContent.trim() : target.textContent.trim().split('\n')[0].trim();
+      views.forEach(v => v.classList.remove('active'));
+      const activeV = document.getElementById(viewId);
+      if (activeV) activeV.classList.add('active');
+      if (viewId === 'view-library') fetchLibrary();
+    });
+  });
+
+  // ── 3. Interactive 88-Key Piano Builder ──
+  const keyElementsMap = new Map();
+
+  function build88Keys() {
+    keyElementsMap.clear();
+    const containers = [
+      document.getElementById('player-piano-keyboard'),
+      document.getElementById('piano-keyboard')
+    ].filter(Boolean);
+
+    containers.forEach(container => {
+      container.innerHTML = '';
+      const whiteNotes = [];
+      const isBlack = (note) => { const n = note % 12; return n===1||n===3||n===6||n===8||n===10; };
+      for (let note = 21; note <= 108; note++) { if (!isBlack(note)) whiteNotes.push(note); }
+
+      const handleNoteOn = (note, e) => { e.preventDefault(); sendNoteTrigger(note, 100, true); };
+      const handleNoteOff = (note) => { sendNoteTrigger(note, 0, false); };
+
+      whiteNotes.forEach((note) => {
+        const wKey = document.createElement('div');
+        wKey.className = 'pk-white';
+        wKey.dataset.note = note;
+        wKey.addEventListener('mousedown', (e) => handleNoteOn(note, e));
+        wKey.addEventListener('mouseup', () => handleNoteOff(note));
+        wKey.addEventListener('mouseleave', () => handleNoteOff(note));
+        wKey.addEventListener('touchstart', (e) => handleNoteOn(note, e), { passive: false });
+        wKey.addEventListener('touchend', () => handleNoteOff(note));
+        wKey.addEventListener('touchcancel', () => handleNoteOff(note));
+        container.appendChild(wKey);
+        
+        if (!keyElementsMap.has(note)) keyElementsMap.set(note, []);
+        keyElementsMap.get(note).push(wKey);
+      });
+
+      const whiteKeyWidthPercent = 100 / 52;
+      let whiteCount = 0;
+      for (let note = 21; note <= 108; note++) {
+        if (isBlack(note)) {
+          const bKey = document.createElement('div');
+          bKey.className = 'pk-black';
+          bKey.dataset.note = note;
+          const leftPercent = (whiteCount * whiteKeyWidthPercent) - (1.25 / 2);
+          bKey.style.left = `${leftPercent}%`;
+          bKey.addEventListener('mousedown', (e) => { e.stopPropagation(); handleNoteOn(note, e); });
+          bKey.addEventListener('mouseup', () => handleNoteOff(note));
+          bKey.addEventListener('mouseleave', () => handleNoteOff(note));
+          bKey.addEventListener('touchstart', (e) => { e.stopPropagation(); handleNoteOn(note, e); }, { passive: false });
+          bKey.addEventListener('touchend', () => handleNoteOff(note));
+          bKey.addEventListener('touchcancel', () => handleNoteOff(note));
+          container.appendChild(bKey);
+
+          if (!keyElementsMap.has(note)) keyElementsMap.set(note, []);
+          keyElementsMap.get(note).push(bKey);
+        } else { whiteCount++; }
+      }
+    });
+  }
+  build88Keys();
+
+  // ── 4. WebSocket ──
+  let socket = null;
+  let currentConfig = null;
+  let isPlaying = false;
+  let currentTotalDurationMs = 1.0;
+  let manualStopRequested = false;
+
+  function initWebSocket() {
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host || '127.0.0.1:4242';
+    const wsUrl = `${wsProto}//${host}/ws`;
+    try { socket = new WebSocket(wsUrl); } catch (e) {
+      console.error('WebSocket creation failed:', e);
+      document.getElementById('ws-status-dot').classList.add('disconnected');
+      document.getElementById('ws-status-text').textContent = 'Connection Failed';
+      setTimeout(initWebSocket, 3000); return;
+    }
+    socket.onopen = () => {
+      document.getElementById('ws-status-dot').classList.remove('disconnected');
+      document.getElementById('ws-status-text').textContent = 'Rust Backend: Active';
+    };
+    socket.onclose = () => {
+      document.getElementById('ws-status-dot').classList.add('disconnected');
+      document.getElementById('ws-status-text').textContent = 'Backend Disconnected';
+      setTimeout(initWebSocket, 2000);
+    };
+    socket.onerror = () => {
+      document.getElementById('ws-status-dot').classList.add('disconnected');
+    };
+    socket.onmessage = (e) => {
+      try { handleServerMessage(JSON.parse(e.data)); } catch (err) { console.error("Parse error:", err); }
+    };
+  }
+
+  function sendAction(obj) { if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(obj)); }
+  function sendNoteTrigger(note, velocity, isOn) { sendAction({ action: "trigger_note", note, velocity, is_on: isOn }); }
+  function sendConfigUpdate() { if (currentConfig) sendAction({ action: "update_config", config: currentConfig }); }
+
+  // ── 5. Handle Server Messages ──
+  const timeCurrentEl = document.getElementById('time-current');
+  const timeTotalEl = document.getElementById('time-total');
+  const timelineSlider = document.getElementById('timelineSlider');
+  const mainPlayBtn = document.getElementById('main-play-btn');
+  const mainPlayBtnText = document.getElementById('main-play-btn-text');
+  const mainPlayBtnSvg = mainPlayBtn.querySelector('svg');
+  const songTitleEl = document.getElementById('player-song-title');
+  const songSubtitleEl = document.getElementById('player-song-subtitle');
+  const headerBpmEl = document.getElementById('header-bpm');
+  let isScrubbing = false;
+
+  function handleServerMessage(msg) {
+    if (msg.type === 'status') {
+      const s = msg.data;
+      const wasPlayingBefore = isPlaying;
+      isPlaying = (s.state === 'Playing');
+      currentTotalDurationMs = s.total_duration_ms > 0 ? s.total_duration_ms : 1.0;
+
+      if (isPlaying) {
+        mainPlayBtnText.textContent = 'Pause Playback';
+        mainPlayBtnSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+      } else {
+        mainPlayBtnText.textContent = 'Start Playing';
+        mainPlayBtnSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+      }
+      
+      timeCurrentEl.textContent = s.formatted_current;
+      timeTotalEl.textContent = s.formatted_total;
+      if (!isScrubbing) timelineSlider.value = Math.round(s.progress * 1000);
+
+      if (s.song_title && s.song_title !== 'No song loaded') {
+        songTitleEl.textContent = s.song_title;
+        songSubtitleEl.textContent = `${s.total_duration_ms > 0 ? s.formatted_total : ''} • BPM ${Math.round(s.bpm)}`;
+      }
+      headerBpmEl.textContent = Math.round(s.bpm);
+
+      if (wasPlayingBefore && s.state === 'Stopped' && s.finished_naturally && !manualStopRequested) {
+        playNextInQueue();
+      }
+      manualStopRequested = false;
+
+      keyElementsMap.forEach((elements, note) => {
+        const isActive = s.active_notes && s.active_notes.includes(note);
+        elements.forEach(el => {
+          if (isActive) el.classList.add('active');
+          else el.classList.remove('active');
+        });
+      });
+    } else if (msg.type === 'config') {
+      currentConfig = msg.data;
+      syncConfigUI(currentConfig);
+    } else if (msg.type === 'notification') {
+      const n = msg.data;
+      showToast(n.message, n.level);
+    } else if (msg.type === 'hub_results') {
+      hubData = msg.data || [];
+      renderHub(hubData);
+    } else if (msg.type === 'local_midis') {
+      renderLibrary(msg.data || []);
+    }
+  }
+
+  function syncConfigUI(cfg) {
+    if (!cfg) return;
+    const speedPct = Math.round(cfg.playback_speed * 100);
+    const speedEl = document.getElementById('speedSlider');
+    if (speedEl) {
+      speedEl.value = speedPct;
+      document.getElementById('speedVal').textContent = `${speedPct}%`;
+    }
+    if (cfg.humanize) {
+      const delayEl = document.getElementById('delaySlider');
+      if (delayEl) {
+        delayEl.value = cfg.humanize.chord_delay_ms;
+        document.getElementById('delayVal').textContent = `${cfg.humanize.chord_delay_ms}ms`;
+      }
+      const jitterEl = document.getElementById('jitterSlider');
+      if (jitterEl) {
+        jitterEl.value = cfg.humanize.jitter_ms;
+        document.getElementById('jitterVal').textContent = `±${cfg.humanize.jitter_ms}ms`;
+      }
+      const mistakeEl = document.getElementById('mistakeSlider');
+      if (mistakeEl) {
+        mistakeEl.value = cfg.humanize.mistake_rate;
+        document.getElementById('mistakeVal').textContent = `${cfg.humanize.mistake_rate}%`;
+      }
+    }
+    const transposeEl = document.getElementById('transposeSlider');
+    if (transposeEl) {
+      transposeEl.value = cfg.transpose_offset;
+      document.getElementById('transposeVal').textContent = `${cfg.transpose_offset} st`;
+    }
+    if (cfg.synth) {
+      const synthToggle = document.getElementById('synthEnabledToggle');
+      if (synthToggle) synthToggle.checked = cfg.synth.enabled;
+      const synthVol = document.getElementById('synthVolumeSlider');
+      if (synthVol) {
+        synthVol.value = Math.round(cfg.synth.volume * 100);
+        document.getElementById('synthVolumeVal').textContent = `${Math.round(cfg.synth.volume * 100)}%`;
+      }
+      const synthRev = document.getElementById('synthReverbSlider');
+      if (synthRev) {
+        synthRev.value = Math.round(cfg.synth.reverb_mix * 100);
+        document.getElementById('synthReverbVal').textContent = `${Math.round(cfg.synth.reverb_mix * 100)}%`;
+      }
+    }
+    const macroToggle = document.getElementById('macroEnabledToggle');
+    if (macroToggle) macroToggle.checked = cfg.macro_enabled;
+    const autoFocusToggle = document.getElementById('autoFocusToggle');
+    if (autoFocusToggle) autoFocusToggle.checked = cfg.auto_focus_window;
+    const layoutSelect = document.getElementById('layoutSelect');
+    if (layoutSelect) layoutSelect.value = cfg.keyboard_layout;
+  }
+
+  // ── 6. Controls & Sliders ──
+  mainPlayBtn.addEventListener('click', () => { sendAction({ action: isPlaying ? "pause" : "play" }); });
+  document.getElementById('main-stop-btn').addEventListener('click', () => { manualStopRequested = true; sendAction({ action: "stop" }); });
+
+  timelineSlider.addEventListener('pointerdown', () => { isScrubbing = true; });
+  timelineSlider.addEventListener('pointerup', () => { isScrubbing = false; });
+  timelineSlider.addEventListener('input', (e) => { sendAction({ action: "seek", time_ms: (e.target.value / 1000) * currentTotalDurationMs }); });
+
+  document.getElementById('speedSlider').addEventListener('input', (e) => {
+    const speed = e.target.value / 100;
+    document.getElementById('speedVal').textContent = `${e.target.value}%`;
+    sendAction({ action: "set_speed", speed });
+  });
+  document.getElementById('delaySlider').addEventListener('input', (e) => {
+    document.getElementById('delayVal').textContent = `${e.target.value}ms`;
+    if (currentConfig) { currentConfig.humanize.chord_delay_ms = parseFloat(e.target.value); sendConfigUpdate(); }
+  });
+  document.getElementById('transposeSlider').addEventListener('input', (e) => {
+    document.getElementById('transposeVal').textContent = `${e.target.value} st`;
+    sendAction({ action: "set_transpose", transpose: parseInt(e.target.value) });
+  });
+
+  document.getElementById('synthEnabledToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.synth.enabled = e.target.checked; sendConfigUpdate(); } });
+  document.getElementById('synthVolumeSlider').addEventListener('input', (e) => {
+    document.getElementById('synthVolumeVal').textContent = `${e.target.value}%`;
+    if (currentConfig) { currentConfig.synth.volume = e.target.value / 100; sendConfigUpdate(); }
+  });
+  document.getElementById('synthReverbSlider').addEventListener('input', (e) => {
+    document.getElementById('synthReverbVal').textContent = `${e.target.value}%`;
+    if (currentConfig) { currentConfig.synth.reverb_mix = e.target.value / 100; sendConfigUpdate(); }
+  });
+  document.getElementById('jitterSlider').addEventListener('input', (e) => {
+    document.getElementById('jitterVal').textContent = `±${e.target.value}ms`;
+    if (currentConfig) { currentConfig.humanize.jitter_ms = parseFloat(e.target.value); sendConfigUpdate(); }
+  });
+  document.getElementById('mistakeSlider').addEventListener('input', (e) => {
+    document.getElementById('mistakeVal').textContent = `${e.target.value}%`;
+    if (currentConfig) { currentConfig.humanize.mistake_rate = parseFloat(e.target.value); sendConfigUpdate(); }
+  });
+  document.getElementById('macroEnabledToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.macro_enabled = e.target.checked; sendConfigUpdate(); } });
+  document.getElementById('autoFocusToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.auto_focus_window = e.target.checked; sendConfigUpdate(); } });
+  document.getElementById('layoutSelect').addEventListener('change', (e) => { if (currentConfig) { currentConfig.keyboard_layout = e.target.value; sendConfigUpdate(); } });
+
+  // ── 7. File upload ──
+  const dropZone = document.getElementById('file-drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  // Global drag & drop handler for the entire window
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  window.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    if (e.target === document.documentElement || e.target === document.body) {
+      dropZone.classList.remove('dragover');
+    }
+  });
+  window.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) {
+      uploadFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) uploadFile(e.target.files[0]); fileInput.value = ''; });
+
+  async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload_midi', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) {
+        songTitleEl.textContent = data.filename;
+        showToast(`Loaded: ${data.filename}`, 'success');
+        sendAction({ action: "play" });
+      } else {
+        showToast(data.error || 'Failed to parse uploaded file', 'error');
+      }
+    } catch (err) { showToast(`Upload failed: ${err.message}`, 'error'); }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // ── 8. MIDI Hub ──
+  let hubData = [];
+  const hubGrid = document.getElementById('hub-grid');
+  const hubSearch = document.getElementById('hub-search');
+
+  function renderHub(data) {
+    if (!data || data.length === 0) { hubGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--ink-500);padding:40px 0;">No songs found</div>'; return; }
+    hubGrid.innerHTML = data.slice(0, 150).map(item => {
+      const file = item.midiFilename || item.midi_filename;
+      return `
+      <div class="hub-card">
+        <div>
+          <h4>${escapeHtml(item.name)}</h4>
+          <p>${escapeHtml(item.artists || 'Unknown Artist')} • ↓ ${item.downloads || 0}</p>
+        </div>
+        <div class="btn-row">
+          <button data-hub-action="play" data-filename="${escapeHtml(file)}" style="background:var(--ink-900);color:#fff;border-color:var(--ink-900);">▶ Play Now</button>
+          <button data-hub-action="library" data-filename="${escapeHtml(file)}" data-name="${escapeHtml(item.name)}">↓ Add to Library</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  hubGrid.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-hub-action]');
+    if (!btn) return;
+    const filename = btn.dataset.filename;
+    if (btn.dataset.hubAction === 'play') {
+      sendAction({ action: "hub_download", midi_filename: filename });
+      showToast(`Loading: ${btn.dataset.filename}`, 'info');
+    } else if (btn.dataset.hubAction === 'library') {
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      sendAction({ action: "hub_download", midi_filename: filename });
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = '✓ In Library';
+        showToast(`Saved to Library: ${btn.dataset.name}`, 'success');
+        fetchLibrary();
+      }, 500);
+    }
+  });
+
+  window.downloadAndPlay = function(f) { sendAction({ action: "hub_download", midi_filename: f }); };
+
+  async function fetchHub() {
+    try { let res = await fetch('/api/hub_songs'); if (res.ok) { hubData = await res.json(); renderHub(hubData); return; } } catch(e) { console.warn("Hub proxy failed", e); }
+    try { const res = await fetch('https://api.nanomidi.net/api/midiData'); if (res.ok) { hubData = await res.json(); renderHub(hubData); } }
+    catch(err) { hubGrid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--ink-500);padding:30px;">Could not connect to nanoMIDI Hub</div>`; }
+  }
+
+  hubSearch.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    renderHub(hubData.filter(d => d.name.toLowerCase().includes(q) || (d.artists && d.artists.toLowerCase().includes(q))));
+  });
+  document.getElementById('refresh-hub-btn').addEventListener('click', fetchHub);
+
+  // ── 9. Library Tab ──
+  const libraryContainer = document.getElementById('library-container');
+  const libraryBadge = document.getElementById('library-badge');
+
+  function renderLibrary(files) {
+    if (!files || files.length === 0) {
+      libraryContainer.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--ink-500);">No local MIDI files found. Add songs from MIDI Hub or upload files in Player.</div>';
+      libraryBadge.style.display = 'none'; return;
+    }
+    libraryBadge.style.display = 'inline-block';
+    libraryBadge.textContent = files.length;
+    libraryContainer.innerHTML = files.map(f => `
+      <div class="row-item">
+        <div>
+          <div style="font-weight:600;color:var(--ink-900);font-size:13.5px;">${escapeHtml(f.name)}</div>
+          <div style="font-size:11.5px;color:var(--ink-500);margin-top:2px;">${(f.size_bytes/1024).toFixed(1)} KB</div>
+        </div>
+        <button data-library-action="play" data-path="${escapeHtml(f.file_path)}" style="padding:6px 14px;border-radius:var(--r-sm);background:var(--ink-900);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:500;">▶ Play</button>
+      </div>`).join('');
+  }
+
+  libraryContainer.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-library-action]');
+    if (!btn) return;
+    const path = btn.dataset.path;
+    if (btn.dataset.libraryAction === 'play') {
+      sendAction({ action: "load_file", path });
+      setTimeout(() => sendAction({ action: "play" }), 200);
+      showToast(`Playing from library: ${path.split('/').pop()}`, 'info');
+    }
+  });
+
+  async function fetchLibrary() {
+    try { const res = await fetch('/api/local_midis'); if (res.ok) renderLibrary(await res.json()); }
+    catch(e) { libraryContainer.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--ink-500);">Failed to load library</div>'; }
+  }
+  document.getElementById('refresh-library-btn').addEventListener('click', fetchLibrary);
+
+  // ── 11. In-App Keyboard Shortcuts ──
+  window.addEventListener('keydown', (e) => {
+    // Don't trigger hotkeys when typing in search or input fields
+    if (e.target.closest('input, textarea, select')) return;
+
+    if (e.code === 'Space' || e.key === 'F1') {
+      e.preventDefault();
+      if (isPlaying) {
+        sendAction({ action: "pause" });
+      } else {
+        sendAction({ action: "play" });
+      }
+    } else if (e.key === 'F2') {
+      e.preventDefault();
+      sendAction({ action: "pause" });
+    } else if (e.key === 'F3' || e.code === 'Escape') {
+      e.preventDefault();
+      sendAction({ action: "stop" });
+    } else if (e.key === 'F4') {
+      e.preventDefault();
+      const currentSpeed = parseFloat(document.getElementById('speedSlider').value) || 100;
+      const newSpeed = Math.min(200, currentSpeed + 10);
+      document.getElementById('speedSlider').value = newSpeed;
+      document.getElementById('speedVal').textContent = `${newSpeed}%`;
+      sendAction({ action: "set_speed", speed: newSpeed / 100 });
+      showToast(`Speed: ${newSpeed}%`, 'info');
+    } else if (e.key === 'F5') {
+      e.preventDefault();
+      const currentSpeed = parseFloat(document.getElementById('speedSlider').value) || 100;
+      const newSpeed = Math.max(10, currentSpeed - 10);
+      document.getElementById('speedSlider').value = newSpeed;
+      document.getElementById('speedVal').textContent = `${newSpeed}%`;
+      sendAction({ action: "set_speed", speed: newSpeed / 100 });
+      showToast(`Speed: ${newSpeed}%`, 'info');
+    }
+  });
+
+  // ── Initialize ──
+  initWebSocket();
+  fetchHub();
+  fetchLibrary();
+</script>
+</body>
+</html>
