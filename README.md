@@ -48,11 +48,23 @@
 - Interactive 88-key piano visualizer showing live active notes.
 - LiquidGlass warm paper UI design with moss green accents.
 
+## 🚀 Quick Install (Linux)
+
+Install and register VITL Piano in one line:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.sh | bash
+```
+
+Once installed, run:
+```bash
+vitl-piano
+```
+*(Or launch **VITL Piano** from your desktop application menu / launcher)*
+
 ---
 
-## 🚀 Quick Start
-
-### Build & Run
+## 🛠️ Build & Run from Source
 ```bash
 # Build optimized release binary
 cargo build --release
