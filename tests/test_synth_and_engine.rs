@@ -1,5 +1,4 @@
-use vitl_piano_desktop::core::config::{AppConfig, HumanizeConfig, KeyboardLayoutType};
-use vitl_piano_desktop::core::midi::MidiParser;
+use vitl_piano_desktop::core::config::{HumanizeConfig, KeyboardLayoutType};
 use vitl_piano_desktop::core::sheet::SheetParser;
 use vitl_piano_desktop::core::song::{NoteEvent, Song};
 use vitl_piano_desktop::core::transposition::TranspositionOptimizer;

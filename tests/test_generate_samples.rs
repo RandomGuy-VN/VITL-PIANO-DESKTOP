@@ -1,7 +1,6 @@
 use vitl_piano_desktop::core::midi::MidiParser;
 use vitl_piano_desktop::core::sheet::SheetParser;
 use std::fs;
-use std::path::Path;
 
 #[test]
 fn generate_sample_midis() {

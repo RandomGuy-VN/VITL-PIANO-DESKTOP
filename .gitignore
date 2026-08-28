@@ -1,1 +1,37 @@
+# Rust / Cargo build artifacts
 /target
+**/*.rs.bk
+Cargo.lock.bak
+
+# Executables and binaries
+vitl-piano-desktop
+*.exe
+*.dylib
+*.so
+*.so.*
+
+# Compressed release packages
+*.zip
+*.tar.gz
+*.tar.xz
+*.7z
+
+# Dynamic web build zips
+web/*.zip
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Scratch scripts & temp files
+simple_roblox_autoplayer.py
+temp.py
+*.wav
+*.tmp

@@ -1,9 +1,9 @@
-use evdev::{uinput::VirtualDeviceBuilder, KeyCode, AttributeSet};
+use evdev::{uinput::VirtualDevice, KeyCode, AttributeSet};
 #[test]
 fn test_ui() {
     let mut keys = AttributeSet::<KeyCode>::new();
     keys.insert(KeyCode::KEY_A);
-    match VirtualDeviceBuilder::new() {
+    match VirtualDevice::builder() {
         Ok(builder) => match builder.name("VITL").with_keys(&keys) {
             Ok(b) => match b.build() {
                 Ok(_) => println!("Uinput built!"),
