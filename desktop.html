@@ -792,10 +792,12 @@
 
       <!-- MIDI HUB VIEW -->
       <div class="view-container" id="view-midihub">
-        <div class="section-label">ONLINE MIDI HUB (480+ TRACKS)</div>
-        <div class="hub-search-box">
-          <input type="text" id="hub-search-input" placeholder="Search songs by title, artist, or uploader (e.g. Beethoven, Rush E, Anime)...">
-          <button id="hub-search-btn">Search</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div class="section-label" style="margin-bottom: 0;">ONLINE MIDI HUB (480+ TRACKS)</div>
+          <button id="refresh-hub-btn" style="padding: 5px 12px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11.5px; cursor: pointer; font-family: inherit; font-weight: 500;">Refresh</button>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <input type="text" id="hub-search" placeholder="Search songs by title, artist, or uploader (e.g. Beethoven, Rush E, Anime)..." style="flex: 1; padding: 10px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink-900); font-family: inherit; font-size: 13px; outline: none; box-shadow: var(--shadow-sm);">
         </div>
         <div class="hub-grid" id="hub-grid">
           <div class="card" style="padding: 32px; text-align: center; color: var(--ink-500); grid-column: 1/-1;">
@@ -994,6 +996,7 @@
       const activeV = document.getElementById(viewId);
       if (activeV) activeV.classList.add('active');
       if (viewId === 'view-library') fetchLibrary();
+      if (viewId === 'view-midihub') fetchHub();
     });
   });
 
@@ -1418,9 +1421,14 @@
   let hubData = [];
   const hubGrid = document.getElementById('hub-grid');
   const hubSearch = document.getElementById('hub-search');
+  const refreshHubBtn = document.getElementById('refresh-hub-btn');
 
   function renderHub(data) {
-    if (!data || data.length === 0) { hubGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--ink-500);padding:40px 0;">No songs found</div>'; return; }
+    if (!hubGrid) return;
+    if (!data || data.length === 0) {
+      hubGrid.innerHTML = '<div class="card" style="grid-column:1/-1;text-align:center;color:var(--ink-500);padding:32px 16px;">No songs found matching your search.</div>';
+      return;
+    }
     hubGrid.innerHTML = data.slice(0, 150).map(item => {
       const file = item.midiFilename || item.midi_filename;
       return `
@@ -1437,39 +1445,86 @@
     }).join('');
   }
 
-  hubGrid.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-hub-action]');
-    if (!btn) return;
-    const filename = btn.dataset.filename;
-    if (btn.dataset.hubAction === 'play') {
-      sendAction({ action: "hub_download", midi_filename: filename });
-      showToast(`Loading: ${btn.dataset.filename}`, 'info');
-    } else if (btn.dataset.hubAction === 'library') {
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-      sendAction({ action: "hub_download", midi_filename: filename });
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = '✓ In Library';
-        showToast(`Saved to Library: ${btn.dataset.name}`, 'success');
-        fetchLibrary();
-      }, 500);
-    }
-  });
+  if (hubGrid) {
+    hubGrid.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-hub-action]');
+      if (!btn) return;
+      const filename = btn.dataset.filename;
+      if (!filename) return;
+
+      if (btn.dataset.hubAction === 'play') {
+        sendAction({ action: "hub_download", midi_filename: filename });
+        showToast(`Loading: ${filename}`, 'info');
+        const playerTab = document.querySelector('[data-view="view-player"]');
+        if (playerTab) playerTab.click();
+      } else if (btn.dataset.hubAction === 'library') {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        sendAction({ action: "hub_download", midi_filename: filename });
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '✓ In Library';
+          showToast(`Saved to Library: ${btn.dataset.name || filename}`, 'success');
+          fetchLibrary();
+        }, 800);
+      }
+    });
+  }
 
   window.downloadAndPlay = function(f) { sendAction({ action: "hub_download", midi_filename: f }); };
 
   async function fetchHub() {
-    try { let res = await fetch('/api/hub_songs'); if (res.ok) { hubData = await res.json(); renderHub(hubData); return; } } catch(e) { console.warn("Hub proxy failed", e); }
-    try { const res = await fetch('https://api.nanomidi.net/api/midiData'); if (res.ok) { hubData = await res.json(); renderHub(hubData); } }
-    catch(err) { hubGrid.innerHTML = `<div style="grid-column:1/-1;text-align:center;color:var(--ink-500);padding:30px;">Could not connect to nanoMIDI Hub</div>`; }
+    if (!hubGrid) return;
+    if (!hubData || hubData.length === 0) {
+      hubGrid.innerHTML = `<div class="card" style="padding: 32px; text-align: center; color: var(--ink-500); grid-column: 1/-1;">Fetching online song library...</div>`;
+    }
+    // 1. Try local backend proxy
+    try {
+      const res = await fetch('/api/hub_songs');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          hubData = data;
+          renderHub(hubData);
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn("Local hub proxy failed", e);
+    }
+    // 2. Direct fetch fallback
+    try {
+      const res = await fetch('https://api.nanomidi.net/api/midiData');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          hubData = data;
+          renderHub(hubData);
+          return;
+        }
+      }
+    } catch(err) {
+      console.warn("Direct nanoMIDI Hub fetch failed", err);
+    }
+    if (!hubData || hubData.length === 0) {
+      hubGrid.innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;color:var(--ink-500);padding:32px;">Could not connect to online MIDI Hub. Please click Refresh to retry.</div>`;
+    }
   }
 
-  hubSearch.addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase();
-    renderHub(hubData.filter(d => d.name.toLowerCase().includes(q) || (d.artists && d.artists.toLowerCase().includes(q))));
-  });
-  document.getElementById('refresh-hub-btn').addEventListener('click', fetchHub);
+  if (hubSearch) {
+    hubSearch.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) {
+        renderHub(hubData);
+      } else {
+        renderHub(hubData.filter(d => d.name.toLowerCase().includes(q) || (d.artists && d.artists.toLowerCase().includes(q)) || (d.uploader && d.uploader.toLowerCase().includes(q))));
+      }
+    });
+  }
+
+  if (refreshHubBtn) {
+    refreshHubBtn.addEventListener('click', fetchHub);
+  }
 
   // ── 9. Library Tab ──
   const libraryContainer = document.getElementById('library-container');

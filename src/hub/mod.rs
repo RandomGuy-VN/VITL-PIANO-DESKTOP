@@ -104,6 +104,7 @@ impl MidiHubClient {
 
         let bytes = res.bytes().await?;
         let midis_dir = AppConfig::midis_dir();
+        fs::create_dir_all(&midis_dir)?;
         let target_path = midis_dir.join(midi_filename);
 
         fs::write(&target_path, bytes).with_context(|| format!("Failed to save MIDI to {:?}", target_path))?;
