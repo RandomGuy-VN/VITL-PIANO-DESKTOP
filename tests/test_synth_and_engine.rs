@@ -209,3 +209,53 @@ fn test_musescore_importer_parsing() {
     let auth = MusescoreImporter::compute_auth_token(5475653, "9654,4e");
     assert_eq!(auth.len(), 4);
 }
+
+#[test]
+fn test_midi_note_lengths_handling() {
+    let mut song = Song::new("Note Lengths Test".to_string());
+    song.tracks.push(vitl_piano_desktop::core::song::Track {
+        name: "Piano".to_string(),
+        channel: 0,
+        notes: vec![
+            vitl_piano_desktop::core::song::NoteEvent {
+                note: 60, // C4
+                velocity: 100,
+                start_ms: 0.0,
+                duration_ms: 500.0, // Staccato / short note
+                track: 0,
+                channel: 0,
+            },
+            vitl_piano_desktop::core::song::NoteEvent {
+                note: 64, // E4
+                velocity: 100,
+                start_ms: 0.0,
+                duration_ms: 2000.0, // Sustained whole note
+                track: 0,
+                channel: 0,
+            },
+        ],
+        is_drum: false,
+    });
+    song.finalize();
+
+    assert_eq!(song.duration_ms, 2000.0);
+    assert_eq!(song.tracks[0].notes[0].duration_ms, 500.0);
+    assert_eq!(song.tracks[0].notes[1].duration_ms, 2000.0);
+
+    // Test synth note damper release on duration completion
+    let mut synth = PianoSynthEngine::new(44100.0);
+    synth.note_on(60, 100);
+    synth.note_on(64, 100);
+
+    let mut buf = vec![0.0f32; 512];
+    synth.process_block(&mut buf);
+    let energy_before: f32 = buf.iter().map(|s| s.abs()).sum();
+    assert!(energy_before > 0.05);
+
+    // Release note 60 (duration finished) while note 64 keeps ringing
+    synth.note_off(60);
+    let mut buf2 = vec![0.0f32; 512];
+    synth.process_block(&mut buf2);
+    let energy_after: f32 = buf2.iter().map(|s| s.abs()).sum();
+    assert!(energy_after > 0.01);
+}

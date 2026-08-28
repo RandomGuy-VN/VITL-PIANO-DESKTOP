@@ -894,6 +894,13 @@
           </div>
           <div class="control-row" style="margin-top: 14px;">
             <div>
+              <div style="font-weight: 500; color: var(--ink-900);">MIDI Note Lengths (Realistic Hold & Release)</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Hold and release keys matching true MIDI durations for realistic dampers and visualizer</div>
+            </div>
+            <input type="checkbox" id="noteLengthsToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div>
               <div style="font-weight: 500; color: var(--ink-900);">88-Key Extended Mode (Ctrl Keys)</div>
               <div style="font-size: 11px; color: var(--ink-500);">Off: 61-Key standard Virtual Piano / Roblox (folds octaves). On: 88-Key with Ctrl modifier.</div>
             </div>
@@ -1258,6 +1265,8 @@
     }
     const macroToggle = document.getElementById('macroEnabledToggle');
     if (macroToggle) macroToggle.checked = cfg.macro_enabled;
+    const noteLengthsToggle = document.getElementById('noteLengthsToggle');
+    if (noteLengthsToggle) noteLengthsToggle.checked = (cfg.note_lengths !== false);
     const allow88Toggle = document.getElementById('allow88KeysToggle');
     if (allow88Toggle) allow88Toggle.checked = !!cfg.allow_88_keys;
     const sustainToggle = document.getElementById('sustainToggle');
@@ -1394,6 +1403,12 @@
     if (currentConfig) { currentConfig.humanize.mistake_rate = parseFloat(e.target.value); sendConfigUpdate(); }
   });
   document.getElementById('macroEnabledToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.macro_enabled = e.target.checked; sendConfigUpdate(); } });
+  const noteLenEl = document.getElementById('noteLengthsToggle');
+  if (noteLenEl) {
+    noteLenEl.addEventListener('change', (e) => {
+      if (currentConfig) { currentConfig.note_lengths = e.target.checked; sendConfigUpdate(); }
+    });
+  }
   const allow88El = document.getElementById('allow88KeysToggle');
   if (allow88El) {
     allow88El.addEventListener('change', (e) => {

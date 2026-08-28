@@ -118,6 +118,10 @@ pub struct AppConfig {
     pub sustain: bool,
     pub no_doubles: bool,
     pub allow_88_keys: bool,
+    #[serde(default = "default_true")]
+    pub note_lengths: bool,
+    #[serde(default = "default_min_note_length")]
+    pub min_note_length_ms: f64,
     pub sustain_cutoff: u8,
     pub auto_focus_window: bool,
     pub target_window_title: String,
@@ -131,6 +135,14 @@ pub struct AppConfig {
     pub recent_files: Vec<String>,
     pub queue_files: Vec<String>,
     pub current_file: String,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_min_note_length() -> f64 {
+    30.0
 }
 
 impl Default for AppConfig {
@@ -147,6 +159,8 @@ impl Default for AppConfig {
             sustain: true,
             no_doubles: true,
             allow_88_keys: false,
+            note_lengths: true,
+            min_note_length_ms: 30.0,
             sustain_cutoff: 63,
             auto_focus_window: true,
             target_window_title: "Roblox".to_string(),

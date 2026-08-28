@@ -141,6 +141,7 @@ impl PlayerEngine {
             let mut current_time_ms = 0.0;
             let mut last_tick = Instant::now();
             let mut active_visual_notes: Vec<u8> = Vec::new();
+            let mut active_notes_in_flight: Vec<(u8, f64)> = Vec::new(); // (final_note, end_time_ms)
             let mut last_status_emit = Instant::now();
 
             while !stop_flag.load(Ordering::Relaxed) {
@@ -161,6 +162,7 @@ impl PlayerEngine {
                     synth_arc.lock().all_notes_off();
                     sim_arc.release_all();
                     active_visual_notes.clear();
+                    active_notes_in_flight.clear();
                     last_tick = Instant::now();
                 }
 
@@ -173,6 +175,7 @@ impl PlayerEngine {
                     synth_arc.lock().all_notes_off();
                     sim_arc.release_all();
                     active_visual_notes.clear();
+                    active_notes_in_flight.clear();
                     tokio::time::sleep(Duration::from_millis(50)).await;
                     last_tick = Instant::now();
                     continue;
@@ -192,6 +195,7 @@ impl PlayerEngine {
                         current_time_ms = 0.0;
                         note_cursor = 0;
                         active_visual_notes.clear();
+                        active_notes_in_flight.clear();
                         synth_arc.lock().all_notes_off();
                         sim_arc.release_all();
                         continue;
@@ -200,6 +204,7 @@ impl PlayerEngine {
                         synth_arc.lock().all_notes_off();
                         sim_arc.release_all();
                         active_visual_notes.clear();
+                        active_notes_in_flight.clear();
                         // Send a final status with finished_naturally = true
                         let status = PlaybackStatus {
                             state: PlayerState::Stopped,
@@ -235,11 +240,14 @@ impl PlayerEngine {
                     let humanized = hum_arc.lock().process_chord_notes(&chord_batch);
                     
                     let mut macro_keys = Vec::new();
+                    let mut max_chord_dur = 10u64;
 
                     for note_event in humanized {
                         let final_note = ((note_event.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
+                        let note_dur = (note_event.duration_ms / speed).clamp(cfg.min_note_length_ms, 10_000.0);
+                        let end_time_ms = current_time_ms + note_dur;
 
-                        // 1. Audio synthesis
+                        // 1. Audio synthesis note on
                         if cfg.synth.enabled {
                             synth_arc.lock().note_on(final_note, note_event.velocity);
                         }
@@ -258,28 +266,52 @@ impl PlayerEngine {
 
                             if let Some(key_map) = map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys) {
                                 macro_keys.push((key_map.key_char, key_map.is_shift, key_map.is_ctrl));
+                                max_chord_dur = max_chord_dur.max(note_dur as u64);
                             }
                         }
+
+                        active_notes_in_flight.push((final_note, end_time_ms));
                     }
                     
                     // 4. Send the chord to the OS macro simulation in a single atomic batch
                     if !macro_keys.is_empty() {
                         let sim = Arc::clone(&sim_arc);
+                        let hold_ms = if cfg.note_lengths {
+                            max_chord_dur.min(500).max(10)
+                        } else {
+                            10
+                        };
                         tokio::task::spawn_blocking(move || {
-                            sim.tap_chord(macro_keys, 10);
+                            sim.tap_chord(macro_keys, hold_ms);
                         });
                     }
                 }
 
-                // Clean visualizer notes that finished duration
-                active_visual_notes.retain(|&n| {
-                    all_notes.iter().any(|note| {
-                        let final_n = ((note.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
-                        final_n == n
-                            && note.start_ms <= current_time_ms
-                            && (note.start_ms + note.duration_ms.min(400.0)) >= current_time_ms
-                    })
+                // Clean expired active notes for realistic synthesizer damper release
+                let mut expired_notes = Vec::new();
+                active_notes_in_flight.retain(|&(note, end_ms)| {
+                    if current_time_ms >= end_ms {
+                        expired_notes.push(note);
+                        false
+                    } else {
+                        true
+                    }
                 });
+
+                if cfg.synth.enabled && !expired_notes.is_empty() {
+                    let mut synth = synth_arc.lock();
+                    for n in expired_notes {
+                        synth.note_off(n);
+                    }
+                }
+
+                // Sync visualizer active notes directly with active sounding notes
+                active_visual_notes.clear();
+                for &(note, _) in &active_notes_in_flight {
+                    if !active_visual_notes.contains(&note) {
+                        active_visual_notes.push(note);
+                    }
+                }
 
                 // Periodic status broadcast (~30 fps)
                 if last_status_emit.elapsed() >= Duration::from_millis(33) {
