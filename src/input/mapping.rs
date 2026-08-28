@@ -65,37 +65,58 @@ impl KeyMappingEngine {
             );
         }
 
-        // 88-Key Low Notes (MIDI 21 to 35) -> Ctrl + Key
+        // 88-Key Low Notes (MIDI 21 to 35: A0 to B1) -> Ctrl + Key
         let raw_low = [
-            (21, '1'), (22, '2'), (23, '3'), (24, '4'), (25, '5'),
-            (26, '6'), (27, '7'), (28, '8'), (29, '9'), (30, '0'),
-            (31, 'q'), (32, 'w'), (33, 'e'), (34, 'r'), (35, 't'),
+            (21, '6', false), // A0 -> Ctrl + 6
+            (22, '6', true),  // A#0 -> Ctrl + Shift + 6
+            (23, '7', false), // B0 -> Ctrl + 7
+            (24, '1', false), // C1 -> Ctrl + 1
+            (25, '1', true),  // C#1 -> Ctrl + Shift + 1
+            (26, '2', false), // D1 -> Ctrl + 2
+            (27, '2', true),  // D#1 -> Ctrl + Shift + 2
+            (28, '3', false), // E1 -> Ctrl + 3
+            (29, '4', false), // F1 -> Ctrl + 4
+            (30, '4', true),  // F#1 -> Ctrl + Shift + 4
+            (31, '5', false), // G1 -> Ctrl + 5
+            (32, '5', true),  // G#1 -> Ctrl + Shift + 5
+            (33, '6', false), // A1 -> Ctrl + 6
+            (34, '6', true),  // A#1 -> Ctrl + Shift + 6
+            (35, '7', false), // B1 -> Ctrl + 7
         ];
 
-        for &(note, c) in &raw_low {
+        for &(note, c, is_shift) in &raw_low {
             self.map_low.insert(
                 note,
                 PianoKeyMap {
                     key_char: c,
-                    is_shift: false,
+                    is_shift,
                     is_ctrl: true,
                 },
             );
         }
 
-        // 88-Key High Notes (MIDI 97 to 108) -> Ctrl + Key
+        // 88-Key High Notes (MIDI 97 to 108: C#7 to C8) -> Ctrl + Key
         let raw_high = [
-            (97, 'y'), (98, 'u'), (99, 'i'), (100, 'o'), (101, 'p'),
-            (102, 'a'), (103, 's'), (104, 'd'), (105, 'f'), (106, 'g'),
-            (107, 'h'), (108, 'j'),
+            (97, '8', true),  // C#7 -> Ctrl + Shift + 8
+            (98, '9', false), // D7 -> Ctrl + 9
+            (99, '9', true),  // D#7 -> Ctrl + Shift + 9
+            (100, '0', false), // E7 -> Ctrl + 0
+            (101, 'q', false), // F7 -> Ctrl + q
+            (102, 'q', true),  // F#7 -> Ctrl + Shift + q
+            (103, 'w', false), // G7 -> Ctrl + w
+            (104, 'w', true),  // G#7 -> Ctrl + Shift + w
+            (105, 'e', false), // A7 -> Ctrl + e
+            (106, 'e', true),  // A#7 -> Ctrl + Shift + e
+            (107, 'r', false), // B7 -> Ctrl + r
+            (108, 't', false), // C8 -> Ctrl + t
         ];
 
-        for &(note, c) in &raw_high {
+        for &(note, c, is_shift) in &raw_high {
             self.map_high.insert(
                 note,
                 PianoKeyMap {
                     key_char: c,
-                    is_shift: false,
+                    is_shift,
                     is_ctrl: true,
                 },
             );
@@ -176,6 +197,18 @@ impl KeyMappingEngine {
             if let Some(map) = self.map_high.get(&note) {
                 return Some(map.clone());
             }
+        }
+
+        // Octave folding for standard 61-key piano (Roblox / Virtual Piano)
+        let mut folded = note;
+        while folded < 36 {
+            folded += 12;
+        }
+        while folded > 96 {
+            folded -= 12;
+        }
+        if let Some(map) = self.map_61.get(&folded) {
+            return Some(map.clone());
         }
 
         None

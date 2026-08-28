@@ -885,6 +885,20 @@
           </div>
           <div class="control-row" style="margin-top: 14px;">
             <div>
+              <div style="font-weight: 500; color: var(--ink-900);">88-Key Extended Mode (Ctrl Keys)</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Off: 61-Key standard Virtual Piano / Roblox (folds octaves). On: 88-Key with Ctrl modifier.</div>
+            </div>
+            <input type="checkbox" id="allow88KeysToggle" style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Sustain Pedal (Spacebar)</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Emulate sustain pedal via spacebar for supported games</div>
+            </div>
+            <input type="checkbox" id="sustainToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div>
               <div style="font-weight: 500; color: var(--ink-900);">Auto-Focus Game Window</div>
               <div style="font-size: 11px; color: var(--ink-500);">Focuses Roblox window when playing starts</div>
             </div>
@@ -1235,6 +1249,10 @@
     }
     const macroToggle = document.getElementById('macroEnabledToggle');
     if (macroToggle) macroToggle.checked = cfg.macro_enabled;
+    const allow88Toggle = document.getElementById('allow88KeysToggle');
+    if (allow88Toggle) allow88Toggle.checked = !!cfg.allow_88_keys;
+    const sustainToggle = document.getElementById('sustainToggle');
+    if (sustainToggle) sustainToggle.checked = !!cfg.sustain;
     const autoFocusToggle = document.getElementById('autoFocusToggle');
     if (autoFocusToggle) autoFocusToggle.checked = cfg.auto_focus_window;
     const layoutSelect = document.getElementById('layoutSelect');
@@ -1367,6 +1385,18 @@
     if (currentConfig) { currentConfig.humanize.mistake_rate = parseFloat(e.target.value); sendConfigUpdate(); }
   });
   document.getElementById('macroEnabledToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.macro_enabled = e.target.checked; sendConfigUpdate(); } });
+  const allow88El = document.getElementById('allow88KeysToggle');
+  if (allow88El) {
+    allow88El.addEventListener('change', (e) => {
+      if (currentConfig) { currentConfig.allow_88_keys = e.target.checked; sendConfigUpdate(); }
+    });
+  }
+  const sustainEl = document.getElementById('sustainToggle');
+  if (sustainEl) {
+    sustainEl.addEventListener('change', (e) => {
+      if (currentConfig) { currentConfig.sustain = e.target.checked; sendConfigUpdate(); }
+    });
+  }
   document.getElementById('autoFocusToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.auto_focus_window = e.target.checked; sendConfigUpdate(); } });
   document.getElementById('layoutSelect').addEventListener('change', (e) => { if (currentConfig) { currentConfig.keyboard_layout = e.target.value; sendConfigUpdate(); } });
 

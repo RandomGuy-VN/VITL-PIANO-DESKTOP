@@ -146,7 +146,7 @@ impl Default for AppConfig {
             velocity: false,
             sustain: true,
             no_doubles: true,
-            allow_88_keys: true,
+            allow_88_keys: false,
             sustain_cutoff: 63,
             auto_focus_window: true,
             target_window_title: "Roblox".to_string(),

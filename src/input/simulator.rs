@@ -329,43 +329,96 @@ impl InputSimulator {
         }
     }
 
-    /// Press and release multiple piano keys atomically to avoid modifier racing
+    /// Press and release multiple piano keys accurately grouping by modifier state
     pub fn tap_chord(&self, keys: Vec<(char, bool, bool)>, hold_duration_ms: u64) {
         let _lock = self.os_lock.lock();
-        
-        let mut needs_shift = false;
-        let mut needs_ctrl = false;
-        let mut rdev_keys = Vec::new();
+        if keys.is_empty() { return; }
+
+        let mut unshifted = Vec::new();
+        let mut shifted = Vec::new();
+        let mut ctrl_only = Vec::new();
+        let mut ctrl_shift = Vec::new();
 
         for (c, shift, ctrl) in keys {
-            if shift { needs_shift = true; }
-            if ctrl { needs_ctrl = true; }
             if let Some(rk) = Self::char_to_rdev_key(c) {
-                rdev_keys.push(rk);
+                if ctrl && shift {
+                    ctrl_shift.push(rk);
+                } else if ctrl {
+                    ctrl_only.push(rk);
+                } else if shift {
+                    shifted.push(rk);
+                } else {
+                    unshifted.push(rk);
+                }
             }
         }
 
-        if rdev_keys.is_empty() { return; }
-
-        if needs_shift { self.key_down(Key::ShiftLeft); }
-        if needs_ctrl { self.key_down(Key::ControlLeft); }
-
-        for &k in &rdev_keys {
-            self.key_down(k);
-        }
-
-        if hold_duration_ms > 0 {
-            thread::sleep(Duration::from_millis(hold_duration_ms));
+        let hold_dur = if hold_duration_ms > 0 {
+            Duration::from_millis(hold_duration_ms)
         } else {
+            Duration::from_millis(10)
+        };
+
+        // 1. Fire all unshifted keys cleanly without Shift modifier active
+        if !unshifted.is_empty() {
+            for &k in &unshifted {
+                self.key_down(k);
+            }
+            thread::sleep(hold_dur);
+            for &k in &unshifted {
+                self.key_up(k);
+            }
+        }
+
+        // 2. Fire shifted keys with Shift strictly scoped to this group
+        if !shifted.is_empty() {
             thread::sleep(Duration::from_micros(500));
+            self.key_down(Key::ShiftLeft);
+            thread::sleep(Duration::from_micros(500));
+            for &k in &shifted {
+                self.key_down(k);
+            }
+            thread::sleep(hold_dur);
+            for &k in &shifted {
+                self.key_up(k);
+            }
+            thread::sleep(Duration::from_micros(500));
+            self.key_up(Key::ShiftLeft);
         }
 
-        for &k in &rdev_keys {
-            self.key_up(k);
+        // 3. Fire Ctrl-only keys with Ctrl strictly scoped to this group
+        if !ctrl_only.is_empty() {
+            thread::sleep(Duration::from_micros(500));
+            self.key_down(Key::ControlLeft);
+            thread::sleep(Duration::from_micros(500));
+            for &k in &ctrl_only {
+                self.key_down(k);
+            }
+            thread::sleep(hold_dur);
+            for &k in &ctrl_only {
+                self.key_up(k);
+            }
+            thread::sleep(Duration::from_micros(500));
+            self.key_up(Key::ControlLeft);
         }
 
-        if needs_ctrl { self.key_up(Key::ControlLeft); }
-        if needs_shift { self.key_up(Key::ShiftLeft); }
+        // 4. Fire Ctrl+Shift keys
+        if !ctrl_shift.is_empty() {
+            thread::sleep(Duration::from_micros(500));
+            self.key_down(Key::ControlLeft);
+            self.key_down(Key::ShiftLeft);
+            thread::sleep(Duration::from_micros(500));
+            for &k in &ctrl_shift {
+                self.key_down(k);
+            }
+            thread::sleep(hold_dur);
+            for &k in &ctrl_shift {
+                self.key_up(k);
+            }
+            thread::sleep(Duration::from_micros(500));
+            self.key_up(Key::ShiftLeft);
+            self.key_up(Key::ControlLeft);
+        }
     }
 
     /// Send velocity modifier key (Alt + Key)

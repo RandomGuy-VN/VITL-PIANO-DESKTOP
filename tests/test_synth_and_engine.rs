@@ -115,10 +115,10 @@ fn test_keyboard_layout_mapping() {
     let map_az = azerty.get_piano_key(53, false).expect("Note 53 not found");
     assert_eq!(map_az.key_char, 'a');
 
-    // 88-Key low note (MIDI 21 = A0)
+    // 88-Key low note (MIDI 21 = A0 -> Ctrl + 6)
     let low_note = qwerty.get_piano_key(21, true).expect("Low note 21 not found");
     assert!(low_note.is_ctrl);
-    assert_eq!(low_note.key_char, '1');
+    assert_eq!(low_note.key_char, '6');
 }
 
 #[test]
