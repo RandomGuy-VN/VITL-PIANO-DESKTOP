@@ -92,6 +92,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/desktop.html", get(serve_desktop_html))
         .route("/index.html", get(serve_desktop_html))
         .route("/ws", get(ws_handler))
+        .route("/vitl-brand-logo.svg", get(serve_logo_svg))
+        .route("/vitl-brand-logo.png", get(serve_logo_png))
+        .route("/favicon.ico", get(serve_logo_png))
         .route("/api/status", get(get_status_api))
         .route("/api/config", get(get_config_api))
         .route("/api/action", post(post_action_api))
@@ -113,6 +116,26 @@ async fn serve_desktop_html() -> impl IntoResponse {
             (axum::http::header::EXPIRES, "0"),
         ],
         include_str!("../../desktop.html"),
+    )
+}
+
+async fn serve_logo_svg() -> impl IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/svg+xml"),
+            (axum::http::header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        include_str!("../../vitl-brand-logo.svg"),
+    )
+}
+
+async fn serve_logo_png() -> impl IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (axum::http::header::CACHE_CONTROL, "public, max-age=86400"),
+        ],
+        include_bytes!("../../vitl-brand-logo.png").as_slice(),
     )
 }
 
