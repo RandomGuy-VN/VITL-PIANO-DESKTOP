@@ -748,10 +748,14 @@
             <div class="val-text" id="speedVal">100%</div>
           </div>
           <div class="control-row">
-            <div class="accent-badge" style="background: var(--paper-sunk); color: var(--ink-700); border: 1px solid var(--line);">BPM</div>
-            <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+            <div class="accent-badge" style="background: var(--paper-sunk); color: var(--ink-700); border: 1px solid var(--line); display: flex; align-items: center; gap: 5px;">
+              <span id="bpmPulseDot" style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); opacity: 0.3; transition: transform 0.05s ease, opacity 0.05s ease;"></span>
+              BPM
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; flex: 1;">
               <input type="range" min="30" max="360" value="120" id="bpmSlider" style="flex: 1;">
-              <input type="number" min="20" max="400" value="120" id="bpmInput" style="width: 58px; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; text-align: center; background: var(--paper-raised); color: var(--ink-900);">
+              <input type="number" min="20" max="400" value="120" id="bpmInput" style="width: 52px; padding: 3px 4px; border-radius: var(--r-sm); border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 11px; text-align: center; background: var(--paper-raised); color: var(--ink-900);">
+              <button class="btn btn-secondary" id="tapTempoBtn" title="Tap repeatedly to calculate dynamic BPM" style="padding: 3px 8px; font-size: 10px; font-weight: 600; text-transform: uppercase;">TAP</button>
             </div>
             <div class="val-text" id="bpmVal">120 BPM</div>
           </div>
@@ -1208,6 +1212,18 @@
         if (bpmInput) bpmInput.value = liveBpm;
       }
 
+      const pulseDot = document.getElementById('bpmPulseDot');
+      if (pulseDot && isPlaying && liveBpm > 0) {
+        pulseDot.style.opacity = '1';
+        pulseDot.style.transform = 'scale(1.4)';
+        setTimeout(() => {
+          if (pulseDot) {
+            pulseDot.style.opacity = '0.3';
+            pulseDot.style.transform = 'scale(1.0)';
+          }
+        }, 120);
+      }
+
       if (wasPlayingBefore && s.state === 'Stopped' && s.finished_naturally && !manualStopRequested) {
         playNextInQueue();
       }
@@ -1229,6 +1245,9 @@
     } else if (msg.type === 'hub_results') {
       hubData = msg.data || [];
       renderHub(hubData);
+    } else if (msg.type === 'hub_status') {
+      const el = document.getElementById('hub-status-text');
+      if (el) el.textContent = msg.data.message;
     } else if (msg.type === 'local_midis') {
       renderLibrary(msg.data || []);
     }
@@ -1362,6 +1381,33 @@
       if (bpmSlider) bpmSlider.value = Math.min(360, Math.max(30, bpm));
       if (bpmVal) bpmVal.textContent = `${Math.round(bpm)} BPM`;
       sendAction({ action: "set_bpm", bpm });
+    });
+  }
+
+  let tapTimes = [];
+  const tapBtn = document.getElementById('tapTempoBtn');
+  if (tapBtn) {
+    tapBtn.addEventListener('click', () => {
+      const now = performance.now();
+      tapTimes.push(now);
+      tapTimes = tapTimes.filter(t => now - t < 3000);
+      if (tapTimes.length >= 2) {
+        let intervals = [];
+        for (let i = 1; i < tapTimes.length; i++) {
+          intervals.push(tapTimes[i] - tapTimes[i - 1]);
+        }
+        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const calculatedBpm = Math.round(60000 / avgInterval);
+        if (calculatedBpm >= 20 && calculatedBpm <= 400) {
+          if (bpmVal) bpmVal.textContent = `${calculatedBpm} BPM`;
+          if (bpmSlider) bpmSlider.value = Math.min(360, Math.max(30, calculatedBpm));
+          if (bpmInput) bpmInput.value = calculatedBpm;
+          sendAction({ action: "set_bpm", bpm: calculatedBpm });
+          showToast(`Dynamic BPM set to ${calculatedBpm}`, 'info');
+        }
+      } else {
+        showToast('Tap once more to set tempo...', 'info');
+      }
     });
   }
 

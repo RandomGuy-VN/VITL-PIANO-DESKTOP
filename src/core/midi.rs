@@ -36,8 +36,7 @@ impl MidiParser {
         }
 
         // First pass: extract all tempo changes to build an accurate tick-to-ms timeline
-        let mut raw_tempo_events: Vec<(u64, u32)> = Vec::new(); // (absolute_tick, us_per_beat)
-        raw_tempo_events.push((0, 500_000)); // Default 120 BPM = 500,000 us/beat
+        let mut raw_tempo_events: Vec<(u64, u32)> = Vec::new();
 
         for track in &smf.tracks {
             let mut abs_tick = 0u64;
@@ -52,6 +51,12 @@ impl MidiParser {
         // Sort tempo events by tick
         raw_tempo_events.sort_by_key(|&(tick, _)| tick);
         raw_tempo_events.dedup_by_key(|&mut (tick, _)| tick);
+
+        // Ensure there is always a baseline tempo at tick 0 (default 120 BPM = 500,000 us/beat)
+        if raw_tempo_events.is_empty() || raw_tempo_events[0].0 != 0 {
+            let initial_tempo = raw_tempo_events.first().map(|e| e.1).unwrap_or(500_000);
+            raw_tempo_events.insert(0, (0, initial_tempo));
+        }
 
         // Precompute tempo maps with millisecond timestamps
         let mut tempo_map: Vec<(u64, f64, u32)> = Vec::new(); // (tick, start_ms, us_per_beat)

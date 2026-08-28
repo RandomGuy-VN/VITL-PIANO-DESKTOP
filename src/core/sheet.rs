@@ -116,15 +116,16 @@ impl SheetParser {
             if trimmed.starts_with('#') || trimmed.starts_with("//") {
                 continue;
             }
-            if let Some(pos) = trimmed.to_lowercase().find("bpm:") {
-                let rest = &trimmed[pos + 4..];
-                let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+            let lower = trimmed.to_lowercase();
+            if lower.starts_with("bpm:") || lower.starts_with("tempo:") {
+                let rest = if lower.starts_with("bpm:") { &trimmed[4..] } else { &trimmed[6..] };
+                let num_str: String = rest.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
                 if let Ok(parsed_bpm) = num_str.parse::<f64>() {
                     if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
                         bpm = parsed_bpm;
                     }
                 }
-            } else if trimmed.starts_with('!') {
+            } else if trimmed.starts_with('!') && trimmed.len() > 1 && trimmed[1..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
                 let num_str: String = trimmed[1..].chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
                 if let Ok(parsed_bpm) = num_str.parse::<f64>() {
                     if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
@@ -139,10 +140,15 @@ impl SheetParser {
 
         // Base timing calculation (quarter note duration)
         let beat_duration_ms = 60_000.0 / bpm;
-        let step_duration_ms = beat_duration_ms / 2.0; // Eighth note default step
+        let mut step_duration_ms = beat_duration_ms / 2.0; // Eighth note default step
 
         let mut song = Song::new(title);
         song.bpm = bpm;
+        song.tempo_events.push(crate::core::song::TempoEvent {
+            time_ms: 0.0,
+            bpm,
+            us_per_beat: (60_000_000.0 / bpm) as u32,
+        });
         song.source_type = SongSourceType::VirtualPianoSheet;
 
         let mut notes: Vec<NoteEvent> = Vec::new();
@@ -155,29 +161,53 @@ impl SheetParser {
 
             match c {
                 '[' | '{' => {
-                    // Chord start
+                    // Check if this bracket contains a dynamic BPM / tempo tag (e.g. [bpm:140] or [tempo=120])
                     let close_char = if c == '[' { ']' } else { '}' };
-                    let mut chord_notes = Vec::new();
-                    i += 1;
-                    while i < chars.len() && chars[i] != close_char {
-                        if let Some(midi_note) = Self::char_to_midi_note(chars[i]) {
-                            chord_notes.push(midi_note);
+                    let mut tag_content = String::new();
+                    let mut lookahead = i + 1;
+                    while lookahead < chars.len() && chars[lookahead] != close_char {
+                        tag_content.push(chars[lookahead]);
+                        lookahead += 1;
+                    }
+                    let tag_lower = tag_content.to_lowercase();
+                    if tag_lower.starts_with("bpm") || tag_lower.starts_with("tempo") {
+                        let num_str: String = tag_content.chars().filter(|ch| ch.is_ascii_digit() || *ch == '.').collect();
+                        if let Ok(parsed_bpm) = num_str.parse::<f64>() {
+                            if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
+                                bpm = parsed_bpm;
+                                step_duration_ms = (60_000.0 / bpm) / 2.0;
+                                song.tempo_events.push(crate::core::song::TempoEvent {
+                                    time_ms: current_ms,
+                                    bpm,
+                                    us_per_beat: (60_000_000.0 / bpm) as u32,
+                                });
+                            }
                         }
+                        i = lookahead;
+                    } else {
+                        // Chord start
+                        let mut chord_notes = Vec::new();
                         i += 1;
-                    }
+                        while i < chars.len() && chars[i] != close_char {
+                            if let Some(midi_note) = Self::char_to_midi_note(chars[i]) {
+                                chord_notes.push(midi_note);
+                            }
+                            i += 1;
+                        }
 
-                    for &note_num in &chord_notes {
-                        notes.push(NoteEvent {
-                            note: note_num,
-                            velocity: 95,
-                            start_ms: current_ms,
-                            duration_ms: step_duration_ms * 1.5,
-                            track: 0,
-                            channel: 0,
-                        });
-                    }
+                        for &note_num in &chord_notes {
+                            notes.push(NoteEvent {
+                                note: note_num,
+                                velocity: 95,
+                                start_ms: current_ms,
+                                duration_ms: step_duration_ms * 1.5,
+                                track: 0,
+                                channel: 0,
+                            });
+                        }
 
-                    current_ms += step_duration_ms;
+                        current_ms += step_duration_ms;
+                    }
                 }
                 ' ' => {
                     // Space = small pause / step

@@ -284,3 +284,15 @@ fn test_velocity_configuration_scaling() {
     };
     assert_eq!(final_vel, 95);
 }
+
+#[test]
+fn test_sheet_inline_dynamic_bpm() {
+    let sheet_with_bpm_tags = "[8u] w y u [bpm:160] [8o] w y o [tempo:90] [9i] e y i";
+    let song = SheetParser::parse_sheet(sheet_with_bpm_tags, "Inline BPM Sheet".to_string(), Some(120.0)).expect("Sheet parse failed");
+
+    assert!(song.tempo_events.len() >= 3);
+    assert_eq!(song.tempo_events[0].bpm, 120.0);
+    assert_eq!(song.tempo_events[1].bpm, 160.0);
+    assert_eq!(song.tempo_events[2].bpm, 90.0);
+    assert_eq!(song.get_bpm_at(0.0), 120.0);
+}
