@@ -12,9 +12,17 @@ use super::midi::MidiParser;
 use super::song::Song;
 
 #[derive(Debug, Deserialize)]
+struct JMuseInfo {
+    #[serde(default)]
+    url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct JMuseResponse {
     #[serde(default)]
     url: Option<String>,
+    #[serde(default)]
+    info: Option<JMuseInfo>,
 }
 
 pub struct MusescoreImporter {
@@ -27,7 +35,7 @@ impl MusescoreImporter {
         headers.insert(
             USER_AGENT,
             HeaderValue::from_static(
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             ),
         );
         headers.insert(
@@ -40,7 +48,7 @@ impl MusescoreImporter {
         );
 
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(15))
             .default_headers(headers)
             .build()
             .unwrap_or_default();
@@ -49,13 +57,6 @@ impl MusescoreImporter {
     }
 
     /// Extract numeric MuseScore Score ID from input URL or raw ID string.
-    ///
-    /// Supports:
-    /// - https://musescore.com/user/3268481/scores/5475653
-    /// - https://musescore.com/score/5475653
-    /// - https://musescore.com/scores/5475653
-    /// - musescore.com/user/.../scores/5475653
-    /// - 5475653
     pub fn parse_score_id(input: &str) -> Option<u64> {
         let trimmed = input.trim();
         if let Ok(id) = trimmed.parse::<u64>() {
@@ -69,7 +70,6 @@ impl MusescoreImporter {
             }
         }
 
-        // Fallback for any trailing /123456
         let re_digits = Regex::new(r"/(\d+)(?:[/?#]|$)").ok()?;
         if let Some(caps) = re_digits.captures(trimmed) {
             if let Some(m) = caps.get(1) {
@@ -153,6 +153,8 @@ impl MusescoreImporter {
                 .client
                 .get(&api_url)
                 .header(AUTHORIZATION, &auth)
+                .header("Referer", format!("https://musescore.com/score/{}", score_id))
+                .header("Origin", "https://musescore.com")
                 .send()
                 .await
             {
@@ -161,13 +163,14 @@ impl MusescoreImporter {
             };
 
             if let Ok(json_res) = res.json::<JMuseResponse>().await {
-                if let Some(download_url) = json_res.url {
+                let download_url_opt = json_res.info.and_then(|i| i.url).or(json_res.url);
+                if let Some(download_url) = download_url_opt {
                     if !download_url.is_empty() {
                         info!("Found MuseScore MIDI download URL: {}", download_url);
                         let file_resp = self.client.get(&download_url).send().await?;
                         if file_resp.status().is_success() {
                             let bytes = file_resp.bytes().await?;
-                            if bytes.starts_with(b"MThd") || bytes.len() > 100 {
+                            if bytes.starts_with(b"MThd") {
                                 return Ok(bytes.to_vec());
                             }
                         }
@@ -182,10 +185,9 @@ impl MusescoreImporter {
     /// Fallback to LibreScore & community converter mirror endpoints
     async fn try_mirror_proxies(&self, score_id: u64) -> Result<Vec<u8>> {
         let mirror_urls = [
-            format!("https://api.librescore.org/api/score/{}/midi", score_id),
             format!("https://api.nanomidi.net/api/musescore/{}", score_id),
-            format!("https://librescore.org/api/score/{}/midi", score_id),
             format!("https://webmscore-api.librescore.org/score/{}/midi", score_id),
+            format!("https://api.librescore.org/api/score/{}/midi", score_id),
         ];
 
         for url in mirror_urls {
@@ -193,7 +195,7 @@ impl MusescoreImporter {
             if let Ok(resp) = self.client.get(&url).send().await {
                 if resp.status().is_success() {
                     if let Ok(bytes) = resp.bytes().await {
-                        if bytes.starts_with(b"MThd") || bytes.len() > 100 {
+                        if bytes.starts_with(b"MThd") {
                             info!("Successfully fetched MIDI from mirror: {}", url);
                             return Ok(bytes.to_vec());
                         }
@@ -220,10 +222,14 @@ impl MusescoreImporter {
             Err(jmuse_err) => {
                 warn!("Direct JMuse API failed ({:?}), trying mirror proxies...", jmuse_err);
                 self.try_mirror_proxies(score_id).await.context(
-                    "Failed to download MuseScore MIDI via both JMuse API and LibreScore mirror proxies",
+                    "MuseScore Cloudflare security blocked direct downloading for this score. Please download the .mid/.mscz using LibreScore userscript and drag-and-drop into VITL Piano.",
                 )?
             }
         };
+
+        if !midi_bytes.starts_with(b"MThd") {
+            anyhow::bail!("Downloaded payload is not a valid MIDI file (missing MThd header)");
+        }
 
         // Determine clean filename
         let raw_title = title_opt.unwrap_or_else(|| format!("MuseScore_{}", score_id));
