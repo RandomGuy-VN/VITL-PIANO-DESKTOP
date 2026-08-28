@@ -131,7 +131,9 @@ async fn serve_logo_svg() -> impl IntoResponse {
     (
         [
             (axum::http::header::CONTENT_TYPE, "image/svg+xml"),
-            (axum::http::header::CACHE_CONTROL, "public, max-age=86400"),
+            (axum::http::header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+            (axum::http::header::PRAGMA, "no-cache"),
+            (axum::http::header::EXPIRES, "0"),
         ],
         include_str!("../../vitl-brand-logo.svg"),
     )
@@ -141,7 +143,9 @@ async fn serve_logo_png() -> impl IntoResponse {
     (
         [
             (axum::http::header::CONTENT_TYPE, "image/png"),
-            (axum::http::header::CACHE_CONTROL, "public, max-age=86400"),
+            (axum::http::header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+            (axum::http::header::PRAGMA, "no-cache"),
+            (axum::http::header::EXPIRES, "0"),
         ],
         include_bytes!("../../vitl-brand-logo.png").as_slice(),
     )
