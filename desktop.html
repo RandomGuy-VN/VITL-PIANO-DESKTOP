@@ -719,6 +719,14 @@
             <div class="val-text" id="speedVal">100%</div>
           </div>
           <div class="control-row">
+            <div class="accent-badge" style="background: var(--paper-sunk); color: var(--ink-700); border: 1px solid var(--line);">BPM</div>
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+              <input type="range" min="30" max="360" value="120" id="bpmSlider" style="flex: 1;">
+              <input type="number" min="20" max="400" value="120" id="bpmInput" style="width: 58px; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; text-align: center; background: var(--paper-raised); color: var(--ink-900);">
+            </div>
+            <div class="val-text" id="bpmVal">120 BPM</div>
+          </div>
+          <div class="control-row">
             <div class="accent-badge" style="background: var(--paper-sunk); color: var(--ink-700); border: 1px solid var(--line);">Delay</div>
             <div class="slider-wrapper">
               <input type="range" min="0" max="50" value="15" id="delaySlider">
@@ -764,18 +772,14 @@
 
       <!-- MIDI HUB VIEW -->
       <div class="view-container" id="view-midihub">
-        <div style="display: flex; gap: 10px; margin-bottom: 16px;">
-          <div class="card" style="flex: 1; padding: 8px 14px; margin-bottom: 0;">
-            <input type="text" id="hub-search" placeholder="Search songs on nanoMIDI Hub..." style="width: 100%; border: none; background: transparent; outline: none; font-family: inherit; font-size: 13.5px; color: var(--ink-900);">
-          </div>
-          <button id="refresh-hub-btn" style="padding: 0 14px; border-radius: var(--r-md); background: var(--paper-raised); border: 1px solid var(--line); cursor: pointer; font-family: inherit; font-weight: 500;">
-            Refresh
-          </button>
+        <div class="section-label">ONLINE MIDI HUB (480+ TRACKS)</div>
+        <div class="hub-search-box">
+          <input type="text" id="hub-search-input" placeholder="Search songs by title, artist, or uploader (e.g. Beethoven, Rush E, Anime)...">
+          <button id="hub-search-btn">Search</button>
         </div>
-        
         <div class="hub-grid" id="hub-grid">
-          <div style="grid-column: 1 / -1; text-align: center; color: var(--ink-500); padding: 40px 0;">
-            Loading nanoMIDI songs library...
+          <div class="card" style="padding: 32px; text-align: center; color: var(--ink-500); grid-column: 1/-1;">
+            Fetching online song library...
           </div>
         </div>
       </div>
@@ -785,9 +789,35 @@
         <div class="section-label">SYNTHESIZER & AUDIO ENGINE</div>
         <div class="card">
           <div class="control-row" style="margin-top: 0;">
-            <div style="font-weight: 500; color: var(--ink-900);">Built-in Audio Synthesizer</div>
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Audio Synthesizer</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Enable sound output for standalone playback</div>
+            </div>
             <input type="checkbox" id="synthEnabledToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
           </div>
+
+          <div class="control-row" style="margin-top: 14px; align-items: center;">
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Sound Engine Mode</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Choose between built-in physical grand or custom SoundFont</div>
+            </div>
+            <select id="synthModeSelect" style="margin-left: auto; padding: 5px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink-900); font-family: inherit; font-size: 12px; cursor: pointer;">
+              <option value="PhysicalModeling">Physical Modeling Grand (Built-in)</option>
+              <option value="SoundFont">Custom SoundFont (.sf2 / .sf3)</option>
+            </select>
+          </div>
+
+          <div id="soundfontSettingsBox" style="margin-top: 12px; padding: 12px; border-radius: var(--r-md); background: var(--paper-sunk); border: 1px solid var(--line); display: none;">
+            <div style="font-size: 11.5px; font-weight: 600; color: var(--ink-800); margin-bottom: 6px;">Custom SoundFont File (.sf2 / .sf3):</div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="soundfontPathInput" placeholder="/path/to/soundfont.sf2" style="flex: 1; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--paper-raised); color: var(--ink-900);">
+              <input type="file" id="soundfontFileInput" accept=".sf2,.sf3" style="display: none;">
+              <button id="browseSoundfontBtn" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11.5px; cursor: pointer; white-space: nowrap;">Browse</button>
+              <button id="unloadSoundfontBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: rgba(255,0,0,0.06); border: 1px solid rgba(255,0,0,0.2); color: #c2410c; font-size: 11.5px; cursor: pointer; white-space: nowrap;" title="Reset to Built-in Physical Synth">Reset</button>
+            </div>
+            <div id="soundfontStatusText" style="font-size: 10.5px; color: var(--ink-500); margin-top: 5px;">Optional SoundFont: When omitted, built-in physical grand piano synthesizer is used.</div>
+          </div>
+
           <div class="control-row" style="margin-top: 14px;">
             <div class="accent-badge">Volume</div>
             <div class="slider-wrapper">
@@ -1055,7 +1085,11 @@
   const songTitleEl = document.getElementById('player-song-title');
   const songSubtitleEl = document.getElementById('player-song-subtitle');
   const headerBpmEl = document.getElementById('header-bpm');
+  const bpmSlider = document.getElementById('bpmSlider');
+  const bpmInput = document.getElementById('bpmInput');
+  const bpmVal = document.getElementById('bpmVal');
   let isScrubbing = false;
+  let isEditingBpm = false;
 
   function handleServerMessage(msg) {
     if (msg.type === 'status') {
@@ -1076,11 +1110,18 @@
       timeTotalEl.textContent = s.formatted_total;
       if (!isScrubbing) timelineSlider.value = Math.round(s.progress * 1000);
 
+      const liveBpm = Math.round(s.bpm);
       if (s.song_title && s.song_title !== 'No song loaded') {
         songTitleEl.textContent = s.song_title;
-        songSubtitleEl.textContent = `${s.total_duration_ms > 0 ? s.formatted_total : ''} • BPM ${Math.round(s.bpm)}`;
+        songSubtitleEl.textContent = `${s.total_duration_ms > 0 ? s.formatted_total : ''} • Live BPM ${liveBpm}`;
       }
-      headerBpmEl.textContent = Math.round(s.bpm);
+      headerBpmEl.textContent = liveBpm;
+
+      if (!isEditingBpm) {
+        if (bpmVal) bpmVal.textContent = `${liveBpm} BPM`;
+        if (bpmSlider) bpmSlider.value = Math.min(360, Math.max(30, liveBpm));
+        if (bpmInput) bpmInput.value = liveBpm;
+      }
 
       if (wasPlayingBefore && s.state === 'Stopped' && s.finished_naturally && !manualStopRequested) {
         playNextInQueue();
@@ -1141,6 +1182,23 @@
     if (cfg.synth) {
       const synthToggle = document.getElementById('synthEnabledToggle');
       if (synthToggle) synthToggle.checked = cfg.synth.enabled;
+
+      const synthModeSelect = document.getElementById('synthModeSelect');
+      const sfBox = document.getElementById('soundfontSettingsBox');
+      const sfPathInput = document.getElementById('soundfontPathInput');
+      const sfStatus = document.getElementById('soundfontStatusText');
+
+      if (synthModeSelect) {
+        synthModeSelect.value = cfg.synth.mode || 'PhysicalModeling';
+        if (sfBox) sfBox.style.display = (cfg.synth.mode === 'SoundFont') ? 'block' : 'none';
+      }
+      if (sfPathInput && cfg.synth.soundfont_path) {
+        sfPathInput.value = cfg.synth.soundfont_path;
+        if (sfStatus) sfStatus.textContent = `Active SoundFont: ${cfg.synth.soundfont_path}`;
+      } else if (sfStatus) {
+        sfStatus.textContent = 'Optional SoundFont: When omitted, built-in physical grand piano synthesizer is used.';
+      }
+
       const synthVol = document.getElementById('synthVolumeSlider');
       if (synthVol) {
         synthVol.value = Math.round(cfg.synth.volume * 100);
@@ -1173,6 +1231,29 @@
     document.getElementById('speedVal').textContent = `${e.target.value}%`;
     sendAction({ action: "set_speed", speed });
   });
+
+  if (bpmSlider) {
+    bpmSlider.addEventListener('pointerdown', () => { isEditingBpm = true; });
+    bpmSlider.addEventListener('pointerup', () => { isEditingBpm = false; });
+    bpmSlider.addEventListener('input', (e) => {
+      const bpm = parseFloat(e.target.value);
+      if (bpmVal) bpmVal.textContent = `${Math.round(bpm)} BPM`;
+      if (bpmInput) bpmInput.value = Math.round(bpm);
+      sendAction({ action: "set_bpm", bpm });
+    });
+  }
+
+  if (bpmInput) {
+    bpmInput.addEventListener('focus', () => { isEditingBpm = true; });
+    bpmInput.addEventListener('blur', () => { isEditingBpm = false; });
+    bpmInput.addEventListener('change', (e) => {
+      const bpm = Math.max(20, Math.min(400, parseFloat(e.target.value) || 120));
+      if (bpmSlider) bpmSlider.value = Math.min(360, Math.max(30, bpm));
+      if (bpmVal) bpmVal.textContent = `${Math.round(bpm)} BPM`;
+      sendAction({ action: "set_bpm", bpm });
+    });
+  }
+
   document.getElementById('delaySlider').addEventListener('input', (e) => {
     document.getElementById('delayVal').textContent = `${e.target.value}ms`;
     if (currentConfig) { currentConfig.humanize.chord_delay_ms = parseFloat(e.target.value); sendConfigUpdate(); }
@@ -1183,6 +1264,69 @@
   });
 
   document.getElementById('synthEnabledToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.synth.enabled = e.target.checked; sendConfigUpdate(); } });
+
+  const synthModeSelect = document.getElementById('synthModeSelect');
+  if (synthModeSelect) {
+    synthModeSelect.addEventListener('change', (e) => {
+      const mode = e.target.value;
+      const sfBox = document.getElementById('soundfontSettingsBox');
+      if (sfBox) sfBox.style.display = (mode === 'SoundFont') ? 'block' : 'none';
+      if (currentConfig) {
+        currentConfig.synth.mode = mode;
+        sendAction({ action: "set_synth_mode", mode: (mode === 'SoundFont') ? "soundfont" : "physical" });
+      }
+    });
+  }
+
+  const browseSfBtn = document.getElementById('browseSoundfontBtn');
+  const sfFileInput = document.getElementById('soundfontFileInput');
+  const sfPathInput = document.getElementById('soundfontPathInput');
+  const unloadSfBtn = document.getElementById('unloadSoundfontBtn');
+
+  if (browseSfBtn && sfFileInput) {
+    browseSfBtn.addEventListener('click', () => sfFileInput.click());
+    sfFileInput.addEventListener('change', async (e) => {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        // Upload soundfont or send path
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const res = await fetch('/api/upload_midi', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.filepath) {
+            sendAction({ action: "load_soundfont", path: data.filepath });
+            if (sfPathInput) sfPathInput.value = data.filepath;
+          }
+        } catch (err) {
+          showToast(`SoundFont load failed: ${err.message}`, 'error');
+        }
+      }
+      sfFileInput.value = '';
+    });
+  }
+
+  if (sfPathInput) {
+    sfPathInput.addEventListener('change', (e) => {
+      const path = e.target.value.trim();
+      if (path) sendAction({ action: "load_soundfont", path });
+    });
+  }
+
+  if (unloadSfBtn) {
+    unloadSfBtn.addEventListener('click', () => {
+      sendAction({ action: "unload_soundfont" });
+      if (sfPathInput) sfPathInput.value = '';
+      if (synthModeSelect) synthModeSelect.value = 'PhysicalModeling';
+      const sfBox = document.getElementById('soundfontSettingsBox');
+      if (sfBox) sfBox.style.display = 'none';
+      if (currentConfig) {
+        currentConfig.synth.mode = 'PhysicalModeling';
+        currentConfig.synth.soundfont_path = null;
+      }
+    });
+  }
+
   document.getElementById('synthVolumeSlider').addEventListener('input', (e) => {
     document.getElementById('synthVolumeVal').textContent = `${e.target.value}%`;
     if (currentConfig) { currentConfig.synth.volume = e.target.value / 100; sendConfigUpdate(); }

@@ -43,9 +43,25 @@ impl Default for HotkeyConfig {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SynthSoundMode {
+    PhysicalModeling,
+    SoundFont,
+}
+
+impl Default for SynthSoundMode {
+    fn default() -> Self {
+        SynthSoundMode::PhysicalModeling
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynthConfig {
     pub enabled: bool,
+    #[serde(default)]
+    pub mode: SynthSoundMode,
+    #[serde(default)]
+    pub soundfont_path: Option<String>,
     pub volume: f32,
     pub reverb_mix: f32,
     pub reverb_room_size: f32,
@@ -57,6 +73,8 @@ impl Default for SynthConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            mode: SynthSoundMode::PhysicalModeling,
+            soundfont_path: None,
             volume: 0.8,
             reverb_mix: 0.3,
             reverb_room_size: 0.7,

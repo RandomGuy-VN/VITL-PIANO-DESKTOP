@@ -210,7 +210,7 @@ impl PlayerEngine {
                             progress: 1.0,
                             speed,
                             transpose: *transpose_arc.lock(),
-                            bpm: song_arc.bpm,
+                            bpm: song_arc.get_bpm_at(total_duration) * speed,
                             active_notes: vec![],
                             song_title: song_arc.title.clone(),
                             finished_naturally: true,
@@ -286,6 +286,7 @@ impl PlayerEngine {
                     let formatted_curr = format_duration(current_time_ms);
                     let formatted_tot = format_duration(total_duration);
                     let progress = (current_time_ms / total_duration.max(1.0)).clamp(0.0, 1.0);
+                    let dynamic_bpm = song_arc.get_bpm_at(current_time_ms) * speed;
 
                     let status = PlaybackStatus {
                         state: *state_arc.lock(),
@@ -296,7 +297,7 @@ impl PlayerEngine {
                         progress,
                         speed,
                         transpose,
-                        bpm: song_arc.bpm,
+                        bpm: dynamic_bpm,
                         active_notes: active_visual_notes.clone(),
                         song_title: song_arc.title.clone(),
                         finished_naturally: false,
@@ -337,6 +338,16 @@ impl PlayerEngine {
         self.config.lock().playback_speed = clamped;
     }
 
+    pub fn set_bpm(&self, target_bpm: f64) {
+        let base_bpm = if let Some(s) = self.current_song.lock().as_ref() {
+            s.bpm.max(1.0)
+        } else {
+            120.0
+        };
+        let new_speed = (target_bpm / base_bpm).clamp(0.1, 3.0);
+        self.set_speed(new_speed);
+    }
+
     pub fn get_speed(&self) -> f64 {
         *self.playback_speed.lock()
     }
@@ -367,10 +378,11 @@ impl PlayerEngine {
 
     fn broadcast_status(&self, current_time_ms: f64, active_notes: &[u8]) {
         let song_guard = self.current_song.lock();
+        let speed = *self.playback_speed.lock();
         let (title, total_ms, bpm) = if let Some(s) = song_guard.as_ref() {
-            (s.title.clone(), s.duration_ms, s.bpm)
+            (s.title.clone(), s.duration_ms, s.get_bpm_at(current_time_ms) * speed)
         } else {
-            ("No song loaded".to_string(), 0.0, 120.0)
+            ("No song loaded".to_string(), 0.0, 120.0 * speed)
         };
 
         let formatted_curr = format_duration(current_time_ms);
@@ -388,7 +400,7 @@ impl PlayerEngine {
             formatted_current: formatted_curr,
             formatted_total: formatted_tot,
             progress,
-            speed: *self.playback_speed.lock(),
+            speed,
             transpose: *self.transpose_offset.lock(),
             bpm,
             active_notes: active_notes.to_vec(),

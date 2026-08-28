@@ -196,6 +196,50 @@ impl MetronomeVoice {
     }
 }
 
+use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
+use std::sync::Arc;
+use std::fs::File;
+use crate::core::config::SynthSoundMode;
+use tracing::{info, warn, error};
+
+pub struct SoundFontEngine {
+    synthesizer: Synthesizer,
+    pub sample_rate: f32,
+}
+
+impl SoundFontEngine {
+    pub fn load_file(path: &str, sample_rate: f32) -> Result<Self, String> {
+        let mut file = File::open(path).map_err(|e| format!("Failed to open SoundFont file '{}': {}", path, e))?;
+        let sound_font = Arc::new(SoundFont::new(&mut file).map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?);
+        let settings = SynthesizerSettings::new(sample_rate as i32);
+        let synthesizer = Synthesizer::new(&sound_font, &settings).map_err(|e| format!("Failed to initialize SoundFont synth: {:?}", e))?;
+        Ok(Self { synthesizer, sample_rate })
+    }
+
+    pub fn note_on(&mut self, note: u8, velocity: u8) {
+        self.synthesizer.note_on(0, note as i32, velocity as i32);
+    }
+
+    pub fn note_off(&mut self, note: u8) {
+        self.synthesizer.note_off(0, note as i32);
+    }
+
+    pub fn set_sustain(&mut self, down: bool) {
+        self.synthesizer.process_midi_message(0, 0xB0, 64, if down { 127 } else { 0 });
+    }
+
+    pub fn all_notes_off(&mut self) {
+        self.synthesizer.note_off_all(false);
+    }
+
+    pub fn next_sample(&mut self) -> (f32, f32) {
+        let mut left = [0.0f32; 1];
+        let mut right = [0.0f32; 1];
+        self.synthesizer.render(&mut left, &mut right);
+        (left[0], right[0])
+    }
+}
+
 pub struct PianoSynthEngine {
     sample_rate: f32,
     dt: f32,
@@ -207,6 +251,9 @@ pub struct PianoSynthEngine {
     pub enabled: bool,
     pub metronome_enabled: bool,
     pub metronome_volume: f32,
+    pub mode: SynthSoundMode,
+    soundfont_engine: Option<SoundFontEngine>,
+    pub soundfont_path: Option<String>,
 }
 
 impl PianoSynthEngine {
@@ -226,6 +273,46 @@ impl PianoSynthEngine {
             enabled: true,
             metronome_enabled: false,
             metronome_volume: 0.6,
+            mode: SynthSoundMode::PhysicalModeling,
+            soundfont_engine: None,
+            soundfont_path: None,
+        }
+    }
+
+    /// Load an optional custom SoundFont (.sf2 / .sf3)
+    pub fn load_soundfont(&mut self, path: &str) -> Result<(), String> {
+        info!("Loading SoundFont from: {}", path);
+        match SoundFontEngine::load_file(path, self.sample_rate) {
+            Ok(sf) => {
+                self.soundfont_engine = Some(sf);
+                self.soundfont_path = Some(path.to_string());
+                self.mode = SynthSoundMode::SoundFont;
+                info!("SoundFont loaded successfully: {}", path);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("SoundFont load failed ({}); falling back to built-in physical synthesizer", e);
+                self.mode = SynthSoundMode::PhysicalModeling;
+                Err(e)
+            }
+        }
+    }
+
+    /// Unload SoundFont and return to built-in physical modeling
+    pub fn unload_soundfont(&mut self) {
+        self.soundfont_engine = None;
+        self.soundfont_path = None;
+        self.mode = SynthSoundMode::PhysicalModeling;
+        info!("SoundFont unloaded. Active synth mode: Physical Modeling Grand");
+    }
+
+    /// Switch active synthesis mode
+    pub fn set_mode(&mut self, mode: SynthSoundMode) {
+        if mode == SynthSoundMode::SoundFont && self.soundfont_engine.is_none() {
+            warn!("Cannot switch to SoundFont mode: no SoundFont file loaded. Reverting to Physical Modeling.");
+            self.mode = SynthSoundMode::PhysicalModeling;
+        } else {
+            self.mode = mode;
         }
     }
 
@@ -235,6 +322,14 @@ impl PianoSynthEngine {
             return;
         }
 
+        if self.mode == SynthSoundMode::SoundFont {
+            if let Some(ref mut sf) = self.soundfont_engine {
+                sf.note_on(note, velocity);
+                return;
+            }
+        }
+
+        // Physical Modeling Voice Allocation
         // Check if note is already playing on a voice; if so, re-trigger it
         let mut target_idx = None;
         for (i, v) in self.voices.iter().enumerate() {
@@ -275,6 +370,13 @@ impl PianoSynthEngine {
 
     /// Trigger a note off event
     pub fn note_off(&mut self, note: u8) {
+        if self.mode == SynthSoundMode::SoundFont {
+            if let Some(ref mut sf) = self.soundfont_engine {
+                sf.note_off(note);
+                return;
+            }
+        }
+
         for v in &mut self.voices {
             if v.is_active && v.note == note {
                 if self.sustain_pedal {
@@ -289,6 +391,9 @@ impl PianoSynthEngine {
     /// Set sustain pedal state (CC64)
     pub fn set_sustain(&mut self, down: bool) {
         self.sustain_pedal = down;
+        if let Some(ref mut sf) = self.soundfont_engine {
+            sf.set_sustain(down);
+        }
         if !down {
             for v in &mut self.voices {
                 if v.is_active && v.sustained {
@@ -308,6 +413,9 @@ impl PianoSynthEngine {
 
     /// Stop all active voices immediately
     pub fn all_notes_off(&mut self) {
+        if let Some(ref mut sf) = self.soundfont_engine {
+            sf.all_notes_off();
+        }
         for v in &mut self.voices {
             v.is_active = false;
         }
@@ -327,16 +435,24 @@ impl PianoSynthEngine {
         }
 
         let dt = self.dt;
-        let mut mix_l = 0.0f32;
-        let mut mix_r = 0.0f32;
-
-        for v in &mut self.voices {
-            if v.is_active {
-                let (l, r) = v.next_sample(dt);
-                mix_l += l;
-                mix_r += r;
+        let (mut mix_l, mut mix_r) = if self.mode == SynthSoundMode::SoundFont && self.soundfont_engine.is_some() {
+            if let Some(ref mut sf) = self.soundfont_engine {
+                sf.next_sample()
+            } else {
+                (0.0, 0.0)
             }
-        }
+        } else {
+            let mut l = 0.0f32;
+            let mut r = 0.0f32;
+            for v in &mut self.voices {
+                if v.is_active {
+                    let (vl, vr) = v.next_sample(dt);
+                    l += vl;
+                    r += vr;
+                }
+            }
+            (l, r)
+        };
 
         // Metronome click
         let (metro_l, metro_r) = self.metronome.next_sample(dt);

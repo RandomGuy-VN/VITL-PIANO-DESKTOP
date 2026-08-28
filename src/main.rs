@@ -183,6 +183,16 @@ async fn run_backend(
         Arc::new(Mutex::new(synth::engine::PianoSynthEngine::new(44100.0)))
     };
 
+    // Load configured SoundFont on startup if set
+    {
+        let cfg = config.lock().clone();
+        if cfg.synth.mode == crate::core::config::SynthSoundMode::SoundFont {
+            if let Some(ref sf_path) = cfg.synth.soundfont_path {
+                let _ = synth_engine.lock().load_soundfont(sf_path);
+            }
+        }
+    }
+
     // 3. Status broadcast channel
     let (status_tx, status_rx) = broadcast::channel::<PlaybackStatus>(128);
 

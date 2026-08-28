@@ -47,8 +47,16 @@ pub enum ClientAction {
     Seek { time_ms: f64 },
     #[serde(rename = "set_speed")]
     SetSpeed { speed: f64 },
+    #[serde(rename = "set_bpm")]
+    SetBpm { bpm: f64 },
     #[serde(rename = "set_transpose")]
     SetTranspose { transpose: i8 },
+    #[serde(rename = "load_soundfont")]
+    LoadSoundFont { path: String },
+    #[serde(rename = "unload_soundfont")]
+    UnloadSoundFont,
+    #[serde(rename = "set_synth_mode")]
+    SetSynthMode { mode: String },
     #[serde(rename = "load_file")]
     LoadFile { path: String },
     #[serde(rename = "load_sheet")]
@@ -227,8 +235,66 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
         ClientAction::SetSpeed { speed } => {
             state.player.set_speed(speed);
         }
+        ClientAction::SetBpm { bpm } => {
+            state.player.set_bpm(bpm);
+        }
         ClientAction::SetTranspose { transpose } => {
             state.player.set_transpose(transpose);
+        }
+        ClientAction::LoadSoundFont { path } => {
+            let res = {
+                let synth_arc = state.player.synth();
+                let mut synth = synth_arc.lock();
+                synth.load_soundfont(&path)
+            };
+            match res {
+                Ok(()) => {
+                    state.config.lock().synth.mode = crate::core::config::SynthSoundMode::SoundFont;
+                    state.config.lock().synth.soundfont_path = Some(path.clone());
+                    let _ = state.config.lock().save();
+                    send_ws_message(ws, &ServerMessage::Notification {
+                        level: "success".to_string(),
+                        message: format!("SoundFont loaded: {}", path),
+                    }).await;
+                }
+                Err(e) => {
+                    send_ws_message(ws, &ServerMessage::Notification {
+                        level: "error".to_string(),
+                        message: format!("SoundFont error: {}", e),
+                    }).await;
+                }
+            }
+        }
+        ClientAction::UnloadSoundFont => {
+            {
+                let synth_arc = state.player.synth();
+                let mut synth = synth_arc.lock();
+                synth.unload_soundfont();
+            }
+            state.config.lock().synth.mode = crate::core::config::SynthSoundMode::PhysicalModeling;
+            state.config.lock().synth.soundfont_path = None;
+            let _ = state.config.lock().save();
+            send_ws_message(ws, &ServerMessage::Notification {
+                level: "info".to_string(),
+                message: "Switched to built-in physical grand piano synth".to_string(),
+            }).await;
+        }
+        ClientAction::SetSynthMode { mode } => {
+            {
+                let synth_arc = state.player.synth();
+                let mut synth = synth_arc.lock();
+                if mode == "soundfont" {
+                    synth.set_mode(crate::core::config::SynthSoundMode::SoundFont);
+                } else {
+                    synth.set_mode(crate::core::config::SynthSoundMode::PhysicalModeling);
+                }
+            }
+            if mode == "soundfont" {
+                state.config.lock().synth.mode = crate::core::config::SynthSoundMode::SoundFont;
+            } else {
+                state.config.lock().synth.mode = crate::core::config::SynthSoundMode::PhysicalModeling;
+            }
+            let _ = state.config.lock().save();
         }
         ClientAction::LoadFile { path } => {
             info!("Loading song file: {}", path);

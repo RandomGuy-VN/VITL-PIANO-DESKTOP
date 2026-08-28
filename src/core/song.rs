@@ -150,4 +150,31 @@ impl Song {
             format!("{:02}:{:02}", minutes, seconds)
         }
     }
+
+    /// Returns the active BPM at a specific point in time (in milliseconds)
+    pub fn get_bpm_at(&self, time_ms: f64) -> f64 {
+        if self.tempo_events.is_empty() {
+            return self.bpm.max(1.0);
+        }
+        let mut current_bpm = self.bpm;
+        for te in &self.tempo_events {
+            if te.time_ms <= time_ms {
+                current_bpm = te.bpm;
+            } else {
+                break;
+            }
+        }
+        current_bpm.max(1.0)
+    }
+
+    /// Sets or scales base BPM dynamically
+    pub fn set_bpm(&mut self, new_bpm: f64) {
+        let ratio = new_bpm / self.bpm.max(1.0);
+        self.bpm = new_bpm;
+        if ratio > 0.0 {
+            for te in &mut self.tempo_events {
+                te.bpm *= ratio;
+            }
+        }
+    }
 }

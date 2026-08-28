@@ -136,3 +136,49 @@ fn test_offline_wav_rendering() {
 
     let _ = std::fs::remove_file(&temp_wav);
 }
+
+#[test]
+fn test_dynamic_bpm_handling() {
+    let mut song = Song::new("Dynamic BPM Test".to_string());
+    song.bpm = 120.0;
+    song.tempo_events.push(vitl_piano_desktop::core::song::TempoEvent {
+        time_ms: 0.0,
+        bpm: 120.0,
+        us_per_beat: 500_000,
+    });
+    song.tempo_events.push(vitl_piano_desktop::core::song::TempoEvent {
+        time_ms: 10_000.0, // After 10s, tempo changes to 180 BPM
+        bpm: 180.0,
+        us_per_beat: 333_333,
+    });
+    song.tempo_events.push(vitl_piano_desktop::core::song::TempoEvent {
+        time_ms: 25_000.0, // After 25s, tempo drops to 90 BPM
+        bpm: 90.0,
+        us_per_beat: 666_667,
+    });
+
+    assert_eq!(song.get_bpm_at(0.0), 120.0);
+    assert_eq!(song.get_bpm_at(5_000.0), 120.0);
+    assert_eq!(song.get_bpm_at(10_000.0), 180.0);
+    assert_eq!(song.get_bpm_at(18_000.0), 180.0);
+    assert_eq!(song.get_bpm_at(30_000.0), 90.0);
+}
+
+#[test]
+fn test_soundfont_optional_fallback() {
+    let mut synth = PianoSynthEngine::new(44100.0);
+    // Initially mode is PhysicalModeling
+    assert_eq!(synth.mode, vitl_piano_desktop::core::config::SynthSoundMode::PhysicalModeling);
+
+    // Attempting to load non-existent SoundFont should fail gracefully and fall back to built-in physical synth
+    let res = synth.load_soundfont("/nonexistent/path/soundfont.sf2");
+    assert!(res.is_err());
+    assert_eq!(synth.mode, vitl_piano_desktop::core::config::SynthSoundMode::PhysicalModeling);
+
+    // Synthesizer still plays properly with physical modeling
+    synth.note_on(60, 100);
+    let mut buf = vec![0.0f32; 512];
+    synth.process_block(&mut buf);
+    let energy: f32 = buf.iter().map(|s| s.abs()).sum();
+    assert!(energy > 0.05);
+}
