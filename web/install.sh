@@ -160,11 +160,23 @@ fi
 
 chmod +x "$INSTALL_DIR/vitl-piano-desktop" "$INSTALL_DIR/vitl-piano.sh" 2>/dev/null || true
 
+# Setup shared libraries compatibility
+mkdir -p "$INSTALL_DIR/lib"
+if [ ! -e "$INSTALL_DIR/lib/libjxl.so.0.12" ]; then
+    JXL=$(ls /usr/lib/libjxl.so* /usr/lib64/libjxl.so* /usr/local/lib/libjxl.so* 2>/dev/null | head -n 1)
+    [ -n "$JXL" ] && ln -sf "$JXL" "$INSTALL_DIR/lib/libjxl.so.0.12" 2>/dev/null || true
+fi
+
 # 5. Create Executable Symlink / Wrapper in ~/.local/bin
 cat << 'WRAPPER' > "$BIN_DIR/vitl-piano"
 #!/usr/bin/env bash
 DIR="$HOME/.local/share/vitl-piano"
-export LD_LIBRARY_PATH="$DIR/lib:$LD_LIBRARY_PATH"
+mkdir -p "$DIR/lib"
+if [ ! -e "$DIR/lib/libjxl.so.0.12" ]; then
+    JXL=$(ls /usr/lib/libjxl.so* /usr/lib64/libjxl.so* /usr/local/lib/libjxl.so* 2>/dev/null | head -n 1)
+    [ -n "$JXL" ] && ln -sf "$JXL" "$DIR/lib/libjxl.so.0.12" 2>/dev/null || true
+fi
+export LD_LIBRARY_PATH="$DIR/lib:$DIR:$LD_LIBRARY_PATH"
 rm -rf "$HOME/.cache/vitl-piano-desktop" "$HOME/.cache/vitl_piano"* 2>/dev/null || true
 exec "$DIR/vitl-piano-desktop" "$@"
 WRAPPER
