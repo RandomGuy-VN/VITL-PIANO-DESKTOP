@@ -96,10 +96,10 @@ pub struct HumanizeConfig {
 impl Default for HumanizeConfig {
     fn default() -> Self {
         Self {
-            chord_delay_ms: 15.0,
-            jitter_ms: 5.0,
+            chord_delay_ms: 0.0,
+            jitter_ms: 0.0,
             mistake_rate: 0.0,
-            velocity_variation: 10.0,
+            velocity_variation: 0.0,
             finger_limit: 11,
         }
     }

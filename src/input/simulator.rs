@@ -330,7 +330,7 @@ impl InputSimulator {
     }
 
     /// Press and release multiple piano keys accurately grouping by modifier state
-    pub fn tap_chord(&self, keys: Vec<(char, bool, bool)>, hold_duration_ms: u64) {
+    pub fn tap_chord(&self, keys: Vec<(char, bool, bool)>, _hold_duration_ms: u64) {
         let _lock = self.os_lock.lock();
         if keys.is_empty() { return; }
 
@@ -353,18 +353,12 @@ impl InputSimulator {
             }
         }
 
-        let hold_dur = if hold_duration_ms > 0 {
-            Duration::from_millis(hold_duration_ms)
-        } else {
-            Duration::from_millis(10)
-        };
-
-        // 1. Fire all unshifted keys cleanly without Shift modifier active
+        // 1. Fire unshifted keys with a clean, instant microsecond tap
         if !unshifted.is_empty() {
             for &k in &unshifted {
                 self.key_down(k);
             }
-            thread::sleep(hold_dur);
+            thread::sleep(Duration::from_micros(800));
             for &k in &unshifted {
                 self.key_up(k);
             }
@@ -372,50 +366,47 @@ impl InputSimulator {
 
         // 2. Fire shifted keys with Shift strictly scoped to this group
         if !shifted.is_empty() {
-            thread::sleep(Duration::from_micros(500));
             self.key_down(Key::ShiftLeft);
-            thread::sleep(Duration::from_micros(500));
+            thread::sleep(Duration::from_micros(400));
             for &k in &shifted {
                 self.key_down(k);
             }
-            thread::sleep(hold_dur);
+            thread::sleep(Duration::from_micros(800));
             for &k in &shifted {
                 self.key_up(k);
             }
-            thread::sleep(Duration::from_micros(500));
+            thread::sleep(Duration::from_micros(400));
             self.key_up(Key::ShiftLeft);
         }
 
         // 3. Fire Ctrl-only keys with Ctrl strictly scoped to this group
         if !ctrl_only.is_empty() {
-            thread::sleep(Duration::from_micros(500));
             self.key_down(Key::ControlLeft);
-            thread::sleep(Duration::from_micros(500));
+            thread::sleep(Duration::from_micros(400));
             for &k in &ctrl_only {
                 self.key_down(k);
             }
-            thread::sleep(hold_dur);
+            thread::sleep(Duration::from_micros(800));
             for &k in &ctrl_only {
                 self.key_up(k);
             }
-            thread::sleep(Duration::from_micros(500));
+            thread::sleep(Duration::from_micros(400));
             self.key_up(Key::ControlLeft);
         }
 
         // 4. Fire Ctrl+Shift keys
         if !ctrl_shift.is_empty() {
-            thread::sleep(Duration::from_micros(500));
             self.key_down(Key::ControlLeft);
             self.key_down(Key::ShiftLeft);
-            thread::sleep(Duration::from_micros(500));
+            thread::sleep(Duration::from_micros(400));
             for &k in &ctrl_shift {
                 self.key_down(k);
             }
-            thread::sleep(hold_dur);
+            thread::sleep(Duration::from_micros(800));
             for &k in &ctrl_shift {
                 self.key_up(k);
             }
-            thread::sleep(Duration::from_micros(500));
+            thread::sleep(Duration::from_micros(400));
             self.key_up(Key::ShiftLeft);
             self.key_up(Key::ControlLeft);
         }

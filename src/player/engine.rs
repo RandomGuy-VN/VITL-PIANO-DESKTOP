@@ -139,7 +139,9 @@ impl PlayerEngine {
 
             let mut note_cursor = 0;
             let mut current_time_ms = 0.0;
-            let mut last_tick = Instant::now();
+            let mut anchor_time = Instant::now();
+            let mut anchor_offset_ms = 0.0;
+            let mut prev_speed = *speed_arc.lock();
             let mut active_visual_notes: Vec<u8> = Vec::new();
             let mut active_notes_in_flight: Vec<(u8, f64)> = Vec::new(); // (final_note, end_time_ms)
             let mut last_status_emit = Instant::now();
@@ -154,6 +156,8 @@ impl PlayerEngine {
                 // Handle Seek
                 if let Some(target_ms) = seek_arc.lock().take() {
                     current_time_ms = target_ms.clamp(0.0, total_duration);
+                    anchor_offset_ms = current_time_ms;
+                    anchor_time = Instant::now();
                     // Find new note cursor
                     note_cursor = all_notes
                         .iter()
@@ -163,7 +167,6 @@ impl PlayerEngine {
                     sim_arc.release_all();
                     active_visual_notes.clear();
                     active_notes_in_flight.clear();
-                    last_tick = Instant::now();
                 }
 
                 let current_state = *state_arc.lock();
@@ -176,23 +179,28 @@ impl PlayerEngine {
                     sim_arc.release_all();
                     active_visual_notes.clear();
                     active_notes_in_flight.clear();
-                    tokio::time::sleep(Duration::from_millis(50)).await;
-                    last_tick = Instant::now();
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    anchor_time = Instant::now();
+                    anchor_offset_ms = current_time_ms;
                     continue;
                 }
 
-                let now = Instant::now();
-                let dt = now.duration_since(last_tick).as_secs_f64() * 1000.0;
-                last_tick = now;
-
                 let speed = *speed_arc.lock();
-                current_time_ms += dt * speed;
+                if (speed - prev_speed).abs() > 0.0001 {
+                    anchor_offset_ms = current_time_ms;
+                    anchor_time = Instant::now();
+                    prev_speed = speed;
+                }
+
+                current_time_ms = anchor_offset_ms + anchor_time.elapsed().as_secs_f64() * 1000.0 * speed;
 
                 if current_time_ms > total_duration + 500.0 {
                     // Song finished naturally
                     let loop_enabled = config_arc.lock().loop_song;
                     if loop_enabled {
                         current_time_ms = 0.0;
+                        anchor_offset_ms = 0.0;
+                        anchor_time = Instant::now();
                         note_cursor = 0;
                         active_visual_notes.clear();
                         active_notes_in_flight.clear();
@@ -236,13 +244,20 @@ impl PlayerEngine {
                 }
 
                 if !chord_batch.is_empty() {
-                    // Humanize chord notes
-                    let humanized = hum_arc.lock().process_chord_notes(&chord_batch);
+                    let mut hum = hum_arc.lock();
+                    let notes_to_play = if hum.config.chord_delay_ms == 0.0
+                        && hum.config.jitter_ms == 0.0
+                        && hum.config.mistake_rate == 0.0
+                    {
+                        chord_batch
+                    } else {
+                        hum.process_chord_notes(&chord_batch)
+                    };
+                    drop(hum);
                     
                     let mut macro_keys = Vec::new();
-                    let mut max_chord_dur = 10u64;
 
-                    for note_event in humanized {
+                    for note_event in notes_to_play {
                         let final_note = ((note_event.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
                         let note_dur = (note_event.duration_ms / speed).clamp(cfg.min_note_length_ms, 10_000.0);
                         let end_time_ms = current_time_ms + note_dur;
@@ -266,23 +281,17 @@ impl PlayerEngine {
 
                             if let Some(key_map) = map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys) {
                                 macro_keys.push((key_map.key_char, key_map.is_shift, key_map.is_ctrl));
-                                max_chord_dur = max_chord_dur.max(note_dur as u64);
                             }
                         }
 
                         active_notes_in_flight.push((final_note, end_time_ms));
                     }
                     
-                    // 4. Send the chord to the OS macro simulation in a single atomic batch
+                    // 4. Send the chord to OS macro simulation instantaneously
                     if !macro_keys.is_empty() {
                         let sim = Arc::clone(&sim_arc);
-                        let hold_ms = if cfg.note_lengths {
-                            max_chord_dur.min(500).max(10)
-                        } else {
-                            10
-                        };
                         tokio::task::spawn_blocking(move || {
-                            sim.tap_chord(macro_keys, hold_ms);
+                            sim.tap_chord(macro_keys, 0);
                         });
                     }
                 }
@@ -339,7 +348,7 @@ impl PlayerEngine {
                     last_status_emit = Instant::now();
                 }
 
-                tokio::time::sleep(Duration::from_millis(4)).await;
+                tokio::time::sleep(Duration::from_millis(1)).await;
             }
 
             info!("Playback loop ended (gen={})", my_generation);
