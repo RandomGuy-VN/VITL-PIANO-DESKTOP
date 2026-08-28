@@ -176,9 +176,19 @@ if [ -f "$INSTALL_DIR/vitl-brand-logo.svg" ]; then
     cp -f "$INSTALL_DIR/vitl-brand-logo.svg" "$ICON_DIR/vitl-piano.svg"
 fi
 if [ -f "$INSTALL_DIR/vitl-brand-logo.png" ]; then
-    mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
-    cp -f "$INSTALL_DIR/vitl-brand-logo.png" "$HOME/.local/share/icons/hicolor/256x256/apps/vitl-piano.png"
+    for size in 16 24 32 48 64 128 256 512; do
+        mkdir -p "$HOME/.local/share/icons/hicolor/${size}x${size}/apps"
+        if command -v rsvg-convert >/dev/null 2>&1 && [ -f "$INSTALL_DIR/vitl-brand-logo.svg" ]; then
+            rsvg-convert -w "$size" -h "$size" "$INSTALL_DIR/vitl-brand-logo.svg" -o "$HOME/.local/share/icons/hicolor/${size}x${size}/apps/vitl-piano.png" 2>/dev/null || true
+        else
+            cp -f "$INSTALL_DIR/vitl-brand-logo.png" "$HOME/.local/share/icons/hicolor/${size}x${size}/apps/vitl-piano.png" 2>/dev/null || true
+        fi
+    done
 fi
+
+# Purge launcher icon caches
+rm -rf "$HOME/.cache/thumbnails" "$HOME/.cache/icon-cache.kcache" "$HOME/.cache/fuzzel"* "$HOME/.cache/rofi"* 2>/dev/null || true
+rm -f "$HOME/.local/share/icons/hicolor/icon-theme.cache" 2>/dev/null || true
 
 cat << DESKTOP_ENTRY > "$DESKTOP_DIR/vitl-piano.desktop"
 [Desktop Entry]
@@ -197,6 +207,9 @@ chmod +x "$DESKTOP_DIR/vitl-piano.desktop"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 fi
 
 # 7. Check /dev/uinput permissions for Roblox Keystrokes
