@@ -883,6 +883,38 @@
           </div>
         </div>
 
+        <div class="section-label">VELOCITY & DYNAMICS</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Dynamic Velocity Sensitivity</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Scale piano strike strength, volume & game velocity modifiers with MIDI velocity</div>
+            </div>
+            <input type="checkbox" id="velocityToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Scale</div>
+            <div class="slider-wrapper">
+              <input type="range" min="20" max="200" value="100" id="velocityScaleSlider">
+            </div>
+            <div class="val-text" id="velocityScaleVal">100%</div>
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Fixed Vel</div>
+            <div class="slider-wrapper">
+              <input type="range" min="1" max="127" value="100" id="fixedVelocitySlider">
+            </div>
+            <div class="val-text" id="fixedVelocityVal">100</div>
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Variation</div>
+            <div class="slider-wrapper">
+              <input type="range" min="0" max="30" value="0" id="velocityVarSlider">
+            </div>
+            <div class="val-text" id="velocityVarVal">±0</div>
+          </div>
+        </div>
+
         <div class="section-label">ROBLOX & MACRO BEHAVIOR</div>
         <div class="card">
           <div class="control-row" style="margin-top: 0;">
@@ -1265,6 +1297,26 @@
     }
     const macroToggle = document.getElementById('macroEnabledToggle');
     if (macroToggle) macroToggle.checked = cfg.macro_enabled;
+    const velocityToggle = document.getElementById('velocityToggle');
+    if (velocityToggle) velocityToggle.checked = (cfg.velocity !== false);
+    const velScaleSlider = document.getElementById('velocityScaleSlider');
+    if (velScaleSlider) {
+      const scalePct = Math.round((cfg.velocity_multiplier || 1.0) * 100);
+      velScaleSlider.value = scalePct;
+      document.getElementById('velocityScaleVal').textContent = `${scalePct}%`;
+    }
+    const fixedVelSlider = document.getElementById('fixedVelocitySlider');
+    if (fixedVelSlider) {
+      const fixedVal = cfg.fixed_velocity || 100;
+      fixedVelSlider.value = fixedVal;
+      document.getElementById('fixedVelocityVal').textContent = `${fixedVal}`;
+    }
+    const velVarSlider = document.getElementById('velocityVarSlider');
+    if (velVarSlider && cfg.humanize) {
+      const vVar = cfg.humanize.velocity_variation || 0;
+      velVarSlider.value = vVar;
+      document.getElementById('velocityVarVal').textContent = `±${vVar}`;
+    }
     const noteLengthsToggle = document.getElementById('noteLengthsToggle');
     if (noteLengthsToggle) noteLengthsToggle.checked = (cfg.note_lengths !== false);
     const allow88Toggle = document.getElementById('allow88KeysToggle');
@@ -1402,6 +1454,33 @@
     document.getElementById('mistakeVal').textContent = `${e.target.value}%`;
     if (currentConfig) { currentConfig.humanize.mistake_rate = parseFloat(e.target.value); sendConfigUpdate(); }
   });
+  const velToggle = document.getElementById('velocityToggle');
+  if (velToggle) {
+    velToggle.addEventListener('change', (e) => {
+      if (currentConfig) { currentConfig.velocity = e.target.checked; sendConfigUpdate(); }
+    });
+  }
+  const velScaleEl = document.getElementById('velocityScaleSlider');
+  if (velScaleEl) {
+    velScaleEl.addEventListener('input', (e) => {
+      document.getElementById('velocityScaleVal').textContent = `${e.target.value}%`;
+      if (currentConfig) { currentConfig.velocity_multiplier = parseFloat(e.target.value) / 100; sendConfigUpdate(); }
+    });
+  }
+  const fixedVelEl = document.getElementById('fixedVelocitySlider');
+  if (fixedVelEl) {
+    fixedVelEl.addEventListener('input', (e) => {
+      document.getElementById('fixedVelocityVal').textContent = e.target.value;
+      if (currentConfig) { currentConfig.fixed_velocity = parseInt(e.target.value); sendConfigUpdate(); }
+    });
+  }
+  const velVarEl = document.getElementById('velocityVarSlider');
+  if (velVarEl) {
+    velVarEl.addEventListener('input', (e) => {
+      document.getElementById('velocityVarVal').textContent = `±${e.target.value}`;
+      if (currentConfig && currentConfig.humanize) { currentConfig.humanize.velocity_variation = parseFloat(e.target.value); sendConfigUpdate(); }
+    });
+  }
   document.getElementById('macroEnabledToggle').addEventListener('change', (e) => { if (currentConfig) { currentConfig.macro_enabled = e.target.checked; sendConfigUpdate(); } });
   const noteLenEl = document.getElementById('noteLengthsToggle');
   if (noteLenEl) {

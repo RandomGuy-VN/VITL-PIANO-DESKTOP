@@ -115,6 +115,14 @@ pub struct AppConfig {
     pub macro_enabled: bool,
     pub use_midi_output: bool,
     pub velocity: bool,
+    #[serde(default = "default_velocity_multiplier")]
+    pub velocity_multiplier: f64,
+    #[serde(default = "default_fixed_velocity")]
+    pub fixed_velocity: u8,
+    #[serde(default = "default_min_velocity")]
+    pub min_velocity: u8,
+    #[serde(default = "default_max_velocity")]
+    pub max_velocity: u8,
     pub sustain: bool,
     pub no_doubles: bool,
     pub allow_88_keys: bool,
@@ -145,6 +153,22 @@ fn default_min_note_length() -> f64 {
     30.0
 }
 
+fn default_velocity_multiplier() -> f64 {
+    1.0
+}
+
+fn default_fixed_velocity() -> u8 {
+    100
+}
+
+fn default_min_velocity() -> u8 {
+    1
+}
+
+fn default_max_velocity() -> u8 {
+    127
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -155,7 +179,11 @@ impl Default for AppConfig {
             release_on_pause: true,
             macro_enabled: true,
             use_midi_output: false,
-            velocity: false,
+            velocity: true,
+            velocity_multiplier: 1.0,
+            fixed_velocity: 100,
+            min_velocity: 1,
+            max_velocity: 127,
             sustain: true,
             no_doubles: true,
             allow_88_keys: false,

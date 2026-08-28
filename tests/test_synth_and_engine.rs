@@ -259,3 +259,28 @@ fn test_midi_note_lengths_handling() {
     let energy_after: f32 = buf2.iter().map(|s| s.abs()).sum();
     assert!(energy_after > 0.01);
 }
+
+#[test]
+fn test_velocity_configuration_scaling() {
+    let mut config = vitl_piano_desktop::core::config::AppConfig::default();
+    assert!(config.velocity);
+    assert_eq!(config.velocity_multiplier, 1.0);
+    assert_eq!(config.fixed_velocity, 100);
+
+    // Test dynamic scaling
+    let raw_velocity = 80u8;
+    config.velocity_multiplier = 1.25;
+    let scaled = (((raw_velocity as f64) * config.velocity_multiplier).round() as i16)
+        .clamp(config.min_velocity as i16, config.max_velocity as i16) as u8;
+    assert_eq!(scaled, 100);
+
+    // Test fixed velocity when velocity dynamics is turned off
+    config.velocity = false;
+    config.fixed_velocity = 95;
+    let final_vel = if !config.velocity {
+        config.fixed_velocity
+    } else {
+        raw_velocity
+    };
+    assert_eq!(final_vel, 95);
+}

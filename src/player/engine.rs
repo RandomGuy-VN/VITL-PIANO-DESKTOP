@@ -262,9 +262,17 @@ impl PlayerEngine {
                         let note_dur = (note_event.duration_ms / speed).clamp(cfg.min_note_length_ms, 10_000.0);
                         let end_time_ms = current_time_ms + note_dur;
 
+                        // Calculate dynamic or fixed velocity
+                        let final_velocity = if !cfg.velocity {
+                            cfg.fixed_velocity
+                        } else {
+                            let scaled = (note_event.velocity as f64) * cfg.velocity_multiplier;
+                            (scaled.round() as i16).clamp(cfg.min_velocity as i16, cfg.max_velocity as i16) as u8
+                        };
+
                         // 1. Audio synthesis note on
                         if cfg.synth.enabled {
-                            synth_arc.lock().note_on(final_note, note_event.velocity);
+                            synth_arc.lock().note_on(final_note, final_velocity);
                         }
 
                         // 2. Visualizer key active state
@@ -275,7 +283,7 @@ impl PlayerEngine {
                         // 3. Macro keyboard simulation collection
                         if cfg.macro_enabled {
                             if cfg.velocity {
-                                let vel_char = map_arc.lock().get_velocity_key(note_event.velocity);
+                                let vel_char = map_arc.lock().get_velocity_key(final_velocity);
                                 sim_arc.send_velocity(vel_char);
                             }
 
