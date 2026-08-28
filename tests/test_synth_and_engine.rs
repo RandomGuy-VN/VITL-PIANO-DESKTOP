@@ -182,3 +182,30 @@ fn test_soundfont_optional_fallback() {
     let energy: f32 = buf.iter().map(|s| s.abs()).sum();
     assert!(energy > 0.05);
 }
+
+#[test]
+fn test_musescore_importer_parsing() {
+    use vitl_piano_desktop::core::musescore::MusescoreImporter;
+
+    // Test URL parsing
+    assert_eq!(
+        MusescoreImporter::parse_score_id("https://musescore.com/user/3268481/scores/5475653"),
+        Some(5475653)
+    );
+    assert_eq!(
+        MusescoreImporter::parse_score_id("https://musescore.com/score/5475653"),
+        Some(5475653)
+    );
+    assert_eq!(
+        MusescoreImporter::parse_score_id("5475653"),
+        Some(5475653)
+    );
+    assert_eq!(
+        MusescoreImporter::parse_score_id("invalid-url-no-id"),
+        None
+    );
+
+    // Test LibreScore auth token calculation
+    let auth = MusescoreImporter::compute_auth_token(5475653, "9654,4e");
+    assert_eq!(auth.len(), 4);
+}

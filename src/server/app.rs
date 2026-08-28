@@ -18,6 +18,7 @@ use tracing::{error, info, warn};
 
 use crate::core::config::AppConfig;
 use crate::core::midi::MidiParser;
+use crate::core::musescore::MusescoreImporter;
 use crate::core::sheet::SheetParser;
 use crate::core::song::Song;
 use crate::core::transposition::TranspositionOptimizer;
@@ -61,6 +62,8 @@ pub enum ClientAction {
     LoadFile { path: String },
     #[serde(rename = "load_sheet")]
     LoadSheet { sheet_text: String, title: Option<String> },
+    #[serde(rename = "import_musescore")]
+    ImportMusescore { url: String },
     #[serde(rename = "update_config")]
     UpdateConfig { config: AppConfig },
     #[serde(rename = "hub_search")]
@@ -109,6 +112,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/local_midis", get(get_local_midis_api))
         .route("/api/hub_songs", get(get_hub_songs_api))
         .route("/api/upload_midi", post(upload_midi_api))
+        .route("/api/import_musescore", post(import_musescore_api))
         .fallback_service(serve_dir)
         .layer(CorsLayer::permissive())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
@@ -350,6 +354,34 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
                 }
             }
         }
+        ClientAction::ImportMusescore { url } => {
+            let importer = MusescoreImporter::new();
+            match importer.import_score(&url).await {
+                Ok((song, path)) => {
+                    info!("Successfully imported MuseScore MIDI: {}", song.title);
+                    let path_str = path.to_string_lossy().to_string();
+                    state.config.lock().current_file = path_str.clone();
+                    let _ = state.config.lock().save();
+                    *state.current_song.lock() = Some(song.clone());
+                    state.player.load_song(song.clone());
+
+                    send_ws_message(ws, &ServerMessage::Notification {
+                        level: "success".to_string(),
+                        message: format!("Imported MuseScore: {}", song.title),
+                    }).await;
+
+                    let list = MidiHubClient::list_local_midis();
+                    send_ws_message(ws, &ServerMessage::LocalMidis(list)).await;
+                }
+                Err(e) => {
+                    error!("Failed to import MuseScore {}: {:?}", url, e);
+                    send_ws_message(ws, &ServerMessage::Notification {
+                        level: "error".to_string(),
+                        message: format!("MuseScore import failed: {}", e),
+                    }).await;
+                }
+            }
+        }
         ClientAction::UpdateConfig { config } => {
             *state.config.lock() = config.clone();
             state.player.update_config(config.clone());
@@ -508,4 +540,43 @@ async fn upload_midi_api(State(state): State<AppState>, mut multipart: Multipart
     }
 
     Json(serde_json::json!({ "success": false, "error": "No file received" })).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MusescoreImportReq {
+    pub url: String,
+}
+
+async fn import_musescore_api(
+    State(state): State<AppState>,
+    Json(payload): Json<MusescoreImportReq>,
+) -> Response {
+    let importer = MusescoreImporter::new();
+    match importer.import_score(&payload.url).await {
+        Ok((song, path)) => {
+            let path_str = path.to_string_lossy().to_string();
+            state.config.lock().current_file = path_str.clone();
+            let _ = state.config.lock().save();
+            *state.current_song.lock() = Some(song.clone());
+            state.player.load_song(song.clone());
+
+            Json(serde_json::json!({
+                "success": true,
+                "title": song.title,
+                "duration_ms": song.duration_ms,
+                "file_path": path_str
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("{}", e)
+                })),
+            )
+                .into_response()
+        }
+    }
 }
