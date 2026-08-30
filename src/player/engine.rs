@@ -52,6 +52,7 @@ pub struct PlayerEngine {
     playback_speed: Arc<Mutex<f64>>,
     transpose_offset: Arc<Mutex<i8>>,
     seek_request_ms: Arc<Mutex<Option<f64>>>,
+    last_playback_time_ms: Arc<Mutex<f64>>,
     should_stop: Arc<AtomicBool>,
     is_loop_running: Arc<AtomicBool>,
     /// Generation counter to prevent concurrent playback loops
@@ -81,6 +82,7 @@ impl PlayerEngine {
             playback_speed: Arc::new(Mutex::new(cfg.playback_speed)),
             transpose_offset: Arc::new(Mutex::new(cfg.transpose_offset)),
             seek_request_ms: Arc::new(Mutex::new(None)),
+            last_playback_time_ms: Arc::new(Mutex::new(0.0)),
             should_stop: Arc::new(AtomicBool::new(false)),
             is_loop_running: Arc::new(AtomicBool::new(false)),
             playback_generation: Arc::new(AtomicU64::new(0)),
@@ -143,6 +145,7 @@ impl PlayerEngine {
         let map_arc = Arc::clone(&self.mapping);
         let hum_arc = Arc::clone(&self.humanizer);
         let config_arc = Arc::clone(&self.config);
+        let last_time_arc = Arc::clone(&self.last_playback_time_ms);
         let sender = self.status_sender.clone();
 
         tokio::spawn(async move {
@@ -187,6 +190,7 @@ impl PlayerEngine {
                 // Handle Seek
                 if let Some(target_ms) = seek_arc.lock().take() {
                     current_time_ms = target_ms.clamp(0.0, total_duration);
+                    *last_time_arc.lock() = current_time_ms;
                     anchor_offset_ms = current_time_ms;
                     anchor_time = Instant::now();
                     // Find new note cursor
@@ -225,12 +229,14 @@ impl PlayerEngine {
 
                 current_time_ms =
                     anchor_offset_ms + anchor_time.elapsed().as_secs_f64() * 1000.0 * speed;
+                *last_time_arc.lock() = current_time_ms;
 
                 if current_time_ms > total_duration + 500.0 {
                     // Song finished naturally
                     let loop_enabled = config_arc.lock().loop_song;
                     if loop_enabled {
                         current_time_ms = 0.0;
+                        *last_time_arc.lock() = 0.0;
                         anchor_offset_ms = 0.0;
                         anchor_time = Instant::now();
                         note_cursor = 0;
@@ -241,6 +247,7 @@ impl PlayerEngine {
                         continue;
                     } else {
                         *state_arc.lock() = PlayerState::Stopped;
+                        *last_time_arc.lock() = 0.0;
                         synth_arc.lock().all_notes_off();
                         sim_arc.release_all();
                         active_visual_notes.clear();
@@ -299,7 +306,7 @@ impl PlayerEngine {
                                 cfg.min_note_length_ms.min(cfg.max_note_length_ms).max(10.0);
                             let max_len =
                                 cfg.min_note_length_ms.max(cfg.max_note_length_ms).max(10.0);
-                            (note_event.duration_ms / speed.max(0.01)).clamp(min_len, max_len)
+                            note_event.duration_ms.clamp(min_len, max_len)
                         } else {
                             cfg.min_note_length_ms.max(10.0)
                         };
@@ -490,6 +497,7 @@ impl PlayerEngine {
 
     pub fn stop(&self) {
         *self.state.lock() = PlayerState::Stopped;
+        *self.last_playback_time_ms.lock() = 0.0;
         self.should_stop.store(true, Ordering::SeqCst);
         self.is_loop_running.store(false, Ordering::SeqCst);
         self.synth.lock().all_notes_off();
@@ -498,22 +506,30 @@ impl PlayerEngine {
     }
 
     pub fn seek(&self, time_ms: f64) {
+        *self.last_playback_time_ms.lock() = time_ms;
         *self.seek_request_ms.lock() = Some(time_ms);
+        self.broadcast_status(time_ms, &[]);
     }
 
     pub fn set_speed(&self, speed: f64) {
         let clamped = speed.clamp(0.1, 3.0);
         *self.playback_speed.lock() = clamped;
         self.config.lock().playback_speed = clamped;
+        let cur_time = *self.last_playback_time_ms.lock();
+        self.broadcast_status(cur_time, &[]);
     }
 
     pub fn set_bpm(&self, target_bpm: f64) {
-        let base_bpm = if let Some(s) = self.current_song.lock().as_ref() {
-            s.bpm.max(1.0)
+        if !target_bpm.is_finite() || target_bpm <= 0.0 {
+            return;
+        }
+        let cur_time = *self.last_playback_time_ms.lock();
+        let intrinsic_bpm = if let Some(s) = self.current_song.lock().as_ref() {
+            s.get_bpm_at(cur_time).max(1.0)
         } else {
             120.0
         };
-        let new_speed = (target_bpm / base_bpm).clamp(0.1, 3.0);
+        let new_speed = (target_bpm / intrinsic_bpm).clamp(0.1, 3.0);
         self.set_speed(new_speed);
     }
 
@@ -530,6 +546,8 @@ impl PlayerEngine {
         let clamped = transpose.clamp(-24, 24);
         *self.transpose_offset.lock() = clamped;
         self.config.lock().transpose_offset = clamped;
+        let cur_time = *self.last_playback_time_ms.lock();
+        self.broadcast_status(cur_time, &[]);
     }
 
     pub fn get_transpose(&self) -> i8 {
@@ -548,19 +566,24 @@ impl PlayerEngine {
     pub fn get_status(&self) -> PlaybackStatus {
         let song_guard = self.current_song.lock();
         let speed = *self.playback_speed.lock();
+        let cur_time = *self.last_playback_time_ms.lock();
         let (title, total_ms, bpm) = if let Some(s) = song_guard.as_ref() {
-            (s.title.clone(), s.duration_ms, s.get_bpm_at(0.0) * speed)
+            (s.title.clone(), s.duration_ms, s.get_bpm_at(cur_time) * speed)
         } else {
             ("No song loaded".to_string(), 0.0, 120.0 * speed)
         };
 
-        let formatted_curr = format_duration(0.0);
+        let formatted_curr = format_duration(cur_time);
         let formatted_tot = format_duration(total_ms);
-        let progress = 0.0;
+        let progress = if total_ms > 0.0 {
+            (cur_time / total_ms).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
 
         PlaybackStatus {
             state: *self.state.lock(),
-            current_time_ms: 0.0,
+            current_time_ms: cur_time,
             total_duration_ms: total_ms,
             formatted_current: formatted_curr,
             formatted_total: formatted_tot,

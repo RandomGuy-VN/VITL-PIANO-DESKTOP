@@ -1886,14 +1886,32 @@
     }, 120);
   }
 
+  function getIntrinsicBpmAt(timeMs) {
+    if (!currentSong) return 120;
+    if (Array.isArray(currentSong.tempo_events) && currentSong.tempo_events.length > 0) {
+      let b = currentSong.bpm || 120;
+      for (const te of currentSong.tempo_events) {
+        if (te.time_ms <= timeMs) {
+          b = te.bpm;
+        } else {
+          break;
+        }
+      }
+      return Math.max(1, b);
+    }
+    return Math.max(1, currentSong.bpm || 120);
+  }
+
   function updateBpmPulseForTime(visualTimeMs) {
-    if (playbackState !== PlaybackState.Playing || currentLiveBpm <= 0 || playbackClock.speed <= 0) {
+    if (playbackState !== PlaybackState.Playing || playbackClock.speed <= 0) {
       lastBeatIndex = null;
       return;
     }
-    const beatDurationSongMs = (60000 * playbackClock.speed) / currentLiveBpm;
-    if (!Number.isFinite(beatDurationSongMs) || beatDurationSongMs <= 0) return;
-    const beatIndex = Math.floor(visualTimeMs / beatDurationSongMs);
+    const currentIntrinsic = getIntrinsicBpmAt(visualTimeMs);
+    if (currentIntrinsic <= 0) return;
+    const beatDurationMs = 60000 / currentIntrinsic;
+    if (!Number.isFinite(beatDurationMs) || beatDurationMs <= 0) return;
+    const beatIndex = Math.floor(visualTimeMs / beatDurationMs);
     if (lastBeatIndex === null || beatIndex < lastBeatIndex) {
       lastBeatIndex = beatIndex;
     } else if (beatIndex > lastBeatIndex) {
@@ -1963,6 +1981,12 @@
         if (bpmSlider) bpmSlider.value = Math.min(360, Math.max(30, liveBpm));
         if (bpmInput) bpmInput.value = liveBpm;
       }
+
+      const speedPct = Math.round(playbackClock.speed * 100);
+      const speedEl = document.getElementById('speedSlider');
+      const speedValEl = document.getElementById('speedVal');
+      if (speedEl && document.activeElement !== speedEl) speedEl.value = speedPct;
+      if (speedValEl) speedValEl.textContent = `${speedPct}%`;
 
       if (wasPlayingBefore && nextState === PlaybackState.Stopped && s.finished_naturally && !manualStopRequested) {
         playNextInQueue();
@@ -2326,8 +2350,15 @@
   }
 
   function setLocalBpm(bpm) {
-    const baseBpm = currentSong && currentSong.bpm > 0 ? currentSong.bpm : 120;
-    setLocalPlaybackSpeed(Math.max(0.1, Math.min(3.0, bpm / baseBpm)));
+    const currentMs = getInterpolatedPlaybackTime();
+    const intrinsicBpm = getIntrinsicBpmAt(currentMs);
+    const speed = Math.max(0.1, Math.min(3.0, bpm / intrinsicBpm));
+    setLocalPlaybackSpeed(speed);
+    const speedEl = document.getElementById('speedSlider');
+    const speedValEl = document.getElementById('speedVal');
+    const speedPct = Math.round(speed * 100);
+    if (speedEl && document.activeElement !== speedEl) speedEl.value = speedPct;
+    if (speedValEl) speedValEl.textContent = `${speedPct}%`;
   }
 
   timelineSlider.addEventListener('pointerdown', () => { isScrubbing = true; });
@@ -2338,6 +2369,13 @@
     const speed = e.target.value / 100;
     document.getElementById('speedVal').textContent = `${e.target.value}%`;
     setLocalPlaybackSpeed(speed);
+    const currentMs = getInterpolatedPlaybackTime();
+    const intrinsicBpm = getIntrinsicBpmAt(currentMs);
+    const liveBpm = Math.round(intrinsicBpm * speed);
+    if (bpmVal) bpmVal.textContent = `${liveBpm} BPM`;
+    if (bpmSlider && !isEditingBpm) bpmSlider.value = Math.min(360, Math.max(30, liveBpm));
+    if (bpmInput && !isEditingBpm) bpmInput.value = liveBpm;
+    if (headerBpmEl) headerBpmEl.textContent = liveBpm;
     sendAction({ action: 'set_speed', speed });
   });
 
@@ -2348,6 +2386,7 @@
       const bpm = parseFloat(e.target.value);
       if (bpmVal) bpmVal.textContent = `${Math.round(bpm)} BPM`;
       if (bpmInput) bpmInput.value = Math.round(bpm);
+      if (headerBpmEl) headerBpmEl.textContent = Math.round(bpm);
       setLocalBpm(bpm);
       sendAction({ action: 'set_bpm', bpm });
     });
@@ -2360,6 +2399,7 @@
       const bpm = Math.max(20, Math.min(400, parseFloat(e.target.value) || 120));
       if (bpmSlider) bpmSlider.value = Math.min(360, Math.max(30, bpm));
       if (bpmVal) bpmVal.textContent = `${Math.round(bpm)} BPM`;
+      if (headerBpmEl) headerBpmEl.textContent = Math.round(bpm);
       setLocalBpm(bpm);
       sendAction({ action: 'set_bpm', bpm });
     });
