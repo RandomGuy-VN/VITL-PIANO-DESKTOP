@@ -1886,20 +1886,60 @@
     }, 120);
   }
 
+  function getAccumulatedBeats(song, timeMs) {
+    if (!song) return (timeMs / 60000) * 120;
+    const baseBpm = Math.max(1, Number(song.bpm) || 120);
+    const tempoEvents = Array.isArray(song.tempo_events) ? song.tempo_events : [];
+    if (tempoEvents.length === 0) {
+      return (Math.max(0, timeMs) / 60000) * baseBpm;
+    }
+
+    let totalBeats = 0.0;
+    let prevTime = 0.0;
+    let prevBpm = baseBpm;
+
+    for (let i = 0; i < tempoEvents.length; i++) {
+      const te = tempoEvents[i];
+      const eventTime = Math.max(0, Number(te.time_ms) || 0);
+      const eventBpm = Math.max(1, Number(te.bpm) || prevBpm);
+
+      if (i === 0 && eventTime === 0) {
+        prevBpm = eventBpm;
+        continue;
+      }
+
+      if (timeMs < eventTime) {
+        const dt = timeMs - prevTime;
+        totalBeats += (dt / 60000) * prevBpm;
+        return totalBeats;
+      }
+
+      const dt = eventTime - prevTime;
+      totalBeats += (dt / 60000) * prevBpm;
+      prevTime = eventTime;
+      prevBpm = eventBpm;
+    }
+
+    const dt = timeMs - prevTime;
+    totalBeats += (dt / 60000) * prevBpm;
+    return totalBeats;
+  }
+
   function getIntrinsicBpmAt(timeMs) {
     if (!currentSong) return 120;
-    if (Array.isArray(currentSong.tempo_events) && currentSong.tempo_events.length > 0) {
+    const tempoEvents = Array.isArray(currentSong.tempo_events) ? currentSong.tempo_events : [];
+    if (tempoEvents.length > 0) {
       let b = currentSong.bpm || 120;
-      for (const te of currentSong.tempo_events) {
+      for (const te of tempoEvents) {
         if (te.time_ms <= timeMs) {
           b = te.bpm;
         } else {
           break;
         }
       }
-      return Math.max(1, b);
+      return Math.max(1, Number(b) || 120);
     }
-    return Math.max(1, currentSong.bpm || 120);
+    return Math.max(1, Number(currentSong.bpm) || 120);
   }
 
   function updateBpmPulseForTime(visualTimeMs) {
@@ -1907,11 +1947,8 @@
       lastBeatIndex = null;
       return;
     }
-    const currentIntrinsic = getIntrinsicBpmAt(visualTimeMs);
-    if (currentIntrinsic <= 0) return;
-    const beatDurationMs = 60000 / currentIntrinsic;
-    if (!Number.isFinite(beatDurationMs) || beatDurationMs <= 0) return;
-    const beatIndex = Math.floor(visualTimeMs / beatDurationMs);
+    const currentTotalBeats = getAccumulatedBeats(currentSong, visualTimeMs);
+    const beatIndex = Math.floor(currentTotalBeats);
     if (lastBeatIndex === null || beatIndex < lastBeatIndex) {
       lastBeatIndex = beatIndex;
     } else if (beatIndex > lastBeatIndex) {

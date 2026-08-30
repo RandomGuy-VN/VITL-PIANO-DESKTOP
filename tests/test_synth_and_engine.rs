@@ -213,6 +213,15 @@ fn test_dynamic_bpm_handling() {
     assert_eq!(song.get_bpm_at(10_000.0), 180.0);
     assert_eq!(song.get_bpm_at(18_000.0), 180.0);
     assert_eq!(song.get_bpm_at(30_000.0), 90.0);
+
+    // Continuous accumulated beats test:
+    // 0s to 10s at 120 BPM: (10 / 60) * 120 = 20 beats
+    // 10s to 25s at 180 BPM: (15 / 60) * 180 = 45 beats (total 65 beats at 25s)
+    // 25s to 35s at 90 BPM: (10 / 60) * 90 = 15 beats (total 80 beats at 35s)
+    assert!((song.get_accumulated_beats(0.0) - 0.0).abs() < 1e-4);
+    assert!((song.get_accumulated_beats(10_000.0) - 20.0).abs() < 1e-4);
+    assert!((song.get_accumulated_beats(25_000.0) - 65.0).abs() < 1e-4);
+    assert!((song.get_accumulated_beats(35_000.0) - 80.0).abs() < 1e-4);
 }
 
 #[test]

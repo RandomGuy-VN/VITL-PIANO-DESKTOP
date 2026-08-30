@@ -284,6 +284,41 @@ impl Song {
         current_bpm.max(1.0)
     }
 
+    /// Calculate continuous accumulated musical beats up to a given time_ms
+    pub fn get_accumulated_beats(&self, time_ms: f64) -> f64 {
+        let time_ms = time_ms.max(0.0);
+        if self.tempo_events.is_empty() {
+            return (time_ms / 60_000.0) * self.bpm.max(1.0);
+        }
+
+        let mut total_beats = 0.0;
+        let mut prev_time = 0.0;
+        let mut prev_bpm = self.bpm.max(1.0);
+
+        for (i, te) in self.tempo_events.iter().enumerate() {
+            let event_time = te.time_ms.max(0.0);
+            if i == 0 && event_time == 0.0 {
+                prev_bpm = te.bpm.max(1.0);
+                continue;
+            }
+
+            if time_ms < event_time {
+                let dt = time_ms - prev_time;
+                total_beats += (dt / 60_000.0) * prev_bpm;
+                return total_beats;
+            }
+
+            let dt = event_time - prev_time;
+            total_beats += (dt / 60_000.0) * prev_bpm;
+            prev_time = event_time;
+            prev_bpm = te.bpm.max(1.0);
+        }
+
+        let dt = time_ms - prev_time;
+        total_beats += (dt / 60_000.0) * prev_bpm;
+        total_beats
+    }
+
     /// Sets or scales base BPM dynamically
     pub fn set_bpm(&mut self, new_bpm: f64) {
         if !new_bpm.is_finite() || new_bpm <= 0.0 {
