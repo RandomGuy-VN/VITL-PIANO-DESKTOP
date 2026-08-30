@@ -22,18 +22,17 @@ fn main() {
 
     // Compile
     let status = Command::new(&cxx)
-        .args([
-            "-O2",
-            "-std=c++17",
-            "-fPIC",
-            "-Wall",
-            "-c",
-        ])
+        .args(["-O2", "-std=c++17", "-fPIC", "-Wall", "-c"])
         .arg(&src)
         .arg("-o")
         .arg(&obj)
         .status()
-        .unwrap_or_else(|e| panic!("failed to spawn {} (needed to build the native macro backend): {}", cxx, e));
+        .unwrap_or_else(|e| {
+            panic!(
+                "failed to spawn {} (needed to build the native macro backend): {}",
+                cxx, e
+            )
+        });
     if !status.success() {
         panic!("C++ compilation of native/macro_backend.cpp failed");
     }

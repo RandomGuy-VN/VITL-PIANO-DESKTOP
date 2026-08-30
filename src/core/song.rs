@@ -1,5 +1,117 @@
 use serde::{Deserialize, Serialize};
 
+const MIDI_TICKS_PER_BEAT: u16 = 480;
+const DEFAULT_BPM: f64 = 120.0;
+const MAX_MIDI_TEMPO_US_PER_BEAT: u32 = 0x00FF_FFFF;
+
+#[derive(Debug, Clone, Copy)]
+struct MidiTempoPoint {
+    time_ms: f64,
+    tick: f64,
+    us_per_beat: u32,
+}
+
+fn valid_bpm_or(bpm: f64, fallback: f64) -> f64 {
+    if bpm.is_finite() && bpm > 0.0 {
+        bpm
+    } else {
+        fallback
+    }
+}
+
+fn bpm_to_us_per_beat(bpm: f64) -> u32 {
+    let bpm = valid_bpm_or(bpm, DEFAULT_BPM);
+    (60_000_000.0 / bpm)
+        .round()
+        .clamp(1.0, MAX_MIDI_TEMPO_US_PER_BEAT as f64) as u32
+}
+
+fn build_midi_tempo_map(song: &Song) -> Vec<MidiTempoPoint> {
+    let base_bpm = valid_bpm_or(song.bpm, DEFAULT_BPM);
+    let base_us_per_beat = bpm_to_us_per_beat(base_bpm);
+    let mut source_points: Vec<(f64, u32)> = song
+        .tempo_events
+        .iter()
+        .filter_map(|event| {
+            if !event.time_ms.is_finite() {
+                return None;
+            }
+
+            let us_per_beat = if event.bpm.is_finite() && event.bpm > 0.0 {
+                bpm_to_us_per_beat(event.bpm)
+            } else {
+                event.us_per_beat.clamp(1, MAX_MIDI_TEMPO_US_PER_BEAT)
+            };
+            Some((event.time_ms.max(0.0), us_per_beat))
+        })
+        .collect();
+
+    source_points.sort_by(|a, b| a.0.total_cmp(&b.0));
+
+    let mut deduplicated: Vec<(f64, u32)> = Vec::with_capacity(source_points.len() + 1);
+    for point in source_points {
+        if let Some(last) = deduplicated.last_mut() {
+            if last.0 == point.0 {
+                *last = point;
+                continue;
+            }
+        }
+        deduplicated.push(point);
+    }
+
+    if deduplicated
+        .first()
+        .map(|point| point.0 > 0.0)
+        .unwrap_or(true)
+    {
+        deduplicated.insert(0, (0.0, base_us_per_beat));
+    }
+
+    let mut tempo_map = Vec::with_capacity(deduplicated.len());
+    let mut previous_time_ms = 0.0;
+    let mut previous_tick = 0.0;
+    let mut previous_us_per_beat = deduplicated[0].1;
+
+    for (index, (time_ms, us_per_beat)) in deduplicated.into_iter().enumerate() {
+        if index > 0 {
+            let delta_ms = time_ms - previous_time_ms;
+            previous_tick +=
+                delta_ms * MIDI_TICKS_PER_BEAT as f64 * 1000.0 / previous_us_per_beat as f64;
+        }
+
+        tempo_map.push(MidiTempoPoint {
+            time_ms,
+            tick: previous_tick,
+            us_per_beat,
+        });
+        previous_time_ms = time_ms;
+        previous_us_per_beat = us_per_beat;
+    }
+
+    tempo_map
+}
+
+fn milliseconds_to_tick(time_ms: f64, tempo_map: &[MidiTempoPoint]) -> u64 {
+    let time_ms = if time_ms.is_finite() {
+        time_ms.max(0.0)
+    } else {
+        0.0
+    };
+    let mut active = &tempo_map[0];
+    for point in tempo_map.iter().skip(1) {
+        if point.time_ms <= time_ms {
+            active = point;
+        } else {
+            break;
+        }
+    }
+
+    let tick = active.tick
+        + (time_ms - active.time_ms) * MIDI_TICKS_PER_BEAT as f64 * 1000.0
+            / active.us_per_beat as f64;
+    tick.round().max(0.0) as u64
+}
+
 /// Represents a single musical note event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteEvent {
@@ -99,7 +211,9 @@ impl Song {
         let mut max_n = 0u8;
 
         for track in &mut self.tracks {
-            track.notes.sort_by(|a, b| a.start_ms.total_cmp(&b.start_ms));
+            track
+                .notes
+                .sort_by(|a, b| a.start_ms.total_cmp(&b.start_ms));
             for note in &track.notes {
                 count += 1;
                 if note.note < min_n {
@@ -115,8 +229,10 @@ impl Song {
             }
         }
 
-        self.control_events.sort_by(|a, b| a.time_ms.total_cmp(&b.time_ms));
-        self.tempo_events.sort_by(|a, b| a.time_ms.total_cmp(&b.time_ms));
+        self.control_events
+            .sort_by(|a, b| a.time_ms.total_cmp(&b.time_ms));
+        self.tempo_events
+            .sort_by(|a, b| a.time_ms.total_cmp(&b.time_ms));
 
         if let Some(first_tempo) = self.tempo_events.first() {
             self.bpm = first_tempo.bpm;
@@ -130,7 +246,8 @@ impl Song {
 
     /// Flatten all notes into a single chronological list
     pub fn all_notes_flattened(&self) -> Vec<NoteEvent> {
-        let mut all = Vec::with_capacity(self.total_notes);
+        let note_count = self.tracks.iter().map(|track| track.notes.len()).sum();
+        let mut all = Vec::with_capacity(note_count);
         for track in &self.tracks {
             all.extend_from_slice(&track.notes);
         }
@@ -169,20 +286,34 @@ impl Song {
 
     /// Sets or scales base BPM dynamically
     pub fn set_bpm(&mut self, new_bpm: f64) {
-        let ratio = new_bpm / self.bpm.max(1.0);
+        if !new_bpm.is_finite() || new_bpm <= 0.0 {
+            return;
+        }
+
+        let current_bpm = valid_bpm_or(self.bpm, DEFAULT_BPM);
+        let ratio = new_bpm / current_bpm;
         self.bpm = new_bpm;
-        if ratio > 0.0 {
-            for te in &mut self.tempo_events {
-                te.bpm *= ratio;
-            }
+        for tempo_event in &mut self.tempo_events {
+            let current_event_bpm = if tempo_event.bpm.is_finite() && tempo_event.bpm > 0.0 {
+                tempo_event.bpm
+            } else {
+                60_000_000.0 / tempo_event.us_per_beat.max(1) as f64
+            };
+            tempo_event.bpm = current_event_bpm * ratio;
+            tempo_event.us_per_beat = bpm_to_us_per_beat(tempo_event.bpm);
         }
     }
 
     /// Transpose all notes in the song by semitones offset (-24 to +24)
     pub fn transpose(&mut self, semitones: i8) {
-        if semitones == 0 { return; }
+        if semitones == 0 {
+            return;
+        }
         for track in &mut self.tracks {
             for note in &mut track.notes {
+                if note.channel == 9 {
+                    continue;
+                }
                 let shifted = (note.note as i16) + (semitones as i16);
                 note.note = shifted.clamp(21, 108) as u8;
             }
@@ -192,7 +323,9 @@ impl Song {
 
     /// Quantize all note start times to the nearest grid interval in milliseconds
     pub fn quantize(&mut self, grid_ms: f64) {
-        if grid_ms <= 1.0 { return; }
+        if grid_ms <= 1.0 {
+            return;
+        }
         for track in &mut self.tracks {
             for note in &mut track.notes {
                 note.start_ms = (note.start_ms / grid_ms).round() * grid_ms;
@@ -205,7 +338,8 @@ impl Song {
     /// Replace song notes with edited note events
     pub fn update_notes(&mut self, notes: Vec<NoteEvent>) {
         // Group notes by track
-        let mut track_map: std::collections::BTreeMap<usize, Vec<NoteEvent>> = std::collections::BTreeMap::new();
+        let mut track_map: std::collections::BTreeMap<usize, Vec<NoteEvent>> =
+            std::collections::BTreeMap::new();
         for n in notes {
             track_map.entry(n.track).or_default().push(n);
         }
@@ -221,7 +355,10 @@ impl Song {
             self.tracks = track_map
                 .into_iter()
                 .map(|(t_idx, t_notes)| {
-                    let ch = t_notes.first().map(|n| n.channel).unwrap_or((t_idx % 16) as u8);
+                    let ch = t_notes
+                        .first()
+                        .map(|n| n.channel)
+                        .unwrap_or((t_idx % 16) as u8);
                     Track {
                         name: format!("Track {}", t_idx + 1),
                         channel: ch,
@@ -236,123 +373,129 @@ impl Song {
 
     /// Convert Song to standard MIDI (SMF Format 1) binary bytes
     pub fn to_midi_bytes(&self) -> Result<Vec<u8>, String> {
-        let ticks_per_beat = 480u16;
-        let smf_header = midly::Header::new(
-            midly::Format::Parallel,
-            midly::Timing::Metrical(midly::num::u15::from(ticks_per_beat)),
+        use midly::num::{u15, u24, u28, u4, u7};
+        use midly::{Format, Header, MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
+
+        let tempo_map = build_midi_tempo_map(self);
+        let header = Header::new(
+            Format::Parallel,
+            Timing::Metrical(u15::from(MIDI_TICKS_PER_BEAT)),
         );
+        let mut smf = Smf::new(header);
 
-        let mut smf = midly::Smf::new(smf_header);
-
-        // Tempo track (Track 0)
-        let mut tempo_track = Vec::new();
-        tempo_track.push(midly::TrackEvent {
-            delta: 0.into(),
-            kind: midly::TrackEventKind::Meta(midly::MetaMessage::TrackName(self.title.as_bytes())),
-        });
-
-        if !self.tempo_events.is_empty() {
-            let mut last_tick = 0u32;
-            for te in &self.tempo_events {
-                let ticks_per_ms = (ticks_per_beat as f64 * self.bpm.max(1.0)) / 60000.0;
-                let abs_tick = (te.time_ms * ticks_per_ms).round().max(0.0) as u32;
-                let delta = abs_tick.saturating_sub(last_tick);
-                last_tick = abs_tick;
-                let us = te.us_per_beat.min(0x00FFFFFF);
-                tempo_track.push(midly::TrackEvent {
-                    delta: delta.into(),
-                    kind: midly::TrackEventKind::Meta(midly::MetaMessage::Tempo(midly::num::u24::from(us))),
-                });
-            }
-        } else {
-            let us_per_beat = ((60_000_000.0 / self.bpm.max(1.0)).round() as u32).min(0x00FFFFFF);
-            tempo_track.push(midly::TrackEvent {
-                delta: 0.into(),
-                kind: midly::TrackEventKind::Meta(midly::MetaMessage::Tempo(midly::num::u24::from(us_per_beat))),
-            });
+        // MIDI Format 1 conventionally keeps tempo and global controller events in a
+        // conductor track. ControlEvent has channel but no source-track identity, so
+        // this preserves all available information without assigning a false track.
+        let mut conductor_events = Vec::new();
+        conductor_events.push((
+            0_u64,
+            0_u8,
+            TrackEventKind::Meta(MetaMessage::TrackName(self.title.as_bytes())),
+        ));
+        for point in &tempo_map {
+            conductor_events.push((
+                point.tick.round().max(0.0) as u64,
+                1,
+                TrackEventKind::Meta(MetaMessage::Tempo(u24::from(point.us_per_beat))),
+            ));
         }
+        for control in &self.control_events {
+            conductor_events.push((
+                milliseconds_to_tick(control.time_ms, &tempo_map),
+                2,
+                TrackEventKind::Midi {
+                    channel: u4::from(control.channel.min(15)),
+                    message: MidiMessage::Controller {
+                        controller: u7::from(control.controller.min(127)),
+                        value: u7::from(control.value.min(127)),
+                    },
+                },
+            ));
+        }
+        conductor_events.sort_by_key(|(tick, priority, _)| (*tick, *priority));
 
-        tempo_track.push(midly::TrackEvent {
+        let mut conductor_track = Vec::with_capacity(conductor_events.len() + 1);
+        let mut last_tick = 0_u64;
+        for (absolute_tick, _, kind) in conductor_events {
+            let delta = absolute_tick.saturating_sub(last_tick).min(0x0FFF_FFFF) as u32;
+            conductor_track.push(midly::TrackEvent {
+                delta: u28::from(delta),
+                kind,
+            });
+            last_tick = absolute_tick;
+        }
+        conductor_track.push(midly::TrackEvent {
             delta: 0.into(),
-            kind: midly::TrackEventKind::Meta(midly::MetaMessage::EndOfTrack),
+            kind: TrackEventKind::Meta(MetaMessage::EndOfTrack),
         });
-        smf.tracks.push(tempo_track);
+        smf.tracks.push(conductor_track);
 
-        // Helper to convert milliseconds to MIDI ticks
-        let ms_to_ticks = |ms: f64, bpm: f64| -> u32 {
-            let ticks_per_ms = (ticks_per_beat as f64 * bpm) / 60000.0;
-            (ms * ticks_per_ms).round().max(0.0) as u32
-        };
-
-        // Note tracks
-        for (idx, track) in self.tracks.iter().enumerate() {
-            let mut events_with_abs_time: Vec<(u32, midly::TrackEventKind)> = Vec::new();
-
-            // Track name
-            let track_name_bytes: &[u8] = if track.name.is_empty() {
-                b"Track"
+        for track in &self.tracks {
+            let track_name = if track.name.is_empty() {
+                b"Track".as_slice()
             } else {
                 track.name.as_bytes()
             };
-            events_with_abs_time.push((0, midly::TrackEventKind::Meta(midly::MetaMessage::TrackName(track_name_bytes))));
+            let mut absolute_events = vec![(
+                0_u64,
+                0_u8,
+                TrackEventKind::Meta(MetaMessage::TrackName(track_name)),
+            )];
 
             for note in &track.notes {
-                let start_tick = ms_to_ticks(note.start_ms, self.bpm);
-                let end_tick = ms_to_ticks(note.start_ms + note.duration_ms.max(10.0), self.bpm);
+                let start_tick = milliseconds_to_tick(note.start_ms, &tempo_map);
+                let end_tick =
+                    milliseconds_to_tick(note.start_ms + note.duration_ms.max(10.0), &tempo_map);
+                let channel = u4::from(note.channel.min(15));
+                let key = u7::from(note.note.min(127));
+                let velocity = u7::from(note.velocity.clamp(1, 127));
 
-                let channel = midly::num::u4::from(note.channel.min(15));
-                let key = midly::num::u7::from(note.note.clamp(0, 127));
-                let vel = midly::num::u7::from(note.velocity.clamp(1, 127));
-
-                // Note On
-                events_with_abs_time.push((
-                    start_tick,
-                    midly::TrackEventKind::Midi {
-                        channel,
-                        message: midly::MidiMessage::NoteOn { key, vel },
-                    },
-                ));
-
-                // Note Off
-                events_with_abs_time.push((
+                // Note-offs sort before note-ons at the same tick so repeated pitches
+                // are released before being retriggered.
+                absolute_events.push((
                     end_tick,
-                    midly::TrackEventKind::Midi {
+                    1,
+                    TrackEventKind::Midi {
                         channel,
-                        message: midly::MidiMessage::NoteOff {
+                        message: MidiMessage::NoteOff {
                             key,
-                            vel: midly::num::u7::from(0),
+                            vel: u7::from(0),
                         },
                     },
                 ));
+                absolute_events.push((
+                    start_tick,
+                    2,
+                    TrackEventKind::Midi {
+                        channel,
+                        message: MidiMessage::NoteOn { key, vel: velocity },
+                    },
+                ));
             }
 
-            // Sort events by absolute tick
-            events_with_abs_time.sort_by_key(|&(tick, _)| tick);
+            absolute_events.sort_by_key(|(tick, priority, _)| (*tick, *priority));
 
-            // Convert to delta ticks
-            let mut track_events = Vec::new();
-            let mut last_tick = 0u32;
-            for (abs_tick, kind) in events_with_abs_time {
-                let delta = (abs_tick.saturating_sub(last_tick)).min(0x0FFFFFFF);
-                last_tick = abs_tick;
-                track_events.push(midly::TrackEvent {
-                    delta: midly::num::u28::from(delta),
+            let mut midi_track = Vec::with_capacity(absolute_events.len() + 1);
+            let mut last_tick = 0_u64;
+            for (absolute_tick, _, kind) in absolute_events {
+                let delta = absolute_tick.saturating_sub(last_tick).min(0x0FFF_FFFF) as u32;
+                midi_track.push(midly::TrackEvent {
+                    delta: u28::from(delta),
                     kind,
                 });
+                last_tick = absolute_tick;
             }
-
-            // End of track marker
-            track_events.push(midly::TrackEvent {
+            midi_track.push(midly::TrackEvent {
                 delta: 0.into(),
-                kind: midly::TrackEventKind::Meta(midly::MetaMessage::EndOfTrack),
+                kind: TrackEventKind::Meta(MetaMessage::EndOfTrack),
             });
-
-            smf.tracks.push(track_events);
+            smf.tracks.push(midi_track);
         }
 
-        let mut out = Vec::new();
-        smf.write(&mut out).map_err(|e| format!("Failed to encode MIDI bytes: {:?}", e))?;
-        Ok(out)
+        let mut output = Vec::new();
+        smf.write(&mut output)
+            .map_err(|error| format!("Failed to encode MIDI bytes: {:?}", error))?;
+        Ok(output)
     }
 
     /// Convert Song to Virtual Piano sheet notation text with chord brackets
@@ -362,29 +505,16 @@ impl Song {
             return String::new();
         }
 
-        // Virtual Piano character mapping for notes 21 to 108
-        // Note 36 (C2) -> '1', 60 (C4) -> '8' or 'o', standard VP layout
-        let note_to_vp = |note: u8| -> Option<char> {
-            let map = [
-                (36, '1'), (37, '!'), (38, '2'), (39, '@'), (40, '3'), (41, '4'), (42, '$'), (43, '5'),
-                (44, '%'), (45, '6'), (46, '^'), (47, '7'), (48, '8'), (49, '*'), (50, '9'), (51, '('),
-                (52, '0'), (53, 'q'), (54, 'Q'), (55, 'w'), (56, 'W'), (57, 'e'), (58, 'E'), (59, 'r'),
-                (60, 't'), (61, 'T'), (62, 'y'), (63, 'Y'), (64, 'u'), (65, 'i'), (66, 'I'), (67, 'o'),
-                (68, 'O'), (69, 'p'), (70, 'P'), (71, 'a'), (72, 's'), (73, 'S'), (74, 'd'), (75, 'D'),
-                (76, 'f'), (77, 'g'), (78, 'G'), (79, 'h'), (80, 'H'), (81, 'j'), (82, 'J'), (83, 'k'),
-                (84, 'l'), (85, 'L'), (86, 'z'), (87, 'Z'), (88, 'x'), (89, 'C'), (90, 'v'), (91, 'V'),
-                (92, 'b'), (93, 'B'), (94, 'n'), (95, 'm'), (96, 'M'),
-            ];
-            map.iter().find(|&&(n, _)| n == note).map(|&(_, c)| c)
-        };
-
-        // Group notes that start within 25ms of each other into chords
+        // Group notes that start within 25ms of each other into chords.
+        // The sheet grammar has no Ctrl-modifier token for the 88-key extensions,
+        // so only the standard Virtual Piano range (MIDI 36-96) is representable.
         let mut chords: Vec<Vec<char>> = Vec::new();
         let mut current_chord: Vec<char> = Vec::new();
         let mut chord_time = -9999.0;
 
+        let mut omitted_notes = 0_usize;
         for n in &all_notes {
-            if let Some(ch) = note_to_vp(n.note) {
+            if let Some(ch) = crate::core::sheet::SheetParser::midi_note_to_char(n.note) {
                 if (n.start_ms - chord_time).abs() <= 25.0 {
                     if !current_chord.contains(&ch) {
                         current_chord.push(ch);
@@ -396,6 +526,8 @@ impl Song {
                     current_chord.push(ch);
                     chord_time = n.start_ms;
                 }
+            } else {
+                omitted_notes += 1;
             }
         }
         if !current_chord.is_empty() {
@@ -403,7 +535,14 @@ impl Song {
         }
 
         let mut sheet_buf = String::new();
-        sheet_buf.push_str(&format!("// Title: {}\n// BPM: {}\n\n", self.title, self.bpm));
+        sheet_buf.push_str(&format!("// Title: {}\n// BPM: {}\n", self.title, self.bpm));
+        if omitted_notes > 0 {
+            sheet_buf.push_str(&format!(
+                "// Warning: {} note(s) outside MIDI 36-96 were omitted; the sheet format has no Ctrl-modifier syntax.\n",
+                omitted_notes
+            ));
+        }
+        sheet_buf.push('\n');
 
         let mut col = 0;
         for chord in chords {

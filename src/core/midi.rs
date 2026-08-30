@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use midly::{Header, MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
+use midly::{MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -7,11 +7,18 @@ use super::song::{ControlEvent, NoteEvent, Song, SongSourceType, TempoEvent, Tra
 
 pub struct MidiParser;
 
+#[derive(Debug, Clone, Copy)]
+enum MidiTimeDivision {
+    Metrical { ticks_per_beat: f64 },
+    Timecode { ticks_per_second: f64 },
+}
+
 impl MidiParser {
     /// Parse a standard MIDI file from disk
     pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Song> {
         let path = path.as_ref();
-        let data = std::fs::read(path).with_context(|| format!("Failed to read file: {:?}", path))?;
+        let data =
+            std::fs::read(path).with_context(|| format!("Failed to read file: {:?}", path))?;
         let filename = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -24,16 +31,22 @@ impl MidiParser {
     pub fn parse_bytes(bytes: &[u8], title_hint: String) -> Result<Song> {
         let smf = Smf::parse(bytes).map_err(|e| anyhow::anyhow!("MIDI parse error: {:?}", e))?;
 
-        let ticks_per_beat = match smf.header.timing {
-            Timing::Metrical(tpb) => tpb.as_int() as f64,
-            Timing::Timecode(fps, subframe) => {
-                (fps.as_int() as f64) * (subframe as f64)
+        let time_division = match smf.header.timing {
+            Timing::Metrical(ticks_per_beat) => {
+                let ticks_per_beat = ticks_per_beat.as_int() as f64;
+                if ticks_per_beat <= 0.0 {
+                    bail!("Invalid MIDI metrical timing specification");
+                }
+                MidiTimeDivision::Metrical { ticks_per_beat }
+            }
+            Timing::Timecode(fps, subframes_per_frame) => {
+                let ticks_per_second = fps.as_f32() as f64 * subframes_per_frame as f64;
+                if ticks_per_second <= 0.0 {
+                    bail!("Invalid MIDI SMPTE timing specification");
+                }
+                MidiTimeDivision::Timecode { ticks_per_second }
             }
         };
-
-        if ticks_per_beat <= 0.0 {
-            bail!("Invalid MIDI timing specification");
-        }
 
         // First pass: extract all tempo changes to build an accurate tick-to-ms timeline
         let mut raw_tempo_events: Vec<(u64, u32)> = Vec::new();
@@ -48,46 +61,70 @@ impl MidiParser {
             }
         }
 
-        // Sort tempo events by tick
+        // Sort tempo events by tick and retain the last event at duplicate ticks.
         raw_tempo_events.sort_by_key(|&(tick, _)| tick);
-        raw_tempo_events.dedup_by_key(|&mut (tick, _)| tick);
-
-        // Ensure there is always a baseline tempo at tick 0 (default 120 BPM = 500,000 us/beat)
-        if raw_tempo_events.is_empty() || raw_tempo_events[0].0 != 0 {
-            let initial_tempo = raw_tempo_events.first().map(|e| e.1).unwrap_or(500_000);
-            raw_tempo_events.insert(0, (0, initial_tempo));
-        }
-
-        // Precompute tempo maps with millisecond timestamps
-        let mut tempo_map: Vec<(u64, f64, u32)> = Vec::new(); // (tick, start_ms, us_per_beat)
-        let mut current_ms = 0.0;
-        let mut prev_tick = 0u64;
-        let mut current_us_per_beat = 500_000u32;
-
-        for &(tick, us_per_beat) in &raw_tempo_events {
-            let delta_ticks = tick - prev_tick;
-            let ms_per_tick = (current_us_per_beat as f64 / 1000.0) / ticks_per_beat;
-            current_ms += delta_ticks as f64 * ms_per_tick;
-            tempo_map.push((tick, current_ms, us_per_beat));
-            prev_tick = tick;
-            current_us_per_beat = us_per_beat;
-        }
-
-        // Helper function to convert any tick to absolute milliseconds
-        let tick_to_ms = |target_tick: u64| -> f64 {
-            let mut best_idx = 0;
-            for (i, &(t, _, _)) in tempo_map.iter().enumerate() {
-                if target_tick >= t {
-                    best_idx = i;
-                } else {
-                    break;
+        let mut deduplicated_tempos: Vec<(u64, u32)> =
+            Vec::with_capacity(raw_tempo_events.len() + 1);
+        for (tick, us_per_beat) in raw_tempo_events {
+            let us_per_beat = us_per_beat.max(1);
+            if let Some(last) = deduplicated_tempos.last_mut() {
+                if last.0 == tick {
+                    *last = (tick, us_per_beat);
+                    continue;
                 }
             }
+            deduplicated_tempos.push((tick, us_per_beat));
+        }
+        let mut raw_tempo_events = deduplicated_tempos;
 
-            let (anchor_tick, anchor_ms, us_pb) = tempo_map[best_idx];
-            let delta = target_tick - anchor_tick;
-            let ms_per_tick = (us_pb as f64 / 1000.0) / ticks_per_beat;
-            anchor_ms + (delta as f64 * ms_per_tick)
+        // MIDI defaults to 120 BPM until the first explicit tempo event. A future
+        // event must never be applied retroactively to tick zero.
+        if raw_tempo_events
+            .first()
+            .map(|event| event.0 != 0)
+            .unwrap_or(true)
+        {
+            raw_tempo_events.insert(0, (0, 500_000));
+        }
+
+        // Metrical files use a piecewise tempo map. SMPTE files use fixed
+        // ticks-per-second and tempo messages are metadata only.
+        let mut tempo_map: Vec<(u64, f64, u32)> = Vec::new();
+        if let MidiTimeDivision::Metrical { ticks_per_beat } = time_division {
+            let mut current_ms = 0.0;
+            let mut previous_tick = 0_u64;
+            let mut current_us_per_beat = 500_000_u32;
+
+            for &(tick, us_per_beat) in &raw_tempo_events {
+                let delta_ticks = tick - previous_tick;
+                let ms_per_tick = current_us_per_beat as f64 / 1000.0 / ticks_per_beat;
+                current_ms += delta_ticks as f64 * ms_per_tick;
+                tempo_map.push((tick, current_ms, us_per_beat));
+                previous_tick = tick;
+                current_us_per_beat = us_per_beat;
+            }
+        }
+
+        let tick_to_ms = |target_tick: u64| -> f64 {
+            match time_division {
+                MidiTimeDivision::Metrical { ticks_per_beat } => {
+                    let mut active = tempo_map[0];
+                    for &point in tempo_map.iter().skip(1) {
+                        if target_tick >= point.0 {
+                            active = point;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    let delta_ticks = target_tick - active.0;
+                    let ms_per_tick = active.2 as f64 / 1000.0 / ticks_per_beat;
+                    active.1 + delta_ticks as f64 * ms_per_tick
+                }
+                MidiTimeDivision::Timecode { ticks_per_second } => {
+                    target_tick as f64 * 1000.0 / ticks_per_second
+                }
+            }
         };
 
         let mut song = Song::new(title_hint.clone());
@@ -140,35 +177,19 @@ impl MidiParser {
                                 let note_num = key.as_int();
                                 let velocity = vel.as_int();
 
-                                    if velocity > 0 {
-                                        active_notes
-                                            .entry((note_num, ch))
-                                            .or_default()
-                                            .push((abs_tick, current_time_ms, velocity));
-                                    } else {
-                                        // Velocity 0 is Note Off
-                                        if let Some(list) = active_notes.get_mut(&(note_num, ch)) {
-                                            if !list.is_empty() {
-                                                let (_start_tick, start_ms, velocity) = list.remove(0);
-                                                let duration_ms = (current_time_ms - start_ms).max(10.0);
-                                                notes.push(NoteEvent {
-                                                    note: note_num,
-                                                    velocity,
-                                                    start_ms,
-                                                    duration_ms,
-                                                    track: track_idx,
-                                                    channel: ch,
-                                                });
-                                            }
-                                        }
-                                    }
-                                }
-                                MidiMessage::NoteOff { key, .. } => {
-                                    let note_num = key.as_int();
+                                if velocity > 0 {
+                                    active_notes.entry((note_num, ch)).or_default().push((
+                                        abs_tick,
+                                        current_time_ms,
+                                        velocity,
+                                    ));
+                                } else {
+                                    // Velocity 0 is Note Off
                                     if let Some(list) = active_notes.get_mut(&(note_num, ch)) {
                                         if !list.is_empty() {
                                             let (_start_tick, start_ms, velocity) = list.remove(0);
-                                            let duration_ms = (current_time_ms - start_ms).max(10.0);
+                                            let duration_ms =
+                                                (current_time_ms - start_ms).max(10.0);
                                             notes.push(NoteEvent {
                                                 note: note_num,
                                                 velocity,
@@ -180,6 +201,24 @@ impl MidiParser {
                                         }
                                     }
                                 }
+                            }
+                            MidiMessage::NoteOff { key, .. } => {
+                                let note_num = key.as_int();
+                                if let Some(list) = active_notes.get_mut(&(note_num, ch)) {
+                                    if !list.is_empty() {
+                                        let (_start_tick, start_ms, velocity) = list.remove(0);
+                                        let duration_ms = (current_time_ms - start_ms).max(10.0);
+                                        notes.push(NoteEvent {
+                                            note: note_num,
+                                            velocity,
+                                            start_ms,
+                                            duration_ms,
+                                            track: track_idx,
+                                            channel: ch,
+                                        });
+                                    }
+                                }
+                            }
                             MidiMessage::Controller { controller, value } => {
                                 song.control_events.push(ControlEvent {
                                     time_ms: current_time_ms,
@@ -225,92 +264,8 @@ impl MidiParser {
         Ok(song)
     }
 
-    /// Export a Song to standard MIDI byte stream (Type 0 or Type 1)
+    /// Export a Song using the canonical serializer implemented by `Song`.
     pub fn export_to_midi(song: &Song) -> Result<Vec<u8>> {
-        use midly::num::{u15, u24, u28, u4, u7};
-        use midly::{TrackEvent, Format};
-
-        let tpb = 480u16;
-        let mut header = Header::new(Format::SingleTrack, Timing::Metrical(u15::new(tpb)));
-        if song.tracks.len() > 1 {
-            header.format = Format::Parallel;
-        }
-
-        let mut smf = Smf::new(header);
-        let us_per_beat = (60_000_000.0 / song.bpm.max(1.0)).round() as u32;
-        let ms_per_tick = (us_per_beat as f64 / 1000.0) / (tpb as f64);
-
-        for (track_idx, track) in song.tracks.iter().enumerate() {
-            let mut track_events: Vec<TrackEvent<'static>> = Vec::new();
-
-            // Track name
-            let name_bytes = track.name.as_bytes().to_vec();
-            track_events.push(TrackEvent {
-                delta: u28::new(0),
-                kind: TrackEventKind::Meta(MetaMessage::TrackName(Box::leak(name_bytes.into_boxed_slice()))),
-            });
-
-            // Set tempo if first track
-            if track_idx == 0 {
-                track_events.push(TrackEvent {
-                    delta: u28::new(0),
-                    kind: TrackEventKind::Meta(MetaMessage::Tempo(u24::new(us_per_beat))),
-                });
-            }
-
-            // Collect all note on and off events with absolute ticks
-            let mut raw_events: Vec<(u64, TrackEventKind<'static>)> = Vec::new();
-
-            for note in &track.notes {
-                let on_tick = (note.start_ms / ms_per_tick).round() as u64;
-                let off_tick = ((note.start_ms + note.duration_ms) / ms_per_tick).round() as u64;
-                let ch = u4::new(note.channel.min(15));
-                let key = u7::new(note.note.min(127));
-                let vel = u7::new(note.velocity.min(127).max(1));
-
-                raw_events.push((
-                    on_tick,
-                    TrackEventKind::Midi {
-                        channel: ch,
-                        message: MidiMessage::NoteOn { key, vel },
-                    },
-                ));
-
-                raw_events.push((
-                    off_tick,
-                    TrackEventKind::Midi {
-                        channel: ch,
-                        message: MidiMessage::NoteOff {
-                            key,
-                            vel: u7::new(0),
-                        },
-                    },
-                ));
-            }
-
-            raw_events.sort_by_key(|&(tick, _)| tick);
-
-            let mut last_tick = 0u64;
-            for (tick, kind) in raw_events {
-                let delta = (tick.saturating_sub(last_tick)).min(0x0FFFFFFF) as u32;
-                track_events.push(TrackEvent {
-                    delta: u28::new(delta),
-                    kind,
-                });
-                last_tick = tick;
-            }
-
-            // End of Track
-            track_events.push(TrackEvent {
-                delta: u28::new(0),
-                kind: TrackEventKind::Meta(MetaMessage::EndOfTrack),
-            });
-
-            smf.tracks.push(track_events);
-        }
-
-        let mut output = Vec::new();
-        smf.write(&mut output).map_err(|e| anyhow::anyhow!("Failed to encode MIDI bytes: {:?}", e))?;
-        Ok(output)
+        song.to_midi_bytes().map_err(anyhow::Error::msg)
     }
 }

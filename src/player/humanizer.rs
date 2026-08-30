@@ -1,6 +1,6 @@
-use rand::Rng;
 use crate::core::config::HumanizeConfig;
 use crate::core::song::NoteEvent;
+use rand::Rng;
 
 pub struct HumanizerEngine {
     pub config: HumanizeConfig,

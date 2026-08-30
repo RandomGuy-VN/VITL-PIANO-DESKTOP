@@ -580,3 +580,136 @@ fn test_theme_and_visualizer_configs() {
     assert_eq!(deserialized.effects.eq_low, 3.5);
     assert!(deserialized.effects.delay_enabled);
 }
+
+#[test]
+fn test_song_quantization_and_transposition() {
+    use vitl_piano_desktop::core::song::{NoteEvent, Song, Track};
+
+    let mut song = Song::new("Quantize and Transpose Test".to_string());
+    song.bpm = 120.0;
+    let track = Track {
+        name: "Piano".to_string(),
+        channel: 0,
+        notes: vec![
+            NoteEvent {
+                note: 60, // C4
+                velocity: 90,
+                start_ms: 118.0, // Unquantized close to 125.0
+                duration_ms: 240.0,
+                track: 0,
+                channel: 0,
+            },
+            NoteEvent {
+                note: 64, // E4
+                velocity: 90,
+                start_ms: 263.0, // Unquantized close to 250.0
+                duration_ms: 240.0,
+                track: 0,
+                channel: 0,
+            },
+            NoteEvent {
+                note: 67, // G4
+                velocity: 90,
+                start_ms: 495.0, // Unquantized close to 500.0
+                duration_ms: 240.0,
+                track: 0,
+                channel: 0,
+            },
+        ],
+        is_drum: false,
+    };
+    song.tracks.push(track);
+    song.finalize();
+
+    // Test Quantization (1/16 = 125ms)
+    song.quantize(125.0);
+    assert_eq!(song.tracks[0].notes[0].start_ms, 125.0);
+    assert_eq!(song.tracks[0].notes[1].start_ms, 250.0);
+    assert_eq!(song.tracks[0].notes[2].start_ms, 500.0);
+
+    // Test Transposition (+2 semitones: C4 -> D4, E4 -> F#4, G4 -> A4)
+    song.transpose(2);
+    assert_eq!(song.tracks[0].notes[0].note, 62);
+    assert_eq!(song.tracks[0].notes[1].note, 66);
+    assert_eq!(song.tracks[0].notes[2].note, 69);
+    assert_eq!(song.min_note, 62);
+    assert_eq!(song.max_note, 69);
+
+    // Test Transposition clamping at boundaries
+    song.transpose(100);
+    assert_eq!(song.tracks[0].notes[2].note, 108); // Clamped at C8
+}
+
+#[test]
+fn test_synth_heavy_polyphony_and_all_notes_off() {
+    let mut synth = PianoSynthEngine::new(44100.0);
+
+    // Trigger all 88 keys simultaneously
+    for p in 21..=108 {
+        synth.note_on(p, 100);
+    }
+
+    let mut buf = vec![0.0f32; 1024];
+    synth.process_block(&mut buf);
+    let energy: f32 = buf.iter().map(|s| s.abs()).sum();
+    assert!(
+        energy > 1.0,
+        "Massive polyphony should produce strong energy without crashing"
+    );
+    for sample in &buf {
+        assert!(
+            sample.is_finite(),
+            "Audio buffer must contain finite samples"
+        );
+    }
+
+    // Release all notes
+    synth.all_notes_off();
+    for _ in 0..10 {
+        synth.process_block(&mut buf);
+    }
+    let energy_after: f32 = buf.iter().map(|s| s.abs()).sum();
+    assert!(
+        energy_after < energy * 0.1,
+        "After all_notes_off and decay, energy should drop significantly"
+    );
+}
+
+#[test]
+fn test_client_actions_serialization_roundtrip() {
+    use vitl_piano_desktop::server::app::ClientAction;
+
+    let actions = vec![
+        ClientAction::Play,
+        ClientAction::Pause,
+        ClientAction::Stop,
+        ClientAction::Seek { time_ms: 15400.0 },
+        ClientAction::SetSpeed { speed: 1.25 },
+        ClientAction::SetBpm { bpm: 144.0 },
+        ClientAction::SetTranspose { transpose: -3 },
+        ClientAction::TriggerNote {
+            note: 60,
+            velocity: 100,
+            is_on: true,
+        },
+        ClientAction::QuantizeSong { grid_ms: 125.0 },
+        ClientAction::TransposeSong { semitones: 5 },
+        ClientAction::SetEffects {
+            eq_low: 2.0,
+            eq_mid: -1.0,
+            eq_high: 3.0,
+            delay_enabled: true,
+            delay_time_ms: 300.0,
+            delay_feedback: 0.4,
+            delay_mix: 0.3,
+        },
+    ];
+
+    for act in actions {
+        let json_str = serde_json::to_string(&act).expect("Serialize ClientAction");
+        let parsed: ClientAction =
+            serde_json::from_str(&json_str).expect("Deserialize ClientAction");
+        let re_json = serde_json::to_string(&parsed).expect("Reserialize ClientAction");
+        assert_eq!(json_str, re_json);
+    }
+}

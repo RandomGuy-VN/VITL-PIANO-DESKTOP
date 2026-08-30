@@ -1,5 +1,5 @@
-use std::f32::consts::PI;
 use super::dsp::{soft_limit, Reverb, StereoDelay, ThreeBandEqualizer};
+use std::f32::consts::PI;
 
 const MAX_POLYPHONY: usize = 128;
 const MAX_HARMONICS: usize = 12;
@@ -24,8 +24,10 @@ struct Voice {
     pan_left: f32,
     pan_right: f32,
     harmonics: Vec<Harmonic>,
-    hammer_noise_phase: f32,
+    hammer_noise_state: u32,
+    hammer_noise_previous: f32,
     hammer_noise_amplitude: f32,
+    smoothed_energy: f32,
 }
 
 impl Voice {
@@ -41,8 +43,10 @@ impl Voice {
             pan_left: 0.5,
             pan_right: 0.5,
             harmonics: Vec::new(),
-            hammer_noise_phase: 0.0,
+            hammer_noise_state: 1,
+            hammer_noise_previous: 0.0,
             hammer_noise_amplitude: 0.0,
+            smoothed_energy: 0.0,
         }
     }
 
@@ -54,6 +58,7 @@ impl Voice {
         self.sustained = false;
         self.time_active = 0.0;
         self.release_time = 0.0;
+        self.smoothed_energy = 0.0;
 
         // Panning based on keyboard pitch: 21 (A0, far left) to 108 (C8, far right)
         let pan = ((note as f32 - 21.0) / 87.0).clamp(0.0, 1.0);
@@ -95,8 +100,12 @@ impl Voice {
             });
         }
 
-        // Initial hammer strike noise transient
-        self.hammer_noise_phase = 0.0;
+        // Initial hammer strike noise transient. Seeded per note/velocity for reproducible output.
+        let seed = 0xA3C5_9AC3
+            ^ (note as u32).wrapping_mul(0x9E37_79B9)
+            ^ (velocity as u32).wrapping_mul(0x85EB_CA6B);
+        self.hammer_noise_state = if seed == 0 { 1 } else { seed };
+        self.hammer_noise_previous = 0.0;
         self.hammer_noise_amplitude = vel_gain * 0.15;
     }
 
@@ -107,6 +116,20 @@ impl Voice {
         }
     }
 
+    fn next_hammer_noise(&mut self) -> f32 {
+        let mut state = self.hammer_noise_state;
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        self.hammer_noise_state = state;
+
+        let raw = ((state as f64 / u32::MAX as f64) * 2.0 - 1.0) as f32;
+        // Differencing removes DC bias. The 0.5 scale keeps the result in [-1, 1].
+        let noise = (raw - self.hammer_noise_previous) * 0.5;
+        self.hammer_noise_previous = raw;
+        noise
+    }
+
     fn next_sample(&mut self, dt: f32) -> (f32, f32) {
         if !self.is_active {
             return (0.0, 0.0);
@@ -114,17 +137,20 @@ impl Voice {
 
         self.time_active += dt;
         let mut sample = 0.0f32;
+        let mut envelope_energy = 0.0f32;
 
         for h in &mut self.harmonics {
             let env = (-h.decay_rate * self.time_active).exp();
+            let amplitude = h.amplitude * env;
             let phase_inc = 2.0 * PI * h.freq * dt;
             h.phase = (h.phase + phase_inc) % (2.0 * PI);
-            sample += h.phase.sin() * h.amplitude * env;
+            sample += h.phase.sin() * amplitude;
+            envelope_energy += amplitude * amplitude;
         }
 
         // Hammer transient noise (decays within 15ms)
         if self.time_active < 0.015 && self.hammer_noise_amplitude > 0.001 {
-            let noise = ((self.time_active * 12345.67).sin() * 43758.5453).fract() * 2.0 - 1.0;
+            let noise = self.next_hammer_noise();
             let noise_env = (1.0 - self.time_active / 0.015).max(0.0);
             sample += noise * self.hammer_noise_amplitude * noise_env;
         }
@@ -142,8 +168,17 @@ impl Voice {
             }
         }
 
-        // Auto-terminate voice if energy has dropped below audible threshold
-        if self.time_active > 12.0 || (self.time_active > 1.0 && sample.abs() < 0.00005) {
+        // Smooth actual energy over roughly 50ms so oscillator zero crossings cannot kill a voice.
+        let smoothing = (dt * 20.0).clamp(0.0, 1.0);
+        self.smoothed_energy += (sample * sample - self.smoothed_energy) * smoothing;
+
+        // Pedal-sustained voices remain alive until pedal release, subject to the hard safety limit.
+        let inaudible_threshold = 0.00005f32;
+        let naturally_decayed = self.time_active > 2.0
+            && !self.sustained
+            && envelope_energy.sqrt() < inaudible_threshold
+            && self.smoothed_energy.sqrt() < inaudible_threshold;
+        if self.time_active > 12.0 || naturally_decayed {
             self.is_active = false;
             return (0.0, 0.0);
         }
@@ -181,6 +216,11 @@ impl MetronomeVoice {
         self.volume = volume;
     }
 
+    fn reset(&mut self) {
+        self.is_active = false;
+        self.time = 0.0;
+    }
+
     fn next_sample(&mut self, dt: f32) -> (f32, f32) {
         if !self.is_active {
             return (0.0, 0.0);
@@ -196,12 +236,12 @@ impl MetronomeVoice {
     }
 }
 
+use crate::core::config::SynthSoundMode;
 use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
-use std::sync::Arc;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use crate::core::config::SynthSoundMode;
-use tracing::{info, warn, error};
+use std::sync::Arc;
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SoundFontPresetInfo {
@@ -259,22 +299,20 @@ pub fn discover_system_soundfonts() -> Vec<DiscoveredSoundFont> {
             if let Ok(entries) = std::fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                        let ext_lower = ext.to_lowercase();
-                        if ext_lower == "sf2" || ext_lower == "sf3" || ext_lower == "dls" {
-                            let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
-                            if seen_paths.insert(canonical) {
-                                let name = path.file_stem()
-                                    .and_then(|s| s.to_str())
-                                    .unwrap_or("SoundFont")
-                                    .to_string();
-                                let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-                                results.push(DiscoveredSoundFont {
-                                    name,
-                                    path: path.to_string_lossy().to_string(),
-                                    size_bytes,
-                                });
-                            }
+                    if is_supported_soundfont_path(&path) {
+                        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+                        if seen_paths.insert(canonical) {
+                            let name = path
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("SoundFont")
+                                .to_string();
+                            let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                            results.push(DiscoveredSoundFont {
+                                name,
+                                path: path.to_string_lossy().to_string(),
+                                size_bytes,
+                            });
                         }
                     }
                 }
@@ -283,6 +321,13 @@ pub fn discover_system_soundfonts() -> Vec<DiscoveredSoundFont> {
     }
 
     results
+}
+
+fn is_supported_soundfont_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.eq_ignore_ascii_case("sf2"))
+        .unwrap_or(false)
 }
 
 pub fn resolve_soundfont_path(path: &str) -> PathBuf {
@@ -297,34 +342,54 @@ pub fn resolve_soundfont_path(path: &str) -> PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let c1 = exe_dir.join(path);
-            if c1.exists() { return c1; }
+            if c1.exists() {
+                return c1;
+            }
             let c2 = exe_dir.join("soundfonts").join(filename);
-            if c2.exists() { return c2; }
+            if c2.exists() {
+                return c2;
+            }
             let c3 = exe_dir.join(filename);
-            if c3.exists() { return c3; }
+            if c3.exists() {
+                return c3;
+            }
         }
     }
 
     // 2. Check current working directory
     let cwd_c1 = PathBuf::from("soundfonts").join(filename);
-    if cwd_c1.exists() { return cwd_c1; }
+    if cwd_c1.exists() {
+        return cwd_c1;
+    }
 
     // 3. Check standard user data / install directory (~/.local/share/vitl-piano/soundfonts/)
     if let Some(home) = dirs::home_dir() {
-        let c1 = home.join(".local/share/vitl-piano/soundfonts").join(filename);
-        if c1.exists() { return c1; }
+        let c1 = home
+            .join(".local/share/vitl-piano/soundfonts")
+            .join(filename);
+        if c1.exists() {
+            return c1;
+        }
         let c2 = home.join(".local/share/vitl-piano").join(path);
-        if c2.exists() { return c2; }
+        if c2.exists() {
+            return c2;
+        }
     }
 
     // 4. Check Config / AppData directory
     if let Some(config_dir) = dirs::config_dir() {
-        let c = config_dir.join("vitl-piano-desktop/soundfonts").join(filename);
-        if c.exists() { return c; }
+        let c = config_dir
+            .join("vitl-piano-desktop/soundfonts")
+            .join(filename);
+        if c.exists() {
+            return c;
+        }
     }
     if let Some(data_dir) = dirs::data_dir() {
         let c = data_dir.join("vitl-piano/soundfonts").join(filename);
-        if c.exists() { return c; }
+        if c.exists() {
+            return c;
+        }
     }
 
     // 5. Check system soundfont directories
@@ -335,7 +400,9 @@ pub fn resolve_soundfont_path(path: &str) -> PathBuf {
         PathBuf::from("C:\\soundfonts").join(filename),
     ];
     for sc in sys_candidates {
-        if sc.exists() { return sc; }
+        if sc.exists() {
+            return sc;
+        }
     }
 
     p.to_path_buf()
@@ -350,20 +417,35 @@ pub struct SoundFontEngine {
 }
 
 impl SoundFontEngine {
-    pub fn load_file(path: &str, sample_rate: f32, initial_bank: i32, initial_patch: i32) -> Result<Self, String> {
+    pub fn load_file(
+        path: &str,
+        sample_rate: f32,
+        initial_bank: i32,
+        initial_patch: i32,
+    ) -> Result<Self, String> {
         let resolved_path = resolve_soundfont_path(path);
         let mut file = File::open(&resolved_path).map_err(|e| {
-            format!("Failed to open SoundFont file '{}' (searched: '{}'): {}", path, resolved_path.display(), e)
+            format!(
+                "Failed to open SoundFont file '{}' (searched: '{}'): {}",
+                path,
+                resolved_path.display(),
+                e
+            )
         })?;
-        let sound_font_raw = SoundFont::new(&mut file).map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
-        
+        let sound_font_raw =
+            SoundFont::new(&mut file).map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
+
         let mut presets = Vec::new();
         for p in sound_font_raw.get_presets() {
             let name = p.get_name().trim().to_string();
             presets.push(SoundFontPresetInfo {
                 bank: p.get_bank_number(),
                 patch: p.get_patch_number(),
-                name: if name.is_empty() { format!("Preset {}:{}", p.get_bank_number(), p.get_patch_number()) } else { name },
+                name: if name.is_empty() {
+                    format!("Preset {}:{}", p.get_bank_number(), p.get_patch_number())
+                } else {
+                    name
+                },
             });
         }
         presets.sort_by_key(|p| (p.bank, p.patch));
@@ -372,11 +454,15 @@ impl SoundFontEngine {
         let mut settings = SynthesizerSettings::new(sample_rate as i32);
         settings.enable_reverb_and_chorus = true;
         settings.maximum_polyphony = 256;
-        let mut synthesizer = Synthesizer::new(&sound_font, &settings).map_err(|e| format!("Failed to initialize SoundFont synth: {:?}", e))?;
+        let mut synthesizer = Synthesizer::new(&sound_font, &settings)
+            .map_err(|e| format!("Failed to initialize SoundFont synth: {:?}", e))?;
 
         // Resolve active preset
         let (bank, patch) = if !presets.is_empty() {
-            if presets.iter().any(|p| p.bank == initial_bank && p.patch == initial_patch) {
+            if presets
+                .iter()
+                .any(|p| p.bank == initial_bank && p.patch == initial_patch)
+            {
                 (initial_bank, initial_patch)
             } else {
                 (presets[0].bank, presets[0].patch)
@@ -407,8 +493,10 @@ impl SoundFontEngine {
         self.current_patch = patch;
         for ch in 0..Synthesizer::CHANNEL_COUNT as i32 {
             if ch != Synthesizer::PERCUSSION_CHANNEL as i32 {
-                self.synthesizer.process_midi_message(ch, 0xB0, 0x00, bank >> 7);
-                self.synthesizer.process_midi_message(ch, 0xB0, 0x20, bank & 0x7F);
+                self.synthesizer
+                    .process_midi_message(ch, 0xB0, 0x00, bank >> 7);
+                self.synthesizer
+                    .process_midi_message(ch, 0xB0, 0x20, bank & 0x7F);
                 self.synthesizer.process_midi_message(ch, 0xC0, patch, 0);
             }
         }
@@ -434,12 +522,20 @@ impl SoundFontEngine {
 
     pub fn set_sustain(&mut self, down: bool) {
         for ch in 0..Synthesizer::CHANNEL_COUNT as i32 {
-            self.synthesizer.process_midi_message(ch, 0xB0, 64, if down { 127 } else { 0 });
+            self.synthesizer
+                .process_midi_message(ch, 0xB0, 64, if down { 127 } else { 0 });
         }
     }
 
     pub fn all_notes_off(&mut self) {
         self.synthesizer.note_off_all(false);
+    }
+
+    fn reset(&mut self) {
+        let bank = self.current_bank;
+        let patch = self.current_patch;
+        self.synthesizer.reset();
+        self.set_preset(bank, patch);
     }
 
     pub fn next_sample(&mut self) -> (f32, f32) {
@@ -466,6 +562,7 @@ pub struct PianoSynthEngine {
     pub mode: SynthSoundMode,
     soundfont_engine: Option<SoundFontEngine>,
     pub soundfont_path: Option<String>,
+    was_enabled: bool,
 }
 
 impl PianoSynthEngine {
@@ -492,18 +589,28 @@ impl PianoSynthEngine {
             mode: SynthSoundMode::PhysicalModeling,
             soundfont_engine: None,
             soundfont_path: None,
+            was_enabled: true,
         }
     }
 
-    /// Load an optional custom SoundFont (.sf2 / .sf3)
+    /// Load an optional custom SoundFont (.sf2)
     pub fn load_soundfont(&mut self, path: &str) -> Result<(), String> {
         self.load_soundfont_preset(path, 0, 0)
     }
 
-    pub fn load_soundfont_preset(&mut self, path: &str, bank: i32, patch: i32) -> Result<(), String> {
-        info!("Loading SoundFont from: {} (bank={}, patch={})", path, bank, patch);
+    pub fn load_soundfont_preset(
+        &mut self,
+        path: &str,
+        bank: i32,
+        patch: i32,
+    ) -> Result<(), String> {
+        info!(
+            "Loading SoundFont from: {} (bank={}, patch={})",
+            path, bank, patch
+        );
         match SoundFontEngine::load_file(path, self.sample_rate, bank, patch) {
             Ok(sf) => {
+                self.reset_audio_state();
                 self.soundfont_path = Some(path.to_string());
                 self.mode = SynthSoundMode::SoundFont;
                 self.soundfont_engine = Some(sf);
@@ -511,19 +618,26 @@ impl PianoSynthEngine {
                 Ok(())
             }
             Err(e) => {
-                warn!("SoundFont load failed ({}); falling back to built-in physical synthesizer", e);
-                self.mode = SynthSoundMode::PhysicalModeling;
+                warn!(
+                    "SoundFont load failed ({}); keeping the current synthesizer",
+                    e
+                );
                 Err(e)
             }
         }
     }
 
     pub fn get_soundfont_presets(&self) -> Vec<SoundFontPresetInfo> {
-        self.soundfont_engine.as_ref().map(|sf| sf.presets.clone()).unwrap_or_default()
+        self.soundfont_engine
+            .as_ref()
+            .map(|sf| sf.presets.clone())
+            .unwrap_or_default()
     }
 
     pub fn get_soundfont_active_preset(&self) -> Option<(i32, i32)> {
-        self.soundfont_engine.as_ref().map(|sf| (sf.current_bank, sf.current_patch))
+        self.soundfont_engine
+            .as_ref()
+            .map(|sf| (sf.current_bank, sf.current_patch))
     }
 
     pub fn set_soundfont_preset(&mut self, bank: i32, patch: i32) -> Result<(), String> {
@@ -537,6 +651,7 @@ impl PianoSynthEngine {
 
     /// Unload SoundFont and return to built-in physical modeling
     pub fn unload_soundfont(&mut self) {
+        self.reset_audio_state();
         self.soundfont_engine = None;
         self.soundfont_path = None;
         self.mode = SynthSoundMode::PhysicalModeling;
@@ -545,11 +660,16 @@ impl PianoSynthEngine {
 
     /// Switch active synthesis mode
     pub fn set_mode(&mut self, mode: SynthSoundMode) {
-        if mode == SynthSoundMode::SoundFont && self.soundfont_engine.is_none() {
+        let next_mode = if mode == SynthSoundMode::SoundFont && self.soundfont_engine.is_none() {
             warn!("Cannot switch to SoundFont mode: no SoundFont file loaded. Reverting to Physical Modeling.");
-            self.mode = SynthSoundMode::PhysicalModeling;
+            SynthSoundMode::PhysicalModeling
         } else {
-            self.mode = mode;
+            mode
+        };
+
+        if self.mode != next_mode {
+            self.reset_audio_state();
+            self.mode = next_mode;
         }
     }
 
@@ -656,20 +776,37 @@ impl PianoSynthEngine {
         }
     }
 
-    /// Stop all active voices immediately
-    pub fn all_notes_off(&mut self) {
+    fn reset_audio_state(&mut self) {
         if let Some(ref mut sf) = self.soundfont_engine {
-            sf.all_notes_off();
+            sf.reset();
         }
-        for v in &mut self.voices {
-            v.is_active = false;
+        for voice in &mut self.voices {
+            voice.is_active = false;
+            voice.is_releasing = false;
+            voice.sustained = false;
+            voice.time_active = 0.0;
+            voice.release_time = 0.0;
+            voice.smoothed_energy = 0.0;
         }
+        self.metronome.reset();
         self.reverb.reset();
+        self.equalizer.reset();
+        self.delay.reset();
+        self.sustain_pedal = false;
+    }
+
+    /// Stop all active voices immediately and clear effect tails.
+    pub fn all_notes_off(&mut self) {
+        self.reset_audio_state();
     }
 
     /// Set reverb properties
     pub fn set_reverb_params(&mut self, mix: f32, room_size: f32) {
-        self.reverb.wet_mix = mix.clamp(0.0, 1.0);
+        let mix = mix.clamp(0.0, 1.0);
+        if mix <= 0.001 && self.reverb.wet_mix > 0.001 {
+            self.reverb.reset();
+        }
+        self.reverb.wet_mix = mix;
         self.reverb.room_size = room_size.clamp(0.0, 0.98);
     }
 
@@ -680,6 +817,9 @@ impl PianoSynthEngine {
 
     /// Set Stereo Delay / Echo parameters
     pub fn set_delay_params(&mut self, enabled: bool, time_ms: f32, feedback: f32, mix: f32) {
+        if !enabled && self.delay.enabled {
+            self.delay.reset();
+        }
         self.delay.enabled = enabled;
         self.delay.delay_time_ms = time_ms.clamp(10.0, 1500.0);
         self.delay.feedback = feedback.clamp(0.0, 0.85);
@@ -689,28 +829,34 @@ impl PianoSynthEngine {
     /// Compute next stereo audio sample pair
     pub fn next_sample(&mut self) -> (f32, f32) {
         if !self.enabled {
+            if self.was_enabled {
+                self.reset_audio_state();
+                self.was_enabled = false;
+            }
             return (0.0, 0.0);
         }
+        self.was_enabled = true;
 
         let dt = self.dt;
-        let (mut mix_l, mut mix_r) = if self.mode == SynthSoundMode::SoundFont && self.soundfont_engine.is_some() {
-            if let Some(ref mut sf) = self.soundfont_engine {
-                sf.next_sample()
-            } else {
-                (0.0, 0.0)
-            }
-        } else {
-            let mut l = 0.0f32;
-            let mut r = 0.0f32;
-            for v in &mut self.voices {
-                if v.is_active {
-                    let (vl, vr) = v.next_sample(dt);
-                    l += vl;
-                    r += vr;
+        let (mut mix_l, mut mix_r) =
+            if self.mode == SynthSoundMode::SoundFont && self.soundfont_engine.is_some() {
+                if let Some(ref mut sf) = self.soundfont_engine {
+                    sf.next_sample()
+                } else {
+                    (0.0, 0.0)
                 }
-            }
-            (l, r)
-        };
+            } else {
+                let mut l = 0.0f32;
+                let mut r = 0.0f32;
+                for v in &mut self.voices {
+                    if v.is_active {
+                        let (vl, vr) = v.next_sample(dt);
+                        l += vl;
+                        r += vr;
+                    }
+                }
+                (l, r)
+            };
 
         // Metronome click
         let (metro_l, metro_r) = self.metronome.next_sample(dt);
@@ -744,5 +890,39 @@ impl PianoSynthEngine {
                 frame[0] = (l + r) * 0.5;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hammer_noise_is_deterministic_bounded_and_zero_mean() {
+        let mut first = Voice::new_inactive();
+        let mut second = Voice::new_inactive();
+        first.init(60, 100, 44_100.0);
+        second.init(60, 100, 44_100.0);
+
+        let mut sum = 0.0f64;
+        let sample_count = 4_096;
+        for _ in 0..sample_count {
+            let a = first.next_hammer_noise();
+            let b = second.next_hammer_noise();
+            assert_eq!(a.to_bits(), b.to_bits());
+            assert!((-1.0..=1.0).contains(&a));
+            sum += a as f64;
+        }
+
+        assert!((sum / sample_count as f64).abs() < 0.001);
+    }
+
+    #[test]
+    fn only_sf2_files_are_advertised_as_supported() {
+        assert!(is_supported_soundfont_path(Path::new("Piano.sf2")));
+        assert!(is_supported_soundfont_path(Path::new("Piano.SF2")));
+        assert!(!is_supported_soundfont_path(Path::new("Piano.sf3")));
+        assert!(!is_supported_soundfont_path(Path::new("Piano.dls")));
+        assert!(!is_supported_soundfont_path(Path::new("Piano")));
     }
 }

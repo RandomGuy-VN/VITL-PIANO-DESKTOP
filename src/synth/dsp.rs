@@ -81,10 +81,18 @@ impl Reverb {
     }
 
     pub fn reset(&mut self) {
-        for c in &mut self.comb_filters_l { c.reset(); }
-        for c in &mut self.comb_filters_r { c.reset(); }
-        for a in &mut self.allpass_filters_l { a.reset(); }
-        for a in &mut self.allpass_filters_r { a.reset(); }
+        for c in &mut self.comb_filters_l {
+            c.reset();
+        }
+        for c in &mut self.comb_filters_r {
+            c.reset();
+        }
+        for a in &mut self.allpass_filters_l {
+            a.reset();
+        }
+        for a in &mut self.allpass_filters_r {
+            a.reset();
+        }
     }
 }
 
@@ -145,14 +153,10 @@ impl AllpassFilter {
     }
 }
 
-/// Soft-knee limiter / saturation function to prevent digital clipping
+/// Continuous, monotonic saturation function that bounds finite signals to [-1, 1].
 #[inline(always)]
 pub fn soft_limit(x: f32) -> f32 {
-    if x.abs() < 0.8 {
-        x
-    } else {
-        x / (1.0 + x * x).sqrt()
-    }
+    x.tanh()
 }
 
 /// 3-Band Equalizer (Low Shelf @ 100Hz, Mid Peak @ 1kHz, High Shelf @ 6kHz)
@@ -161,6 +165,9 @@ pub struct ThreeBandEqualizer {
     pub low_db: f32,
     pub mid_db: f32,
     pub high_db: f32,
+    low_coefficients: BiquadCoefficients,
+    mid_coefficients: BiquadCoefficients,
+    high_coefficients: BiquadCoefficients,
     // Filter states (L & R)
     low_l: BiquadState,
     low_r: BiquadState,
@@ -178,27 +185,87 @@ struct BiquadState {
     y2: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct BiquadCoefficients {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+}
+
+impl BiquadCoefficients {
+    const IDENTITY: Self = Self {
+        b0: 1.0,
+        b1: 0.0,
+        b2: 0.0,
+        a1: 0.0,
+        a2: 0.0,
+    };
+
+    fn from_tuple((b0, b1, b2, a1, a2): (f32, f32, f32, f32, f32)) -> Self {
+        Self { b0, b1, b2, a1, a2 }
+    }
+}
+
 impl ThreeBandEqualizer {
     pub fn new(sample_rate: f32) -> Self {
         let sample_rate = sample_rate.max(8000.0);
-        Self {
+        let mut equalizer = Self {
             sample_rate,
             low_db: 0.0,
             mid_db: 0.0,
             high_db: 0.0,
+            low_coefficients: BiquadCoefficients::IDENTITY,
+            mid_coefficients: BiquadCoefficients::IDENTITY,
+            high_coefficients: BiquadCoefficients::IDENTITY,
             low_l: BiquadState::default(),
             low_r: BiquadState::default(),
             mid_l: BiquadState::default(),
             mid_r: BiquadState::default(),
             high_l: BiquadState::default(),
             high_r: BiquadState::default(),
-        }
+        };
+        equalizer.update_coefficients();
+        equalizer
     }
 
     pub fn set_gains(&mut self, low_db: f32, mid_db: f32, high_db: f32) {
-        self.low_db = low_db.clamp(-15.0, 15.0);
-        self.mid_db = mid_db.clamp(-15.0, 15.0);
-        self.high_db = high_db.clamp(-15.0, 15.0);
+        let low_db = sanitize_gain(low_db);
+        let mid_db = sanitize_gain(mid_db);
+        let high_db = sanitize_gain(high_db);
+
+        if self.low_db.to_bits() == low_db.to_bits()
+            && self.mid_db.to_bits() == mid_db.to_bits()
+            && self.high_db.to_bits() == high_db.to_bits()
+        {
+            return;
+        }
+
+        self.low_db = low_db;
+        self.mid_db = mid_db;
+        self.high_db = high_db;
+        self.update_coefficients();
+        self.reset();
+    }
+
+    fn update_coefficients(&mut self) {
+        self.low_coefficients = BiquadCoefficients::from_tuple(calculate_low_shelf(
+            120.0,
+            self.low_db,
+            self.sample_rate,
+        ));
+        self.mid_coefficients = BiquadCoefficients::from_tuple(calculate_peaking(
+            1000.0,
+            self.mid_db,
+            1.0,
+            self.sample_rate,
+        ));
+        self.high_coefficients = BiquadCoefficients::from_tuple(calculate_high_shelf(
+            5000.0,
+            self.high_db,
+            self.sample_rate,
+        ));
     }
 
     pub fn process(&mut self, in_l: f32, in_r: f32) -> (f32, f32) {
@@ -206,20 +273,65 @@ impl ThreeBandEqualizer {
             return (in_l, in_r);
         }
 
-        // Low shelf coefficients
-        let (b0_l, b1_l, b2_l, a1_l, a2_l) = calculate_low_shelf(120.0, self.low_db, self.sample_rate);
-        let out_l1 = process_biquad(in_l, &mut self.low_l, b0_l, b1_l, b2_l, a1_l, a2_l);
-        let out_r1 = process_biquad(in_r, &mut self.low_r, b0_l, b1_l, b2_l, a1_l, a2_l);
+        let low = self.low_coefficients;
+        let out_l1 = process_biquad(
+            in_l,
+            &mut self.low_l,
+            low.b0,
+            low.b1,
+            low.b2,
+            low.a1,
+            low.a2,
+        );
+        let out_r1 = process_biquad(
+            in_r,
+            &mut self.low_r,
+            low.b0,
+            low.b1,
+            low.b2,
+            low.a1,
+            low.a2,
+        );
 
-        // Mid peak coefficients
-        let (b0_m, b1_m, b2_m, a1_m, a2_m) = calculate_peaking(1000.0, self.mid_db, 1.0, self.sample_rate);
-        let out_l2 = process_biquad(out_l1, &mut self.mid_l, b0_m, b1_m, b2_m, a1_m, a2_m);
-        let out_r2 = process_biquad(out_r1, &mut self.mid_r, b0_m, b1_m, b2_m, a1_m, a2_m);
+        let mid = self.mid_coefficients;
+        let out_l2 = process_biquad(
+            out_l1,
+            &mut self.mid_l,
+            mid.b0,
+            mid.b1,
+            mid.b2,
+            mid.a1,
+            mid.a2,
+        );
+        let out_r2 = process_biquad(
+            out_r1,
+            &mut self.mid_r,
+            mid.b0,
+            mid.b1,
+            mid.b2,
+            mid.a1,
+            mid.a2,
+        );
 
-        // High shelf coefficients
-        let (b0_h, b1_h, b2_h, a1_h, a2_h) = calculate_high_shelf(5000.0, self.high_db, self.sample_rate);
-        let out_l3 = process_biquad(out_l2, &mut self.high_l, b0_h, b1_h, b2_h, a1_h, a2_h);
-        let out_r3 = process_biquad(out_r2, &mut self.high_r, b0_h, b1_h, b2_h, a1_h, a2_h);
+        let high = self.high_coefficients;
+        let out_l3 = process_biquad(
+            out_l2,
+            &mut self.high_l,
+            high.b0,
+            high.b1,
+            high.b2,
+            high.a1,
+            high.a2,
+        );
+        let out_r3 = process_biquad(
+            out_r2,
+            &mut self.high_r,
+            high.b0,
+            high.b1,
+            high.b2,
+            high.a1,
+            high.a2,
+        );
 
         (out_l3, out_r3)
     }
@@ -235,7 +347,24 @@ impl ThreeBandEqualizer {
 }
 
 #[inline(always)]
-fn process_biquad(input: f32, s: &mut BiquadState, b0: f32, b1: f32, b2: f32, a1: f32, a2: f32) -> f32 {
+fn sanitize_gain(gain_db: f32) -> f32 {
+    if gain_db.is_finite() {
+        gain_db.clamp(-15.0, 15.0)
+    } else {
+        0.0
+    }
+}
+
+#[inline(always)]
+fn process_biquad(
+    input: f32,
+    s: &mut BiquadState,
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+) -> f32 {
     let output = b0 * input + b1 * s.x1 + b2 * s.x2 - a1 * s.y1 - a2 * s.y2;
     s.x2 = s.x1;
     s.x1 = input;
@@ -328,11 +457,15 @@ impl StereoDelay {
             return (in_l, in_r);
         }
 
-        let delay_samples = ((self.delay_time_ms.max(1.0) * 0.001 * self.sample_rate) as usize).clamp(1, self.buffer_l.len() - 1);
-        let read_idx_l = (self.write_idx + self.buffer_l.len() - delay_samples) % self.buffer_l.len();
+        let delay_samples = ((self.delay_time_ms.max(1.0) * 0.001 * self.sample_rate) as usize)
+            .clamp(1, self.buffer_l.len() - 1);
+        let read_idx_l =
+            (self.write_idx + self.buffer_l.len() - delay_samples) % self.buffer_l.len();
         // Ping-pong stereo offset (+20ms for right channel)
-        let delay_samples_r = ((self.delay_time_ms * 0.001 * self.sample_rate * 1.08) as usize).clamp(1, self.buffer_r.len() - 1);
-        let read_idx_r = (self.write_idx + self.buffer_r.len() - delay_samples_r) % self.buffer_r.len();
+        let delay_samples_r = ((self.delay_time_ms * 0.001 * self.sample_rate * 1.08) as usize)
+            .clamp(1, self.buffer_r.len() - 1);
+        let read_idx_r =
+            (self.write_idx + self.buffer_r.len() - delay_samples_r) % self.buffer_r.len();
 
         let delayed_l = self.buffer_l[read_idx_l];
         let delayed_r = self.buffer_r[read_idx_r];
@@ -353,5 +486,37 @@ impl StereoDelay {
         self.buffer_l.fill(0.0);
         self.buffer_r.fill(0.0);
         self.write_idx = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn equalizer_coefficients_are_cached_until_gains_change() {
+        let mut equalizer = ThreeBandEqualizer::new(44_100.0);
+        equalizer.set_gains(6.0, -3.0, 4.0);
+        let cached = (
+            equalizer.low_coefficients,
+            equalizer.mid_coefficients,
+            equalizer.high_coefficients,
+        );
+
+        for _ in 0..1_000 {
+            let _ = equalizer.process(0.25, -0.25);
+        }
+
+        assert_eq!(
+            cached,
+            (
+                equalizer.low_coefficients,
+                equalizer.mid_coefficients,
+                equalizer.high_coefficients,
+            )
+        );
+
+        equalizer.set_gains(5.0, -3.0, 4.0);
+        assert_ne!(cached.0, equalizer.low_coefficients);
     }
 }

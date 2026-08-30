@@ -56,7 +56,8 @@ impl AudioOutputManager {
                                 frame[0] = (l.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
                                 frame[1] = (r.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
                             } else if !frame.is_empty() {
-                                frame[0] = (((l + r) * 0.5).clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+                                frame[0] =
+                                    (((l + r) * 0.5).clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
                             }
                         }
                     },
@@ -86,7 +87,9 @@ impl AudioOutputManager {
             _ => bail!("Unsupported audio sample format"),
         };
 
-        stream.play().context("Failed to start audio stream playback")?;
+        stream
+            .play()
+            .context("Failed to start audio stream playback")?;
 
         Ok(Self {
             engine,
@@ -128,7 +131,8 @@ impl AudioOutputManager {
 
         for note in &all_notes {
             let on_sample = ((note.start_ms / 1000.0) * sample_rate as f64) as usize;
-            let off_sample = (((note.start_ms + note.duration_ms) / 1000.0) * sample_rate as f64) as usize;
+            let off_sample =
+                (((note.start_ms + note.duration_ms) / 1000.0) * sample_rate as f64) as usize;
 
             sample_events.push((on_sample, true, note.note, note.velocity));
             sample_events.push((off_sample, false, note.note, 0));

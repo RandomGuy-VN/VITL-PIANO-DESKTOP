@@ -42,10 +42,7 @@ impl MusescoreImporter {
             ACCEPT,
             HeaderValue::from_static("application/json, text/html, */*"),
         );
-        headers.insert(
-            ACCEPT_LANGUAGE,
-            HeaderValue::from_static("en-US,en;q=0.9"),
-        );
+        headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.9"));
 
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(15))
@@ -88,7 +85,11 @@ impl MusescoreImporter {
     }
 
     /// Fetch HTML to extract score title and JS bundle suffix
-    async fn fetch_page_metadata(&self, score_id: u64, raw_input: &str) -> (Option<String>, Option<String>) {
+    async fn fetch_page_metadata(
+        &self,
+        score_id: u64,
+        raw_input: &str,
+    ) -> (Option<String>, Option<String>) {
         let target_url = if raw_input.starts_with("http://") || raw_input.starts_with("https://") {
             raw_input.to_string()
         } else {
@@ -106,9 +107,11 @@ impl MusescoreImporter {
         };
 
         // 1. Title extraction
-        let title_re = Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#).ok();
+        let title_re =
+            Regex::new(r#"<meta\s+property=["']og:title["']\s+content=["'](.*?)["']"#).ok();
         let title = title_re.and_then(|re| {
-            re.captures(&html).and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
+            re.captures(&html)
+                .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
         });
 
         // 2. JS build suffix extraction (LibreScore algorithm)
@@ -146,7 +149,10 @@ impl MusescoreImporter {
 
         for suffix in suffixes {
             let auth = Self::compute_auth_token(score_id, suffix);
-            let api_url = format!("https://musescore.com/api/jmuse?id={}&type=midi&index=0", score_id);
+            let api_url = format!(
+                "https://musescore.com/api/jmuse?id={}&type=midi&index=0",
+                score_id
+            );
 
             debug!("Trying JMuse API with auth={}: {}", auth, api_url);
 
@@ -154,7 +160,10 @@ impl MusescoreImporter {
                 .client
                 .get(&api_url)
                 .header(AUTHORIZATION, &auth)
-                .header("Referer", format!("https://musescore.com/score/{}", score_id))
+                .header(
+                    "Referer",
+                    format!("https://musescore.com/score/{}", score_id),
+                )
                 .header("Origin", "https://musescore.com")
                 .send()
                 .await
@@ -187,7 +196,10 @@ impl MusescoreImporter {
     async fn try_mirror_proxies(&self, score_id: u64) -> Result<Vec<u8>> {
         let mirror_urls = [
             format!("https://api.nanomidi.net/api/musescore/{}", score_id),
-            format!("https://webmscore-api.librescore.org/score/{}/midi", score_id),
+            format!(
+                "https://webmscore-api.librescore.org/score/{}/midi",
+                score_id
+            ),
             format!("https://api.librescore.org/api/score/{}/midi", score_id),
         ];
 
@@ -221,7 +233,10 @@ impl MusescoreImporter {
         let midi_bytes = match self.try_jmuse_api(score_id, suffix_opt.as_deref()).await {
             Ok(bytes) => bytes,
             Err(jmuse_err) => {
-                warn!("Direct JMuse API failed ({:?}), trying mirror proxies...", jmuse_err);
+                warn!(
+                    "Direct JMuse API failed ({:?}), trying mirror proxies...",
+                    jmuse_err
+                );
                 self.try_mirror_proxies(score_id).await.context(
                     "MuseScore Cloudflare security blocked direct downloading for this score. Please download the .mid/.mscz using LibreScore userscript and drag-and-drop into VITL Piano.",
                 )?
@@ -236,7 +251,13 @@ impl MusescoreImporter {
         let raw_title = title_opt.unwrap_or_else(|| format!("MuseScore_{}", score_id));
         let sanitized_title: String = raw_title
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>()
             .trim()
             .to_string();
@@ -251,8 +272,9 @@ impl MusescoreImporter {
 
         info!("Saved MuseScore MIDI to {:?}", target_path);
 
-        let song = MidiParser::parse_file(&target_path)
-            .with_context(|| format!("Failed to parse imported MuseScore MIDI {:?}", target_path))?;
+        let song = MidiParser::parse_file(&target_path).with_context(|| {
+            format!("Failed to parse imported MuseScore MIDI {:?}", target_path)
+        })?;
 
         Ok((song, target_path))
     }

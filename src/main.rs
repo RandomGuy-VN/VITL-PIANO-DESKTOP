@@ -123,15 +123,26 @@ fn main() -> Result<()> {
     if !headless && args.window {
         DesktopWindow::run(server_url, "VITL Piano Desktop", 1120.0, 760.0)?;
     } else {
-        info!("Running in headless daemon mode on http://127.0.0.1:{}", actual_port);
-        
+        info!(
+            "Running in headless daemon mode on http://127.0.0.1:{}",
+            actual_port
+        );
+
         if file_arg_headless.is_some() {
             info!("Headless mode: Auto-playing file in 3 seconds... Switch to Roblox now!");
             std::thread::sleep(std::time::Duration::from_secs(3));
-            
+
             // Trigger playback via HTTP request to the local API
             let _ = std::process::Command::new("curl")
-                .args(["-X", "POST", "-H", "Content-Type: application/json", "-d", "{\"action\":\"play\"}", &format!("http://127.0.0.1:{}/api/action", actual_port)])
+                .args([
+                    "-X",
+                    "POST",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    "{\"action\":\"play\"}",
+                    &format!("http://127.0.0.1:{}/api/action", actual_port),
+                ])
                 .output();
         }
 
@@ -169,7 +180,10 @@ async fn run_backend(
                 Some(mgr)
             }
             Err(e) => {
-                error!("Audio device warning: {:?}. Running in silent macro mode.", e);
+                error!(
+                    "Audio device warning: {:?}. Running in silent macro mode.",
+                    e
+                );
                 None
             }
         }
@@ -248,20 +262,41 @@ async fn run_backend(
     // 6. Hub Client
     let hub_client = Arc::new(tokio::sync::Mutex::new(MidiHubClient::new()));
 
-    // 7. Load initial song if passed
+    // 7. Load initial song if passed, or fallback to configured song / bundled sample
     let current_song: Arc<Mutex<Option<Song>>> = Arc::new(Mutex::new(None));
-    if let Some(file_path) = initial_file {
-        info!("Loading requested initial file: {}", file_path);
-        let path_buf = std::path::PathBuf::from(&file_path);
+    let initial_path = initial_file.or_else(|| {
+        let cfg_file = config.lock().current_file.clone();
+        if !cfg_file.is_empty() && std::path::Path::new(&cfg_file).exists() {
+            Some(cfg_file)
+        } else {
+            let samples = [
+                "samples/fur_elise.mid",
+                "samples/canon_in_d.mid",
+                "samples/rush_e.mid",
+            ];
+            samples
+                .iter()
+                .find(|s| std::path::Path::new(s).exists())
+                .map(|s| s.to_string())
+        }
+    });
+
+    if let Some(ref file_path) = initial_path {
+        info!("Loading initial song: {}", file_path);
+        let path_buf = std::path::PathBuf::from(file_path);
         let res = if file_path.to_lowercase().ends_with(".txt") {
             if let Ok(content) = std::fs::read_to_string(&path_buf) {
-                let title = path_buf.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                let title = path_buf
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
                 crate::core::sheet::SheetParser::parse_sheet(&content, title, None)
             } else {
                 Err(anyhow::anyhow!("Failed to read sheet file"))
             }
         } else {
-            MidiParser::parse_file(&file_path)
+            MidiParser::parse_file(file_path)
         };
 
         if let Ok(song) = res {
@@ -299,7 +334,13 @@ async fn run_backend(
         }
     }
 
-    let listener = bound_listener.ok_or_else(|| anyhow::anyhow!("Could not bind to any port in range {}..{}", start_port, start_port + 50))?;
+    let listener = bound_listener.ok_or_else(|| {
+        anyhow::anyhow!(
+            "Could not bind to any port in range {}..{}",
+            start_port,
+            start_port + 50
+        )
+    })?;
     let local_addr = listener.local_addr()?;
     info!("Server listening on http://{}", local_addr);
 

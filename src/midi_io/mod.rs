@@ -71,7 +71,12 @@ impl MidiIoManager {
         let ports = midi_in.ports();
         let target_port = ports
             .into_iter()
-            .find(|p| midi_in.port_name(p).map(|n| n == port_name).unwrap_or(false))
+            .find(|p| {
+                midi_in
+                    .port_name(p)
+                    .map(|n| n == port_name)
+                    .unwrap_or(false)
+            })
             .context("MIDI input port not found")?;
 
         let synth_arc = Arc::clone(&self.synth);
@@ -79,72 +84,82 @@ impl MidiIoManager {
         let map_arc = Arc::clone(&self.mapping);
         let cfg_arc = Arc::clone(&self.config);
 
-        let conn = midi_in.connect(
-            &target_port,
-            "vitl-piano-in-handler",
-            move |_timestamp, message, _| {
-                if message.is_empty() {
-                    return;
-                }
+        let conn = midi_in
+            .connect(
+                &target_port,
+                "vitl-piano-in-handler",
+                move |_timestamp, message, _| {
+                    if message.is_empty() {
+                        return;
+                    }
 
-                let status = message[0] & 0xF0;
-                let cfg = cfg_arc.lock().clone();
+                    let status = message[0] & 0xF0;
+                    let cfg = cfg_arc.lock().clone();
 
-                match status {
-                    0x90 => {
-                        // Note On
-                        if message.len() >= 3 {
-                            let note = message[1];
-                            let velocity = message[2];
+                    match status {
+                        0x90 => {
+                            // Note On
+                            if message.len() >= 3 {
+                                let note = message[1];
+                                let velocity = message[2];
 
-                            if velocity > 0 {
-                                if cfg.synth.enabled {
-                                    synth_arc.lock().note_on(note, velocity);
-                                }
-                                if cfg.macro_enabled {
-                                    if cfg.velocity {
-                                        let vel_char = map_arc.lock().get_velocity_key(velocity);
-                                        sim_arc.send_velocity(vel_char);
+                                if velocity > 0 {
+                                    if cfg.synth.enabled {
+                                        synth_arc.lock().note_on(note, velocity);
                                     }
-                                    if let Some(key_map) = map_arc.lock().get_piano_key(note, cfg.allow_88_keys) {
-                                        let sim = Arc::clone(&sim_arc);
-                                        std::thread::spawn(move || {
-                                            sim.tap_piano_key(key_map.key_char, key_map.is_shift, key_map.is_ctrl, 50);
-                                        });
+                                    if cfg.macro_enabled {
+                                        if cfg.velocity {
+                                            let vel_char =
+                                                map_arc.lock().get_velocity_key(velocity);
+                                            sim_arc.send_velocity(vel_char);
+                                        }
+                                        if let Some(key_map) =
+                                            map_arc.lock().get_piano_key(note, cfg.allow_88_keys)
+                                        {
+                                            let sim = Arc::clone(&sim_arc);
+                                            std::thread::spawn(move || {
+                                                sim.tap_piano_key(
+                                                    key_map.key_char,
+                                                    key_map.is_shift,
+                                                    key_map.is_ctrl,
+                                                    50,
+                                                );
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    if cfg.synth.enabled {
+                                        synth_arc.lock().note_off(note);
                                     }
                                 }
-                            } else {
+                            }
+                        }
+                        0x80 => {
+                            // Note Off
+                            if message.len() >= 2 {
+                                let note = message[1];
                                 if cfg.synth.enabled {
                                     synth_arc.lock().note_off(note);
                                 }
                             }
                         }
-                    }
-                    0x80 => {
-                        // Note Off
-                        if message.len() >= 2 {
-                            let note = message[1];
-                            if cfg.synth.enabled {
-                                synth_arc.lock().note_off(note);
+                        0xB0 => {
+                            // Control change
+                            if message.len() >= 3 && message[1] == 64 {
+                                let val = message[2];
+                                let is_down = val > cfg.sustain_cutoff;
+                                synth_arc.lock().set_sustain(is_down);
+                                if cfg.macro_enabled && cfg.sustain {
+                                    sim_arc.set_sustain(is_down);
+                                }
                             }
                         }
+                        _ => {}
                     }
-                    0xB0 => {
-                        // Control change
-                        if message.len() >= 3 && message[1] == 64 {
-                            let val = message[2];
-                            let is_down = val > cfg.sustain_cutoff;
-                            synth_arc.lock().set_sustain(is_down);
-                            if cfg.macro_enabled && cfg.sustain {
-                                sim_arc.set_sustain(is_down);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            },
-            (),
-        ).map_err(|e| anyhow::anyhow!("Failed to connect MIDI input: {:?}", e))?;
+                },
+                (),
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to connect MIDI input: {:?}", e))?;
 
         *self.input_conn.lock() = Some(conn);
         info!("Connected to MIDI input port '{}'", port_name);

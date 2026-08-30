@@ -53,6 +53,7 @@ pub struct PlayerEngine {
     transpose_offset: Arc<Mutex<i8>>,
     seek_request_ms: Arc<Mutex<Option<f64>>>,
     should_stop: Arc<AtomicBool>,
+    is_loop_running: Arc<AtomicBool>,
     /// Generation counter to prevent concurrent playback loops
     playback_generation: Arc<AtomicU64>,
     status_sender: broadcast::Sender<PlaybackStatus>,
@@ -81,6 +82,7 @@ impl PlayerEngine {
             transpose_offset: Arc::new(Mutex::new(cfg.transpose_offset)),
             seek_request_ms: Arc::new(Mutex::new(None)),
             should_stop: Arc::new(AtomicBool::new(false)),
+            is_loop_running: Arc::new(AtomicBool::new(false)),
             playback_generation: Arc::new(AtomicU64::new(0)),
             status_sender,
             synth,
@@ -99,11 +101,11 @@ impl PlayerEngine {
 
     pub fn play(&self) {
         let current_state = *self.state.lock();
-        if current_state == PlayerState::Playing {
+        if current_state == PlayerState::Playing && self.is_loop_running.load(Ordering::SeqCst) {
             return;
         }
 
-        if current_state == PlayerState::Paused {
+        if current_state == PlayerState::Paused && self.is_loop_running.load(Ordering::SeqCst) {
             *self.state.lock() = PlayerState::Playing;
             return;
         }
@@ -123,6 +125,7 @@ impl PlayerEngine {
 
         *self.state.lock() = PlayerState::Playing;
         self.should_stop.store(false, Ordering::SeqCst);
+        self.is_loop_running.store(true, Ordering::SeqCst);
 
         // Increment generation — any older playback loop will detect its generation is stale and exit
         let my_generation = self.playback_generation.fetch_add(1, Ordering::SeqCst) + 1;
@@ -133,6 +136,7 @@ impl PlayerEngine {
         let transpose_arc = Arc::clone(&self.transpose_offset);
         let seek_arc = Arc::clone(&self.seek_request_ms);
         let stop_flag = Arc::clone(&self.should_stop);
+        let is_running_flag = Arc::clone(&self.is_loop_running);
         let gen_arc = Arc::clone(&self.playback_generation);
         let synth_arc = Arc::clone(&self.synth);
         let sim_arc = Arc::clone(&self.simulator);
@@ -142,7 +146,24 @@ impl PlayerEngine {
         let sender = self.status_sender.clone();
 
         tokio::spawn(async move {
-            info!("Playback loop started for '{}' (gen={})", song_arc.title, my_generation);
+            info!(
+                "Playback loop started for '{}' (gen={})",
+                song_arc.title, my_generation
+            );
+
+            struct LoopGuard(Arc<AtomicBool>, Arc<AtomicU64>, u64);
+            impl Drop for LoopGuard {
+                fn drop(&mut self) {
+                    if self.1.load(Ordering::Relaxed) == self.2 {
+                        self.0.store(false, Ordering::SeqCst);
+                    }
+                }
+            }
+            let _guard = LoopGuard(
+                Arc::clone(&is_running_flag),
+                Arc::clone(&gen_arc),
+                my_generation,
+            );
 
             let all_notes = song_arc.all_notes_flattened();
             let total_duration = song_arc.duration_ms;
@@ -202,7 +223,8 @@ impl PlayerEngine {
                     prev_speed = speed;
                 }
 
-                current_time_ms = anchor_offset_ms + anchor_time.elapsed().as_secs_f64() * 1000.0 * speed;
+                current_time_ms =
+                    anchor_offset_ms + anchor_time.elapsed().as_secs_f64() * 1000.0 * speed;
 
                 if current_time_ms > total_duration + 500.0 {
                     // Song finished naturally
@@ -248,7 +270,9 @@ impl PlayerEngine {
 
                 // Process all notes whose start_time has arrived
                 let mut chord_batch: Vec<NoteEvent> = Vec::new();
-                while note_cursor < all_notes.len() && all_notes[note_cursor].start_ms <= current_time_ms {
+                while note_cursor < all_notes.len()
+                    && all_notes[note_cursor].start_ms <= current_time_ms
+                {
                     chord_batch.push(all_notes[note_cursor].clone());
                     note_cursor += 1;
                 }
@@ -264,14 +288,17 @@ impl PlayerEngine {
                         hum.process_chord_notes(&chord_batch)
                     };
                     drop(hum);
-                    
+
                     let mut macro_tap_keys = Vec::new();
 
                     for note_event in notes_to_play {
-                        let final_note = ((note_event.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
+                        let final_note =
+                            ((note_event.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
                         let note_dur = if cfg.note_lengths {
-                            let min_len = cfg.min_note_length_ms.min(cfg.max_note_length_ms).max(10.0);
-                            let max_len = cfg.min_note_length_ms.max(cfg.max_note_length_ms).max(10.0);
+                            let min_len =
+                                cfg.min_note_length_ms.min(cfg.max_note_length_ms).max(10.0);
+                            let max_len =
+                                cfg.min_note_length_ms.max(cfg.max_note_length_ms).max(10.0);
                             (note_event.duration_ms / speed.max(0.01)).clamp(min_len, max_len)
                         } else {
                             cfg.min_note_length_ms.max(10.0)
@@ -282,16 +309,28 @@ impl PlayerEngine {
                         let final_velocity = if !cfg.velocity {
                             cfg.fixed_velocity.clamp(1, 127)
                         } else {
-                            let min_v = (cfg.min_velocity as i16).min(cfg.max_velocity as i16).clamp(1, 127);
-                            let max_v = (cfg.min_velocity as i16).max(cfg.max_velocity as i16).clamp(1, 127);
-                            let mult = if cfg.velocity_multiplier.is_nan() { 1.0 } else { cfg.velocity_multiplier.max(0.01) };
+                            let min_v = (cfg.min_velocity as i16)
+                                .min(cfg.max_velocity as i16)
+                                .clamp(1, 127);
+                            let max_v = (cfg.min_velocity as i16)
+                                .max(cfg.max_velocity as i16)
+                                .clamp(1, 127);
+                            let mult = if cfg.velocity_multiplier.is_nan() {
+                                1.0
+                            } else {
+                                cfg.velocity_multiplier.max(0.01)
+                            };
                             let scaled = (note_event.velocity as f64) * mult;
                             (scaled.round() as i16).clamp(min_v, max_v) as u8
                         };
 
                         // 1. Audio synthesis note on
                         if cfg.synth.enabled {
-                            synth_arc.lock().note_on_channel(note_event.channel as i32, final_note, final_velocity);
+                            synth_arc.lock().note_on_channel(
+                                note_event.channel as i32,
+                                final_note,
+                                final_velocity,
+                            );
                         }
 
                         // 2. Visualizer key active state
@@ -302,8 +341,11 @@ impl PlayerEngine {
                         // 3. Macro keyboard simulation collection
                         let mut macro_info = None;
                         if cfg.macro_enabled {
-                            if let Some(key_map) = map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys) {
-                                if let Some(rk) = InputSimulator::char_to_rdev_key(key_map.key_char) {
+                            if let Some(key_map) =
+                                map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys)
+                            {
+                                if let Some(rk) = InputSimulator::char_to_rdev_key(key_map.key_char)
+                                {
                                     if cfg.note_lengths {
                                         // If key is already held down by a prior note, pulse key_up first to re-trigger
                                         if sim_arc.is_key_held(rk) {
@@ -325,7 +367,11 @@ impl PlayerEngine {
                                         }
                                         macro_info = Some((rk, key_map.is_shift, key_map.is_ctrl));
                                     } else {
-                                        macro_tap_keys.push((key_map.key_char, key_map.is_shift, key_map.is_ctrl));
+                                        macro_tap_keys.push((
+                                            key_map.key_char,
+                                            key_map.is_shift,
+                                            key_map.is_ctrl,
+                                        ));
                                     }
                                 }
                             }
@@ -338,7 +384,7 @@ impl PlayerEngine {
                             macro_key: macro_info,
                         });
                     }
-                    
+
                     // 4. Send the chord to OS macro simulation instantaneously if in tap mode
                     if !macro_tap_keys.is_empty() {
                         let sim = Arc::clone(&sim_arc);
@@ -358,8 +404,12 @@ impl PlayerEngine {
                         expired_notes.push((item.channel, item.final_note));
                         if let Some((rk, is_shift, is_ctrl)) = item.macro_key {
                             sim_arc.key_up(rk);
-                            if is_shift { released_shift = true; }
-                            if is_ctrl { released_ctrl = true; }
+                            if is_shift {
+                                released_shift = true;
+                            }
+                            if is_ctrl {
+                                released_ctrl = true;
+                            }
                         }
                         false
                     } else {
@@ -368,17 +418,17 @@ impl PlayerEngine {
                 });
 
                 if released_shift {
-                    let has_other_shift = active_notes_in_flight.iter().any(|item| {
-                        item.macro_key.map(|(_, s, _)| s).unwrap_or(false)
-                    });
+                    let has_other_shift = active_notes_in_flight
+                        .iter()
+                        .any(|item| item.macro_key.map(|(_, s, _)| s).unwrap_or(false));
                     if !has_other_shift {
                         sim_arc.key_up(Key::ShiftLeft);
                     }
                 }
                 if released_ctrl {
-                    let has_other_ctrl = active_notes_in_flight.iter().any(|item| {
-                        item.macro_key.map(|(_, _, c)| c).unwrap_or(false)
-                    });
+                    let has_other_ctrl = active_notes_in_flight
+                        .iter()
+                        .any(|item| item.macro_key.map(|(_, _, c)| c).unwrap_or(false));
                     if !has_other_ctrl {
                         sim_arc.key_up(Key::ControlLeft);
                     }
@@ -441,6 +491,7 @@ impl PlayerEngine {
     pub fn stop(&self) {
         *self.state.lock() = PlayerState::Stopped;
         self.should_stop.store(true, Ordering::SeqCst);
+        self.is_loop_running.store(false, Ordering::SeqCst);
         self.synth.lock().all_notes_off();
         self.simulator.release_all();
         self.broadcast_status(0.0, &[]);
@@ -527,7 +578,11 @@ impl PlayerEngine {
         let song_guard = self.current_song.lock();
         let speed = *self.playback_speed.lock();
         let (title, total_ms, bpm) = if let Some(s) = song_guard.as_ref() {
-            (s.title.clone(), s.duration_ms, s.get_bpm_at(current_time_ms) * speed)
+            (
+                s.title.clone(),
+                s.duration_ms,
+                s.get_bpm_at(current_time_ms) * speed,
+            )
         } else {
             ("No song loaded".to_string(), 0.0, 120.0 * speed)
         };

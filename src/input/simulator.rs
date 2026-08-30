@@ -108,10 +108,7 @@ impl InputSimulator {
     /// Resolves the active injection backend for this platform.
     fn resolve_backend(&self) -> InjectionBackend {
         #[cfg(target_os = "linux")]
-        match self
-            .native_state
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
+        match self.native_state.load(std::sync::atomic::Ordering::Relaxed) {
             NATIVE_READY => InjectionBackend::UInput,
             NATIVE_FAILED => InjectionBackend::RDev,
             _ => {
@@ -198,7 +195,6 @@ impl InputSimulator {
     fn native_vkey(key: Key) -> Option<i32> {
         use native_keys::*;
         Some(match key {
-
             Key::Num1 => KEY_1,
             Key::Num2 => KEY_2,
             Key::Num3 => KEY_3,
@@ -278,7 +274,10 @@ impl InputSimulator {
         };
         let rc = unsafe { vitl_macro_write(vkey, value) };
         if rc != 0 {
-            error!("Failed to inject {:?} (value={}) via native backend: rc={}", key, value, rc);
+            error!(
+                "Failed to inject {:?} (value={}) via native backend: rc={}",
+                key, value, rc
+            );
             return false;
         }
         debug!(?key, value, "injected via native C++ uinput backend");
@@ -300,7 +299,13 @@ impl InputSimulator {
     }
 
     /// Press and release a piano key with modifier handling (Shift, Ctrl)
-    pub fn tap_piano_key(&self, key_char: char, is_shift: bool, is_ctrl: bool, hold_duration_ms: u64) {
+    pub fn tap_piano_key(
+        &self,
+        key_char: char,
+        is_shift: bool,
+        is_ctrl: bool,
+        hold_duration_ms: u64,
+    ) {
         let _lock = self.os_lock.lock();
         if let Some(rdev_key) = Self::char_to_rdev_key(key_char) {
             if is_shift {
@@ -332,7 +337,9 @@ impl InputSimulator {
     /// Press and release multiple piano keys accurately grouping by modifier state
     pub fn tap_chord(&self, keys: Vec<(char, bool, bool)>, _hold_duration_ms: u64) {
         let _lock = self.os_lock.lock();
-        if keys.is_empty() { return; }
+        if keys.is_empty() {
+            return;
+        }
 
         let mut unshifted = Vec::new();
         let mut shifted = Vec::new();

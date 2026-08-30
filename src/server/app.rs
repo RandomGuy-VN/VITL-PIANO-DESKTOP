@@ -1,19 +1,20 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::DefaultBodyLimit;
 use axum::extract::{Multipart, State};
-use axum::response::{Html, IntoResponse, Json, Response};
+use axum::http::{header, HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
-use tower_http::cors::CorsLayer;
-use tower_http::services::ServeDir;
 use tracing::{error, info, warn};
 
 use crate::core::config::AppConfig;
@@ -36,7 +37,7 @@ pub struct AppState {
     pub current_song: Arc<Mutex<Option<Song>>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "action")]
 pub enum ClientAction {
     #[serde(rename = "play")]
@@ -138,9 +139,12 @@ pub enum ServerMessage {
     Notification { level: String, message: String },
 }
 
-pub fn create_router(state: AppState) -> Router {
-    let serve_dir = ServeDir::new(".");
+const MAX_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
+const MAX_RENDER_DURATION_MS: f64 = 2.0 * 60.0 * 60.0 * 1000.0;
+const MAX_RENDER_NOTES: usize = 500_000;
+const MAX_SAFE_FILENAME_STEM: usize = 96;
 
+pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/", get(serve_desktop_html))
         .route("/desktop.html", get(serve_desktop_html))
@@ -166,10 +170,284 @@ pub fn create_router(state: AppState) -> Router {
             "/api/export_sheet",
             get(export_sheet_get_api).post(export_sheet_post_api),
         )
-        .fallback_service(serve_dir)
-        .layer(CorsLayer::permissive())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .with_state(state)
+}
+
+fn json_error(status: StatusCode, message: impl Into<String>) -> Response {
+    (
+        status,
+        Json(serde_json::json!({
+            "success": false,
+            "error": message.into(),
+        })),
+    )
+        .into_response()
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "::1"
+}
+
+fn websocket_origin_allowed(headers: &HeaderMap) -> bool {
+    let Some(origin_header) = headers.get(header::ORIGIN) else {
+        // Non-browser local clients may omit Origin. Browsers always send it.
+        return true;
+    };
+    let Ok(origin) = origin_header
+        .to_str()
+        .ok()
+        .and_then(|value| reqwest::Url::parse(value).ok())
+        .ok_or(())
+    else {
+        return false;
+    };
+    if !matches!(origin.scheme(), "http" | "https") {
+        return false;
+    }
+    let Some(origin_host) = origin.host_str() else {
+        return false;
+    };
+    if !is_loopback_host(origin_host) {
+        return false;
+    }
+
+    let Some(host_header) = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+    let Ok(request_url) = reqwest::Url::parse(&format!("http://{}", host_header)) else {
+        return false;
+    };
+    let Some(request_host) = request_url.host_str() else {
+        return false;
+    };
+
+    is_loopback_host(request_host)
+        && origin_host.eq_ignore_ascii_case(request_host)
+        && origin.port_or_known_default() == request_url.port_or_known_default()
+}
+
+fn sanitized_stem(value: &str, fallback: &str) -> String {
+    let sanitized: String = value
+        .chars()
+        .take(MAX_SAFE_FILENAME_STEM)
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let sanitized = sanitized.trim_matches('_');
+    if sanitized.is_empty() {
+        fallback.to_string()
+    } else {
+        sanitized.to_string()
+    }
+}
+
+fn basename_from_untrusted(value: &str) -> Option<&str> {
+    value
+        .trim()
+        .rsplit(|character| character == '/' || character == '\\')
+        .next()
+        .filter(|basename| !basename.is_empty() && *basename != "." && *basename != "..")
+}
+
+fn sanitize_upload_filename(value: &str) -> std::result::Result<String, String> {
+    let basename = basename_from_untrusted(value)
+        .ok_or_else(|| "Upload filename is missing or invalid".to_string())?;
+    let path = Path::new(basename);
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .ok_or_else(|| "Uploaded file must have a .mid, .midi, or .txt extension".to_string())?;
+    if !matches!(extension.as_str(), "mid" | "midi" | "txt") {
+        return Err("Uploaded file must have a .mid, .midi, or .txt extension".to_string());
+    }
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .ok_or_else(|| "Upload filename is not valid UTF-8".to_string())?;
+    if stem.is_empty() {
+        return Err("Upload filename must include a name".to_string());
+    }
+    Ok(format!("{}.{}", sanitized_stem(stem, "upload"), extension))
+}
+
+fn sanitize_song_filename(title: &str) -> String {
+    format!("{}.mid", sanitized_stem(title, "song"))
+}
+
+fn sanitize_wav_filename(requested_path: &str, song_title: &str) -> String {
+    let requested_stem = basename_from_untrusted(requested_path)
+        .and_then(|basename| Path::new(basename).file_stem())
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(song_title);
+    format!("{}.wav", sanitized_stem(requested_stem, "song"))
+}
+
+fn usable_parent(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
+fn create_unique_temp_file(path: &Path) -> std::io::Result<(PathBuf, fs::File)> {
+    let parent = usable_parent(path);
+    fs::create_dir_all(parent)?;
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("output");
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+
+    for attempt in 0..16u8 {
+        let candidate = parent.join(format!(
+            ".{}.{}.{}.{}.tmp",
+            filename,
+            std::process::id(),
+            timestamp,
+            attempt
+        ));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(file) => return Ok((candidate, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "could not create a unique temporary output file",
+    ))
+}
+
+fn atomic_write_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let (temp_path, mut temp_file) = create_unique_temp_file(path)?;
+    let result = (|| {
+        temp_file.write_all(bytes)?;
+        temp_file.sync_all()?;
+        drop(temp_file);
+        fs::rename(&temp_path, path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    result
+}
+
+fn persist_song_midi(song: &Song) -> std::result::Result<PathBuf, String> {
+    let bytes = song.to_midi_bytes()?;
+    let path = AppConfig::midis_dir().join(sanitize_song_filename(&song.title));
+    atomic_write_file(&path, &bytes)
+        .map_err(|error| format!("Failed to save MIDI to {:?}: {}", path, error))?;
+    Ok(path)
+}
+
+fn validate_render_song(song: &Song) -> std::result::Result<usize, String> {
+    if !song.duration_ms.is_finite()
+        || song.duration_ms < 0.0
+        || song.duration_ms > MAX_RENDER_DURATION_MS
+    {
+        return Err("Song duration is invalid or exceeds the two-hour render limit".to_string());
+    }
+
+    let mut note_count = 0usize;
+    let mut maximum_note_end = 0.0f64;
+    for track in &song.tracks {
+        note_count = note_count
+            .checked_add(track.notes.len())
+            .ok_or_else(|| "Song note count overflowed".to_string())?;
+        if note_count > MAX_RENDER_NOTES {
+            return Err(format!(
+                "Song exceeds the render limit of {} notes",
+                MAX_RENDER_NOTES
+            ));
+        }
+        for note in &track.notes {
+            if !note.start_ms.is_finite()
+                || !note.duration_ms.is_finite()
+                || note.start_ms < 0.0
+                || note.duration_ms < 0.0
+            {
+                return Err("Song contains an invalid note timestamp or duration".to_string());
+            }
+            let note_end = note.start_ms + note.duration_ms;
+            if !note_end.is_finite() || note_end > MAX_RENDER_DURATION_MS {
+                return Err("Song contains a note beyond the two-hour render limit".to_string());
+            }
+            maximum_note_end = maximum_note_end.max(note_end);
+        }
+    }
+    if maximum_note_end > song.duration_ms + 1.0 {
+        return Err("Song duration metadata does not contain all note events".to_string());
+    }
+    for control in &song.control_events {
+        if !control.time_ms.is_finite()
+            || control.time_ms < 0.0
+            || control.time_ms > MAX_RENDER_DURATION_MS
+        {
+            return Err("Song contains an invalid control-event timestamp".to_string());
+        }
+    }
+
+    Ok(note_count)
+}
+
+fn render_song_atomically(song: &Song, output_path: &Path) -> Result<()> {
+    let (temp_path, placeholder) = create_unique_temp_file(output_path)
+        .with_context(|| format!("Failed to create render file near {:?}", output_path))?;
+    drop(placeholder);
+    let result = (|| -> Result<()> {
+        AudioOutputManager::render_song_to_wav(song, &temp_path)?;
+        fs::rename(&temp_path, output_path).with_context(|| {
+            format!(
+                "Failed to atomically move rendered WAV from {:?} to {:?}",
+                temp_path, output_path
+            )
+        })?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    result
+}
+
+fn validate_musescore_input(input: &str) -> std::result::Result<(), String> {
+    let input = input.trim();
+    if input.parse::<u64>().is_ok() {
+        return Ok(());
+    }
+    let url = reqwest::Url::parse(input)
+        .map_err(|_| "MuseScore input must be a score ID or HTTPS URL".to_string())?;
+    if url.scheme() != "https" {
+        return Err("MuseScore URLs must use HTTPS".to_string());
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| "MuseScore URL is missing a host".to_string())?;
+    if host != "musescore.com" && !host.ends_with(".musescore.com") {
+        return Err("MuseScore URL host is not allowed".to_string());
+    }
+    if MusescoreImporter::parse_score_id(input).is_none() {
+        return Err("MuseScore URL does not contain a score ID".to_string());
+    }
+    Ok(())
 }
 
 async fn serve_desktop_html() -> impl IntoResponse {
@@ -217,7 +495,14 @@ async fn serve_logo_png() -> impl IntoResponse {
     )
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
+async fn ws_handler(
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> Response {
+    if !websocket_origin_allowed(&headers) {
+        return json_error(StatusCode::FORBIDDEN, "WebSocket origin is not allowed");
+    }
     ws.on_upgrade(|socket| handle_websocket(socket, state))
 }
 
@@ -832,8 +1117,68 @@ async fn post_action_api(
         ClientAction::Stop => state.player.stop(),
         ClientAction::Seek { time_ms } => state.player.seek(time_ms),
         ClientAction::SetSpeed { speed } => state.player.set_speed(speed),
+        ClientAction::SetBpm { bpm } => state.player.set_bpm(bpm),
         ClientAction::SetTranspose { transpose } => state.player.set_transpose(transpose),
-        _ => {} // Ignore complex actions in basic REST for now
+        ClientAction::TriggerNote {
+            note,
+            velocity,
+            is_on,
+        } => {
+            if is_on {
+                state.player.synth().lock().note_on(note, velocity);
+            } else {
+                state.player.synth().lock().note_off(note);
+            }
+        }
+        ClientAction::UpdateConfig { config } => {
+            *state.config.lock() = config.clone();
+            state.player.update_config(config.clone());
+            let _ = config.save();
+        }
+        ClientAction::QuantizeSong { grid_ms } => {
+            let mut song_opt = state.current_song.lock().clone();
+            if let Some(ref mut song) = song_opt {
+                song.quantize(grid_ms);
+                *state.current_song.lock() = Some(song.clone());
+                state.player.load_song(song.clone());
+            }
+        }
+        ClientAction::TransposeSong { semitones } => {
+            let mut song_opt = state.current_song.lock().clone();
+            if let Some(ref mut song) = song_opt {
+                song.transpose(semitones);
+                *state.current_song.lock() = Some(song.clone());
+                state.player.load_song(song.clone());
+            }
+        }
+        ClientAction::SetEffects {
+            eq_low,
+            eq_mid,
+            eq_high,
+            delay_enabled,
+            delay_time_ms,
+            delay_feedback,
+            delay_mix,
+        } => {
+            {
+                let synth_arc = state.player.synth();
+                let mut synth = synth_arc.lock();
+                synth.set_eq_params(eq_low, eq_mid, eq_high);
+                synth.set_delay_params(delay_enabled, delay_time_ms, delay_feedback, delay_mix);
+            }
+            {
+                let mut cfg = state.config.lock();
+                cfg.effects.eq_low = eq_low;
+                cfg.effects.eq_mid = eq_mid;
+                cfg.effects.eq_high = eq_high;
+                cfg.effects.delay_enabled = delay_enabled;
+                cfg.effects.delay_time_ms = delay_time_ms;
+                cfg.effects.delay_feedback = delay_feedback;
+                cfg.effects.delay_mix = delay_mix;
+                let _ = cfg.save();
+            }
+        }
+        _ => {}
     }
     Json(serde_json::json!({ "success": true })).into_response()
 }

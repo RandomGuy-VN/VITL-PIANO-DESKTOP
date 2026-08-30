@@ -107,7 +107,8 @@ impl MidiHubClient {
         fs::create_dir_all(&midis_dir)?;
         let target_path = midis_dir.join(midi_filename);
 
-        fs::write(&target_path, bytes).with_context(|| format!("Failed to save MIDI to {:?}", target_path))?;
+        fs::write(&target_path, bytes)
+            .with_context(|| format!("Failed to save MIDI to {:?}", target_path))?;
         info!("Successfully saved MIDI to {:?}", target_path);
 
         Ok(target_path)
@@ -122,10 +123,17 @@ impl MidiHubClient {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                    if ext.eq_ignore_ascii_case("mid") || ext.eq_ignore_ascii_case("midi") || ext.eq_ignore_ascii_case("txt") {
+                    if ext.eq_ignore_ascii_case("mid")
+                        || ext.eq_ignore_ascii_case("midi")
+                        || ext.eq_ignore_ascii_case("txt")
+                    {
                         if let Ok(meta) = entry.metadata() {
                             list.push(LocalMidiFile {
-                                name: path.file_stem().and_then(|s| s.to_str()).unwrap_or("Unknown").to_string(),
+                                name: path
+                                    .file_stem()
+                                    .and_then(|s| s.to_str())
+                                    .unwrap_or("Unknown")
+                                    .to_string(),
                                 file_path: path.to_string_lossy().to_string(),
                                 size_bytes: meta.len(),
                             });

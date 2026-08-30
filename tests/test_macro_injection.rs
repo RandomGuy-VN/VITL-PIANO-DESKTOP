@@ -36,11 +36,18 @@ fn macro_backend_injects_keystrokes_via_uinput() {
     // First tap lazily creates the uinput virtual keyboard.
     sim.tap_piano_key('q', false, false, 0);
 
-    // The virtual device must now exist at the OS level.
-    let mut reader = find_virtual_keyboard().expect("uinput virtual keyboard not found in /dev/input");
+    // Allow uinput device to settle in the kernel input tree
+    std::thread::sleep(std::time::Duration::from_millis(300));
 
-    // Inject a distinct key and read it back from the kernel.
-    sim.tap_piano_key('a', true, false, 0);
+    let mut reader =
+        find_virtual_keyboard().expect("uinput virtual keyboard not found in /dev/input");
+    let _ = reader.set_nonblocking(true);
+
+    let sim_clone = sim;
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        sim_clone.tap_piano_key('a', true, false, 20);
+    });
 
     let mut saw_press = false;
     let mut saw_release = false;

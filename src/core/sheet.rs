@@ -1,136 +1,171 @@
 use anyhow::Result;
+
 use super::song::{NoteEvent, Song, SongSourceType, Track};
+
+const VIRTUAL_PIANO_NOTE_CHARS: [(u8, char); 61] = [
+    (36, '1'),
+    (37, '!'),
+    (38, '2'),
+    (39, '@'),
+    (40, '3'),
+    (41, '4'),
+    (42, '$'),
+    (43, '5'),
+    (44, '%'),
+    (45, '6'),
+    (46, '^'),
+    (47, '7'),
+    (48, '8'),
+    (49, '*'),
+    (50, '9'),
+    (51, '('),
+    (52, '0'),
+    (53, 'q'),
+    (54, 'Q'),
+    (55, 'w'),
+    (56, 'W'),
+    (57, 'e'),
+    (58, 'E'),
+    (59, 'r'),
+    (60, 't'),
+    (61, 'T'),
+    (62, 'y'),
+    (63, 'Y'),
+    (64, 'u'),
+    (65, 'i'),
+    (66, 'I'),
+    (67, 'o'),
+    (68, 'O'),
+    (69, 'p'),
+    (70, 'P'),
+    (71, 'a'),
+    (72, 's'),
+    (73, 'S'),
+    (74, 'd'),
+    (75, 'D'),
+    (76, 'f'),
+    (77, 'g'),
+    (78, 'G'),
+    (79, 'h'),
+    (80, 'H'),
+    (81, 'j'),
+    (82, 'J'),
+    (83, 'k'),
+    (84, 'l'),
+    (85, 'L'),
+    (86, 'z'),
+    (87, 'Z'),
+    (88, 'x'),
+    (89, 'c'),
+    (90, 'C'),
+    (91, 'v'),
+    (92, 'V'),
+    (93, 'b'),
+    (94, 'B'),
+    (95, 'n'),
+    (96, 'm'),
+];
+
+fn metadata_value<'a>(text: &'a str, label: &str) -> Option<&'a str> {
+    let prefix = text.get(..label.len())?;
+    if !prefix.eq_ignore_ascii_case(label) {
+        return None;
+    }
+
+    let remainder = text.get(label.len()..)?.trim_start();
+    let separator = remainder.chars().next()?;
+    if separator != ':' && separator != '=' {
+        return None;
+    }
+    Some(remainder[separator.len_utf8()..].trim())
+}
+
+fn parse_bpm_value(value: &str) -> Option<f64> {
+    let number: String = value
+        .chars()
+        .skip_while(|character| !character.is_ascii_digit() && *character != '.')
+        .take_while(|character| character.is_ascii_digit() || *character == '.')
+        .collect();
+    let bpm = number.parse::<f64>().ok()?;
+    (bpm > 10.0 && bpm < 500.0).then_some(bpm)
+}
+
+fn bpm_to_us_per_beat(bpm: f64) -> u32 {
+    (60_000_000.0 / bpm).round().max(1.0) as u32
+}
 
 pub struct SheetParser;
 
 impl SheetParser {
-    /// Maps a Virtual Piano character to a MIDI note number (36 to 96)
+    /// Maps a standard 61-key Virtual Piano character to MIDI 36-96.
     pub fn char_to_midi_note(c: char) -> Option<u8> {
-        match c {
-            // Low octave (MIDI 36 - 47)
-            '1' => Some(36), // C2
-            '!' => Some(37), // C#2
-            '2' => Some(38), // D2
-            '@' => Some(39), // D#2
-            '3' => Some(40), // E2
-            '4' => Some(41), // F2
-            '$' => Some(42), // F#2
-            '5' => Some(43), // G2
-            '%' => Some(44), // G#2
-            '6' => Some(45), // A2
-            '^' => Some(46), // A#2
-            '7' => Some(47), // B2
-
-            // Mid-low octave (MIDI 48 - 59)
-            '8' => Some(48), // C3
-            '*' => Some(49), // C#3
-            '9' => Some(50), // D3
-            '(' => Some(51), // D#3
-            '0' => Some(52), // E3
-            'q' => Some(53), // F3
-            'Q' => Some(54), // F#3
-            'w' => Some(55), // G3
-            'W' => Some(56), // G#3
-            'e' => Some(57), // A3
-            'E' => Some(58), // A#3
-            'r' => Some(59), // B3
-
-            // Middle octave (MIDI 60 - 71) - C4 = 60 ('t')
-            't' => Some(60), // C4 (Middle C)
-            'T' => Some(61), // C#4
-            'y' => Some(62), // D4
-            'Y' => Some(63), // D#4
-            'u' => Some(64), // E4
-            'i' => Some(65), // F4
-            'I' => Some(66), // F#4
-            'o' => Some(67), // G4
-            'O' => Some(68), // G#4
-            'p' => Some(69), // A4
-            'P' => Some(70), // A#4
-            'a' => Some(71), // B4
-
-            // High octave (MIDI 72 - 83)
-            's' => Some(72), // C5
-            'S' => Some(73), // C#5
-            'd' => Some(74), // D5
-            'D' => Some(75), // D#5
-            'f' => Some(76), // E5
-            'g' => Some(77), // F5
-            'G' => Some(78), // F#5
-            'h' => Some(79), // G5
-            'H' => Some(80), // G#5
-            'j' => Some(81), // A5
-            'J' => Some(82), // A#5
-            'k' => Some(83), // B5
-
-            // Very high octave (MIDI 84 - 96)
-            'l' => Some(84), // C6
-            'L' => Some(85), // C#6
-            'z' => Some(86), // D6
-            'Z' => Some(87), // D#6
-            'x' => Some(88), // E6
-            'c' => Some(89), // F6
-            'C' => Some(90), // F#6
-            'v' => Some(91), // G6
-            'V' => Some(92), // G#6
-            'b' => Some(93), // A6
-            'B' => Some(94), // A#6
-            'n' => Some(95), // B6
-            'm' => Some(96), // C7
-
-            _ => None,
-        }
+        VIRTUAL_PIANO_NOTE_CHARS
+            .iter()
+            .find_map(|&(note, character)| (character == c).then_some(note))
     }
 
-    /// Maps a MIDI note (21 to 108) to its Virtual Piano representation
+    /// Maps MIDI 36-96 to its standard 61-key Virtual Piano character.
+    ///
+    /// The sheet grammar currently has no reversible Ctrl-modifier syntax for
+    /// MIDI 21-35 or 97-108, so those notes deliberately return `None`.
     pub fn midi_note_to_char(note: u8) -> Option<char> {
-        match note {
-            36 => Some('1'), 37 => Some('!'), 38 => Some('2'), 39 => Some('@'),
-            40 => Some('3'), 41 => Some('4'), 42 => Some('$'), 43 => Some('5'),
-            44 => Some('%'), 45 => Some('6'), 46 => Some('^'), 47 => Some('7'),
-            48 => Some('8'), 49 => Some('*'), 50 => Some('9'), 51 => Some('('),
-            52 => Some('0'), 53 => Some('q'), 54 => Some('Q'), 55 => Some('w'),
-            56 => Some('W'), 57 => Some('e'), 58 => Some('E'), 59 => Some('r'),
-            60 => Some('t'), 61 => Some('T'), 62 => Some('y'), 63 => Some('Y'),
-            64 => Some('u'), 65 => Some('i'), 66 => Some('I'), 67 => Some('o'),
-            68 => Some('O'), 69 => Some('p'), 70 => Some('P'), 71 => Some('a'),
-            72 => Some('s'), 73 => Some('S'), 74 => Some('d'), 75 => Some('D'),
-            76 => Some('f'), 77 => Some('g'), 78 => Some('G'), 79 => Some('h'),
-            80 => Some('H'), 81 => Some('j'), 82 => Some('J'), 83 => Some('k'),
-            84 => Some('l'), 85 => Some('L'), 86 => Some('z'), 87 => Some('Z'),
-            88 => Some('x'), 89 => Some('c'), 90 => Some('C'), 91 => Some('v'),
-            92 => Some('V'), 93 => Some('b'), 94 => Some('B'), 95 => Some('n'),
-            96 => Some('m'),
-            _ => None,
-        }
+        VIRTUAL_PIANO_NOTE_CHARS
+            .iter()
+            .find_map(|&(mapped_note, character)| (mapped_note == note).then_some(character))
     }
 
     /// Parse Virtual Piano sheet text into a playable `Song`
     pub fn parse_sheet(sheet_text: &str, title: String, default_bpm: Option<f64>) -> Result<Song> {
         let mut bpm = default_bpm.unwrap_or(120.0).max(1.0);
+        let mut parsed_title = title;
         let mut cleaned_text = String::new();
 
-        // Check for BPM annotations in comments or headers like [bpm: 140] or !140
+        // Parse metadata from both comment headers and bare headers before
+        // discarding comment content from the playable notation.
         for line in sheet_text.lines() {
             let trimmed = line.trim();
-            if trimmed.starts_with('#') || trimmed.starts_with("//") {
+            let (metadata_text, is_comment) = if let Some(comment) = trimmed.strip_prefix("//") {
+                (comment.trim(), true)
+            } else if let Some(comment) = trimmed.strip_prefix('#') {
+                (comment.trim(), true)
+            } else {
+                (trimmed, false)
+            };
+
+            let mut is_metadata = false;
+            if let Some(value) = metadata_value(metadata_text, "title") {
+                if !value.is_empty() {
+                    parsed_title = value.to_string();
+                }
+                is_metadata = true;
+            }
+            if let Some(value) = metadata_value(metadata_text, "bpm")
+                .or_else(|| metadata_value(metadata_text, "tempo"))
+            {
+                if let Some(parsed_bpm) = parse_bpm_value(value) {
+                    bpm = parsed_bpm;
+                }
+                is_metadata = true;
+            }
+
+            if is_comment || is_metadata {
                 continue;
             }
-            let lower = trimmed.to_lowercase();
-            if lower.starts_with("bpm:") || lower.starts_with("tempo:") {
-                let rest = if lower.starts_with("bpm:") { &trimmed[4..] } else { &trimmed[6..] };
-                let num_str: String = rest.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
-                if let Ok(parsed_bpm) = num_str.parse::<f64>() {
-                    if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
-                        bpm = parsed_bpm;
-                    }
-                }
-            } else if trimmed.starts_with('!') && trimmed.len() > 1 && trimmed[1..].chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-                let num_str: String = trimmed[1..].chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
-                if let Ok(parsed_bpm) = num_str.parse::<f64>() {
-                    if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
-                        bpm = parsed_bpm;
-                    }
+
+            if trimmed.starts_with('!')
+                && trimmed.len() > 1
+                && trimmed[1..]
+                    .chars()
+                    .next()
+                    .map(|character| character.is_ascii_digit())
+                    .unwrap_or(false)
+            {
+                let number: String = trimmed[1..]
+                    .chars()
+                    .take_while(|character| character.is_ascii_digit() || *character == '.')
+                    .collect();
+                if let Some(parsed_bpm) = parse_bpm_value(&number) {
+                    bpm = parsed_bpm;
                 }
             } else {
                 cleaned_text.push_str(trimmed);
@@ -142,7 +177,7 @@ impl SheetParser {
         let beat_duration_ms = 60_000.0 / bpm;
         let mut step_duration_ms = beat_duration_ms / 2.0; // Eighth note default step
 
-        let mut song = Song::new(title);
+        let mut song = Song::new(parsed_title);
         song.bpm = bpm;
         song.tempo_events.push(crate::core::song::TempoEvent {
             time_ms: 0.0,
@@ -171,7 +206,10 @@ impl SheetParser {
                     }
                     let tag_lower = tag_content.to_lowercase();
                     if tag_lower.starts_with("bpm") || tag_lower.starts_with("tempo") {
-                        let num_str: String = tag_content.chars().filter(|ch| ch.is_ascii_digit() || *ch == '.').collect();
+                        let num_str: String = tag_content
+                            .chars()
+                            .filter(|ch| ch.is_ascii_digit() || *ch == '.')
+                            .collect();
                         if let Ok(parsed_bpm) = num_str.parse::<f64>() {
                             if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
                                 bpm = parsed_bpm;

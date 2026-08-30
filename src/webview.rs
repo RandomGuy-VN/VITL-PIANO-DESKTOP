@@ -19,7 +19,10 @@ pub struct DesktopWindow;
 impl DesktopWindow {
     /// Launches the modern frameless native desktop GUI window with embedded WebView
     pub fn run(url: String, title: &str, width: f64, height: f64) -> Result<()> {
-        info!("Launching frameless native Desktop WebView window for {}", url);
+        info!(
+            "Launching frameless native Desktop WebView window for {}",
+            url
+        );
 
         let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
         let proxy = event_loop.create_proxy();
@@ -84,7 +87,9 @@ impl DesktopWindow {
         let _webview = {
             use tao::platform::unix::WindowExtUnix;
             use wry::WebViewBuilderExtUnix;
-            let vbox = window.default_vbox().expect("Failed to get GTK vbox from window");
+            let vbox = window
+                .default_vbox()
+                .expect("Failed to get GTK vbox from window");
             WebViewBuilder::new()
                 .with_url(&url)
                 .with_ipc_handler(ipc_handler)

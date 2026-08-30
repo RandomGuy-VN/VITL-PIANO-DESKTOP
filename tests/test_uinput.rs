@@ -1,4 +1,4 @@
-use evdev::{uinput::VirtualDevice, KeyCode, AttributeSet};
+use evdev::{uinput::VirtualDevice, AttributeSet, KeyCode};
 #[test]
 fn test_ui() {
     let mut keys = AttributeSet::<KeyCode>::new();
@@ -14,4 +14,3 @@ fn test_ui() {
         Err(e) => println!("Uinput new error: {}", e),
     }
 }
-

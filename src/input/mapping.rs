@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::core::config::KeyboardLayoutType;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct PianoKeyMap {
@@ -36,21 +36,66 @@ impl KeyMappingEngine {
     fn init_default_maps(&mut self) {
         // Standard 61-key Virtual Piano Mapping (MIDI 36 to 96)
         let raw_61 = [
-            (36, '1', false), (37, '1', true),  (38, '2', false), (39, '2', true),
-            (40, '3', false), (41, '4', false), (42, '4', true),  (43, '5', false),
-            (44, '5', true),  (45, '6', false), (46, '6', true),  (47, '7', false),
-            (48, '8', false), (49, '8', true),  (50, '9', false), (51, '9', true),
-            (52, '0', false), (53, 'q', false), (54, 'q', true),  (55, 'w', false),
-            (56, 'w', true),  (57, 'e', false), (58, 'e', true),  (59, 'r', false),
-            (60, 't', false), (61, 't', true),  (62, 'y', false), (63, 'y', true),
-            (64, 'u', false), (65, 'i', false), (66, 'i', true),  (67, 'o', false),
-            (68, 'o', true),  (69, 'p', false), (70, 'p', true),  (71, 'a', false),
-            (72, 's', false), (73, 's', true),  (74, 'd', false), (75, 'd', true),
-            (76, 'f', false), (77, 'g', false), (78, 'g', true),  (79, 'h', false),
-            (80, 'h', true),  (81, 'j', false), (82, 'j', true),  (83, 'k', false),
-            (84, 'l', false), (85, 'l', true),  (86, 'z', false), (87, 'z', true),
-            (88, 'x', false), (89, 'c', false), (90, 'c', true),  (91, 'v', false),
-            (92, 'v', true),  (93, 'b', false), (94, 'b', true),  (95, 'n', false),
+            (36, '1', false),
+            (37, '1', true),
+            (38, '2', false),
+            (39, '2', true),
+            (40, '3', false),
+            (41, '4', false),
+            (42, '4', true),
+            (43, '5', false),
+            (44, '5', true),
+            (45, '6', false),
+            (46, '6', true),
+            (47, '7', false),
+            (48, '8', false),
+            (49, '8', true),
+            (50, '9', false),
+            (51, '9', true),
+            (52, '0', false),
+            (53, 'q', false),
+            (54, 'q', true),
+            (55, 'w', false),
+            (56, 'w', true),
+            (57, 'e', false),
+            (58, 'e', true),
+            (59, 'r', false),
+            (60, 't', false),
+            (61, 't', true),
+            (62, 'y', false),
+            (63, 'y', true),
+            (64, 'u', false),
+            (65, 'i', false),
+            (66, 'i', true),
+            (67, 'o', false),
+            (68, 'o', true),
+            (69, 'p', false),
+            (70, 'p', true),
+            (71, 'a', false),
+            (72, 's', false),
+            (73, 's', true),
+            (74, 'd', false),
+            (75, 'd', true),
+            (76, 'f', false),
+            (77, 'g', false),
+            (78, 'g', true),
+            (79, 'h', false),
+            (80, 'h', true),
+            (81, 'j', false),
+            (82, 'j', true),
+            (83, 'k', false),
+            (84, 'l', false),
+            (85, 'l', true),
+            (86, 'z', false),
+            (87, 'z', true),
+            (88, 'x', false),
+            (89, 'c', false),
+            (90, 'c', true),
+            (91, 'v', false),
+            (92, 'v', true),
+            (93, 'b', false),
+            (94, 'b', true),
+            (95, 'n', false),
             (96, 'm', false),
         ];
 
@@ -97,9 +142,9 @@ impl KeyMappingEngine {
 
         // 88-Key High Notes (MIDI 97 to 108: C#7 to C8) -> Ctrl + Key
         let raw_high = [
-            (97, '8', true),  // C#7 -> Ctrl + Shift + 8
-            (98, '9', false), // D7 -> Ctrl + 9
-            (99, '9', true),  // D#7 -> Ctrl + Shift + 9
+            (97, '8', true),   // C#7 -> Ctrl + Shift + 8
+            (98, '9', false),  // D7 -> Ctrl + 9
+            (99, '9', true),   // D#7 -> Ctrl + Shift + 9
             (100, '0', false), // E7 -> Ctrl + 0
             (101, 'q', false), // F7 -> Ctrl + q
             (102, 'q', true),  // F#7 -> Ctrl + Shift + q
@@ -124,11 +169,38 @@ impl KeyMappingEngine {
 
         // Velocity mapping
         self.velocity_map = vec![
-            (0, '1'), (4, '2'), (8, '3'), (12, '4'), (16, '5'), (20, '6'), (24, '7'),
-            (28, '8'), (32, '9'), (36, '0'), (40, 'q'), (44, 'w'), (48, 'e'), (52, 'r'),
-            (56, 't'), (60, 'y'), (64, 'u'), (68, 'i'), (72, 'o'), (76, 'p'), (80, 'a'),
-            (84, 's'), (88, 'd'), (92, 'f'), (96, 'g'), (100, 'h'), (104, 'j'), (108, 'k'),
-            (112, 'l'), (116, 'z'), (120, 'x'), (124, 'c'),
+            (0, '1'),
+            (4, '2'),
+            (8, '3'),
+            (12, '4'),
+            (16, '5'),
+            (20, '6'),
+            (24, '7'),
+            (28, '8'),
+            (32, '9'),
+            (36, '0'),
+            (40, 'q'),
+            (44, 'w'),
+            (48, 'e'),
+            (52, 'r'),
+            (56, 't'),
+            (60, 'y'),
+            (64, 'u'),
+            (68, 'i'),
+            (72, 'o'),
+            (76, 'p'),
+            (80, 'a'),
+            (84, 's'),
+            (88, 'd'),
+            (92, 'f'),
+            (96, 'g'),
+            (100, 'h'),
+            (104, 'j'),
+            (108, 'k'),
+            (112, 'l'),
+            (116, 'z'),
+            (120, 'x'),
+            (124, 'c'),
         ];
 
         // Drums mapping (GM Drum Kit)
@@ -154,19 +226,45 @@ impl KeyMappingEngine {
         let remap_char = |c: char| -> char {
             match layout {
                 KeyboardLayoutType::AzertyFR => match c {
-                    'a' => 'q', 'q' => 'a',
-                    'z' => 'w', 'w' => 'z',
+                    'a' => 'q',
+                    'q' => 'a',
+                    'z' => 'w',
+                    'w' => 'z',
                     'm' => ',',
                     _ => c,
                 },
                 KeyboardLayoutType::QwertzDE => match c {
-                    'y' => 'z', 'z' => 'y',
+                    'y' => 'z',
+                    'z' => 'y',
                     _ => c,
                 },
                 KeyboardLayoutType::Dvorak => match c {
-                    'q' => '\'', 'w' => ',', 'e' => '.', 'r' => 'p', 't' => 'y', 'y' => 'f', 'u' => 'g', 'i' => 'c', 'o' => 'r', 'p' => 'l',
-                    'a' => 'a', 's' => 'o', 'd' => 'e', 'f' => 'u', 'g' => 'i', 'h' => 'd', 'j' => 'h', 'k' => 't', 'l' => 'n',
-                    'z' => ';', 'x' => 'q', 'c' => 'j', 'v' => 'k', 'b' => 'x', 'n' => 'b', 'm' => 'm',
+                    'q' => '\'',
+                    'w' => ',',
+                    'e' => '.',
+                    'r' => 'p',
+                    't' => 'y',
+                    'y' => 'f',
+                    'u' => 'g',
+                    'i' => 'c',
+                    'o' => 'r',
+                    'p' => 'l',
+                    'a' => 'a',
+                    's' => 'o',
+                    'd' => 'e',
+                    'f' => 'u',
+                    'g' => 'i',
+                    'h' => 'd',
+                    'j' => 'h',
+                    'k' => 't',
+                    'l' => 'n',
+                    'z' => ';',
+                    'x' => 'q',
+                    'c' => 'j',
+                    'v' => 'k',
+                    'b' => 'x',
+                    'n' => 'b',
+                    'm' => 'm',
                     _ => c,
                 },
                 _ => c,
