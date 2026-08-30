@@ -170,8 +170,8 @@ impl Default for VisualizerConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EffectsConfig {
-    pub eq_low: f32, // -12.0 to +12.0 dB
-    pub eq_mid: f32, // -12.0 to +12.0 dB
+    pub eq_low: f32,  // -12.0 to +12.0 dB
+    pub eq_mid: f32,  // -12.0 to +12.0 dB
     pub eq_high: f32, // -12.0 to +12.0 dB
     pub delay_enabled: bool,
     pub delay_time_ms: f32,
@@ -195,23 +195,6 @@ impl Default for EffectsConfig {
             chorus_enabled: false,
             chorus_rate: 1.5,
             chorus_depth: 0.3,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TranscriberConfig {
-    pub python_path: Option<String>,
-    pub model_mode: String, // "auto", "transkun", "spectral"
-    pub device: String, // "auto", "cuda", "cpu"
-}
-
-impl Default for TranscriberConfig {
-    fn default() -> Self {
-        Self {
-            python_path: None,
-            model_mode: "auto".to_string(),
-            device: "auto".to_string(),
         }
     }
 }
@@ -256,8 +239,6 @@ pub struct AppConfig {
     pub visualizer: VisualizerConfig,
     #[serde(default)]
     pub effects: EffectsConfig,
-    #[serde(default)]
-    pub transcriber: TranscriberConfig,
     pub custom_mappings_61: HashMap<String, String>,
     pub custom_mappings_low: HashMap<String, String>,
     pub custom_mappings_high: HashMap<String, String>,
@@ -325,7 +306,6 @@ impl Default for AppConfig {
             theme: ThemeConfig::default(),
             visualizer: VisualizerConfig::default(),
             effects: EffectsConfig::default(),
-            transcriber: TranscriberConfig::default(),
             custom_mappings_61: HashMap::new(),
             custom_mappings_low: HashMap::new(),
             custom_mappings_high: HashMap::new(),

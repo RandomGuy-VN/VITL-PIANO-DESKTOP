@@ -4,7 +4,6 @@ use vitl_piano_desktop::core::config::AppConfig;
 use vitl_piano_desktop::core::midi::MidiParser;
 use vitl_piano_desktop::core::sheet::SheetParser;
 use vitl_piano_desktop::core::song::{NoteEvent, Song, Track};
-use vitl_piano_desktop::core::transcriber::AudioTranscriber;
 use vitl_piano_desktop::player::engine::PlayerEngine;
 use vitl_piano_desktop::synth::dsp::{StereoDelay, ThreeBandEqualizer};
 use vitl_piano_desktop::synth::engine::PianoSynthEngine;
@@ -26,11 +25,14 @@ async fn test_fuzz_empty_and_zero_note_song() {
     empty_song.transpose(-24);
 
     // MIDI Export of empty song
-    let midi_bytes = empty_song.to_midi_bytes().expect("Empty song should serialize to valid MIDI");
+    let midi_bytes = empty_song
+        .to_midi_bytes()
+        .expect("Empty song should serialize to valid MIDI");
     assert!(!midi_bytes.is_empty());
 
     // Re-parse empty MIDI
-    let reloaded = MidiParser::parse_bytes(&midi_bytes, "Reloaded".to_string()).expect("Should parse empty MIDI");
+    let reloaded = MidiParser::parse_bytes(&midi_bytes, "Reloaded".to_string())
+        .expect("Should parse empty MIDI");
     assert_eq!(reloaded.total_notes, 0);
 
     // Sheet generation
@@ -74,7 +76,9 @@ fn test_fuzz_extreme_bpm_and_tempos() {
     fast_song.tracks.push(track);
     fast_song.finalize();
 
-    let bytes = fast_song.to_midi_bytes().expect("Ultra fast song should serialize");
+    let bytes = fast_song
+        .to_midi_bytes()
+        .expect("Ultra fast song should serialize");
     let parsed = MidiParser::parse_bytes(&bytes, "Fast".to_string()).expect("Parse fast MIDI");
     assert_eq!(parsed.total_notes, 1);
 }
@@ -112,7 +116,11 @@ fn test_fuzz_extreme_transpositions_and_clamping() {
     song.transpose(-100);
     for t in &song.tracks {
         for n in &t.notes {
-            assert!(n.note >= 21 && n.note <= 108, "Note {} was out of piano bounds after transpose down", n.note);
+            assert!(
+                n.note >= 21 && n.note <= 108,
+                "Note {} was out of piano bounds after transpose down",
+                n.note
+            );
         }
     }
 
@@ -120,7 +128,11 @@ fn test_fuzz_extreme_transpositions_and_clamping() {
     song.transpose(120);
     for t in &song.tracks {
         for n in &t.notes {
-            assert!(n.note >= 21 && n.note <= 108, "Note {} was out of piano bounds after transpose up", n.note);
+            assert!(
+                n.note >= 21 && n.note <= 108,
+                "Note {} was out of piano bounds after transpose up",
+                n.note
+            );
         }
     }
 }
@@ -135,7 +147,10 @@ fn test_fuzz_dsp_equalizer_and_delay_extreme_values() {
     for _ in 0..1000 {
         let (l, r) = eq.process(0.5, -0.5);
         assert!(l.is_finite() && !l.is_nan(), "EQ output left is NaN or inf");
-        assert!(r.is_finite() && !r.is_nan(), "EQ output right is NaN or inf");
+        assert!(
+            r.is_finite() && !r.is_nan(),
+            "EQ output right is NaN or inf"
+        );
     }
 
     // Reset EQ
@@ -163,21 +178,25 @@ fn test_fuzz_dsp_equalizer_and_delay_extreme_values() {
 #[test]
 fn test_fuzz_malformed_virtual_piano_sheets() {
     let test_cases = vec![
-        "",                                      // empty
-        "   \n\n  \t  ",                         // whitespace only
-        "[[[abc]]",                              // unbalanced brackets
-        "[1234567890!@#$%^&*()_+]",              // symbols
-        "[a] [b] [c] | [d] [e] [f]",             // bar lines
-        "{bpm: 0} [t u o]",                      // 0 bpm inline
-        "{bpm: 999999} [t u o]",                 // huge bpm inline
-        "{bpm: -50} [t u o]",                    // negative bpm inline
+        "",                                       // empty
+        "   \n\n  \t  ",                          // whitespace only
+        "[[[abc]]",                               // unbalanced brackets
+        "[1234567890!@#$%^&*()_+]",               // symbols
+        "[a] [b] [c] | [d] [e] [f]",              // bar lines
+        "{bpm: 0} [t u o]",                       // 0 bpm inline
+        "{bpm: 999999} [t u o]",                  // huge bpm inline
+        "{bpm: -50} [t u o]",                     // negative bpm inline
         "Non-bracketed text with unicode: 🎵 🎹", // unicode
-        "[tuo] [tuo] [tuo] [tuo]",               // valid chords
+        "[tuo] [tuo] [tuo] [tuo]",                // valid chords
     ];
 
     for case in test_cases {
         let res = SheetParser::parse_sheet(case, "Fuzz Sheet".to_string(), None);
-        assert!(res.is_ok(), "SheetParser should not panic on case: {}", case);
+        assert!(
+            res.is_ok(),
+            "SheetParser should not panic on case: {}",
+            case
+        );
         let song = res.unwrap();
         assert!(song.bpm > 0.0);
         let _ = song.to_midi_bytes();
@@ -191,7 +210,9 @@ fn test_fuzz_corrupted_midi_bytes() {
         b"MThd",
         b"MThd\x00\x00\x00\x06\x00\x01\x00\x01\x01\xe0",
         b"\x00\x00\x00\x00\xff\xff\xff\xff",
-        &[0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+        &[
+            0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ],
     ];
 
     for bytes in corrupted_samples {
@@ -205,46 +226,22 @@ fn test_fuzz_corrupted_midi_bytes() {
 }
 
 #[test]
-fn test_fuzz_audio_transcriber_file_pipeline() {
-    let tmp_dir = std::env::temp_dir();
-    let wav_path = tmp_dir.join("test_fuzz_audio.wav");
-    let out_midi = tmp_dir.join("test_fuzz_audio.mid");
-
-    // Write a standard 44.1kHz 1-second 440Hz sine wave WAV
-    let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: 44100,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    if let Ok(mut writer) = hound::WavWriter::create(&wav_path, spec) {
-        for t in 0..44100 {
-            let sample = ((2.0 * std::f32::consts::PI * 440.0 * (t as f32 / 44100.0)).sin() * 15000.0) as i16;
-            let _ = writer.write_sample(sample);
-        }
-        let _ = writer.finalize();
-
-        let res = AudioTranscriber::transcribe_file(&wav_path, &out_midi);
-        assert!(res.is_ok(), "AudioTranscriber transcribe_file should succeed on valid WAV");
-        let song = res.unwrap();
-        assert!(song.duration_ms >= 0.0);
-    }
-}
-
-#[test]
 fn test_fuzz_synthesizer_concurrent_note_triggers() {
     let mut synth = PianoSynthEngine::new(44100.0);
-    
+
     // Rapidly trigger 88 notes simultaneously
     for note in 21..=108 {
         synth.note_on(note, 100);
     }
-    
+
     let mut buf = vec![0.0f32; 1024];
     synth.process_block(&mut buf);
 
     for s in buf.iter() {
-        assert!(s.is_finite() && !s.is_nan(), "Synthesizer output contained NaN/Inf under high polyphony");
+        assert!(
+            s.is_finite() && !s.is_nan(),
+            "Synthesizer output contained NaN/Inf under high polyphony"
+        );
     }
 
     // Turn all off

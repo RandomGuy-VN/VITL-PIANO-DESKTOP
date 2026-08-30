@@ -875,10 +875,6 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           Piano Roll Studio
         </a>
-        <a class="nav-item" data-view="view-transcribe">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-          AI Transcriber
-        </a>
         <a class="nav-item" data-view="view-library">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           Library <span id="library-badge" style="margin-left: auto; font-size: 10px; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 99px; font-weight: 600; display: none;">0</span>
@@ -1087,48 +1083,6 @@
             <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px;">
               <button id="studioLoadSheetToPlayerBtn" style="padding: 8px 16px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-weight: 600; cursor: pointer;">▶️ Load Sheet to Player</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 4. AI AUDIO TRANSCRIBER VIEW -->
-      <div class="view-container" id="view-transcribe">
-        <div class="card" style="padding: 16px 20px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div>
-              <h3 style="font-size: 15px; font-weight: 600; color: var(--ink-900);">AI Piano Audio-to-MIDI Transcriber</h3>
-              <p style="font-size: 11.5px; color: var(--ink-500);">Convert any song recording (.mp3, .wav, .m4a, .ogg, .flac) into note-accurate piano MIDI</p>
-            </div>
-            <div id="transcriberStatusBadge" style="padding: 4px 10px; border-radius: 99px; background: var(--paper-sunk); border: 1px solid var(--line); font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent);">
-              Checking Transkun status...
-            </div>
-          </div>
-
-          <div id="transkunInstallBanner" style="margin-top: 12px; padding: 12px 14px; border-radius: var(--r-sm); background: rgba(16, 185, 129, 0.08); border: 1px solid var(--accent-line); display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <strong style="color: var(--ink-900); font-size: 12px;">Transkun Neural Model Ready to Install</strong>
-                <div style="font-size: 11px; color: var(--ink-600); margin-top: 2px;">One-click setup installs PyTorch acoustic piano transcriber in the background.</div>
-              </div>
-              <button id="installTranskunBtn" style="padding: 6px 14px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;">Install Transkun</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="file-drop" id="transcribe-drop-zone" style="padding: 36px 20px;">
-          <input type="file" id="transcribe-file-input" accept=".mp3,.wav,.ogg,.flac,.m4a" style="position: absolute; width: 1px; height: 1px; opacity: 0;">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
-          <h3 style="font-size: 15px; margin-top: 6px;">Drop Audio File to Transcribe (.mp3, .wav, .m4a, .flac)</h3>
-          <p>AI neural model converts piano audio directly into sheet music & MIDI</p>
-        </div>
-
-        <div id="transcribeProgressCard" class="card" style="display: none; padding: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span id="transcribeStepText" style="font-weight: 600; color: var(--ink-900); font-size: 12.5px;">Transcribing Audio...</span>
-            <span id="transcribePctText" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent);">50%</span>
-          </div>
-          <div style="width: 100%; height: 6px; background: var(--paper-sunk); border-radius: 99px; overflow: hidden;">
-            <div id="transcribeProgressBar" style="width: 50%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
           </div>
         </div>
       </div>
@@ -1660,7 +1614,6 @@
       document.getElementById('ws-status-dot').classList.remove('disconnected');
       document.getElementById('ws-status-text').textContent = 'Rust Backend: Active';
       sendAction({ action: "get_current_song" });
-      sendAction({ action: "get_transcriber_status" });
     };
     socket.onclose = () => {
       document.getElementById('ws-status-dot').classList.add('disconnected');
@@ -1774,18 +1727,6 @@
         }
         renderPianoRoll();
       }
-    } else if (msg.type === 'transcriber_status') {
-      renderTranscriberStatus(msg.data);
-    } else if (msg.type === 'transcribe_progress') {
-      const d = msg.data;
-      const card = document.getElementById('transcribeProgressCard');
-      const step = document.getElementById('transcribeStepText');
-      const pct = document.getElementById('transcribePctText');
-      const bar = document.getElementById('transcribeProgressBar');
-      if (card) card.style.display = 'block';
-      if (step && d.step) step.textContent = d.step;
-      if (pct && d.percent !== undefined) pct.textContent = `${Math.round(d.percent * 100)}%`;
-      if (bar && d.percent !== undefined) bar.style.width = `${Math.round(d.percent * 100)}%`;
     } else if (msg.type === 'notification') {
       const n = msg.data;
       showToast(n.message, n.level);
@@ -2280,11 +2221,6 @@
   const dropZone = document.getElementById('file-drop-zone');
   const fileInput = document.getElementById('file-input');
 
-  function isAudioFile(name) {
-    const ext = (name || '').toLowerCase().split('.').pop();
-    return ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'aac', 'webm', 'wma', 'opus'].includes(ext);
-  }
-
   function isMidiOrSheetFile(name) {
     const ext = (name || '').toLowerCase().split('.').pop();
     return ['mid', 'midi', 'kar', 'txt'].includes(ext);
@@ -2294,33 +2230,19 @@
   window.addEventListener('dragover', (e) => {
     e.preventDefault();
     if (dropZone) dropZone.classList.add('dragover');
-    const tZone = document.getElementById('transcribe-drop-zone');
-    if (tZone) tZone.classList.add('dragover');
   });
   window.addEventListener('dragleave', (e) => {
     e.preventDefault();
     if (e.target === document.documentElement || e.target === document.body) {
       if (dropZone) dropZone.classList.remove('dragover');
-      const tZone = document.getElementById('transcribe-drop-zone');
-      if (tZone) tZone.classList.remove('dragover');
     }
   });
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
     if (dropZone) dropZone.classList.remove('dragover');
-    const tZone = document.getElementById('transcribe-drop-zone');
-    if (tZone) tZone.classList.remove('dragover');
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      const activeView = document.querySelector('.view-container.active');
-      const activeId = activeView ? activeView.id : '';
-
-      if (isAudioFile(file.name) || activeId === 'view-transcribe') {
-        handleTranscribeFile(file);
-      } else {
-        uploadFile(file);
-      }
+      uploadFile(e.dataTransfer.files[0]);
     }
   });
 
@@ -2330,12 +2252,7 @@
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
-        const file = e.target.files[0];
-        if (isAudioFile(file.name)) {
-          handleTranscribeFile(file);
-        } else {
-          uploadFile(file);
-        }
+        uploadFile(e.target.files[0]);
       }
       fileInput.value = '';
     });
@@ -2568,12 +2485,7 @@
     libraryImportBtn.addEventListener('click', () => libraryFileInput.click());
     libraryFileInput.addEventListener('change', (e) => {
       if (e.target.files && e.target.files.length > 0) {
-        const file = e.target.files[0];
-        if (isAudioFile(file.name)) {
-          handleTranscribeFile(file);
-        } else {
-          uploadFile(file);
-        }
+        uploadFile(e.target.files[0]);
       }
       libraryFileInput.value = '';
     });
@@ -3046,101 +2958,6 @@
         }
       } catch (err) { showToast(`Sheet conversion error: ${err.message}`, 'error'); }
     };
-  }
-
-  // ── 14. AI Audio Transcriber Controller ──
-  function renderTranscriberStatus(status) {
-    const badge = document.getElementById('transcriberStatusBadge');
-    const banner = document.getElementById('transkunInstallBanner');
-    if (!badge) return;
-    if (status.transkun_available) {
-      badge.textContent = `Transkun Neural Model: Ready (${status.device})`;
-      badge.style.color = '#10b981';
-      if (banner) banner.style.display = 'none';
-    } else {
-      badge.textContent = `Transkun: Setup Optional`;
-      badge.style.color = '#f59e0b';
-      if (banner) banner.style.display = 'block';
-    }
-  }
-
-  const installTranskunBtn = document.getElementById('installTranskunBtn');
-  if (installTranskunBtn) {
-    installTranskunBtn.onclick = () => {
-      sendAction({ action: "install_transkun" });
-      showToast("Starting Transkun background install via pip...", "info");
-    };
-  }
-
-  async function handleTranscribeFile(file) {
-    if (!file) return;
-    const progCard = document.getElementById('transcribeProgressCard');
-    const stepText = document.getElementById('transcribeStepText');
-    const pctText = document.getElementById('transcribePctText');
-    const bar = document.getElementById('transcribeProgressBar');
-
-    const transcribeNav = document.querySelector('[data-view="view-transcribe"]');
-    if (transcribeNav) transcribeNav.click();
-
-    if (progCard) progCard.style.display = 'block';
-    if (stepText) stepText.textContent = `Analyzing & transcribing '${file.name}' into piano sheet & MIDI...`;
-    if (pctText) pctText.textContent = '20%';
-    if (bar) bar.style.width = '20%';
-
-    const formData = new FormData();
-    formData.append('file', file);
-    showToast(`Transcribing audio: ${file.name}`, 'info');
-
-    try {
-      if (pctText) pctText.textContent = '45%';
-      if (bar) bar.style.width = '45%';
-      const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (pctText) pctText.textContent = '100%';
-        if (bar) bar.style.width = '100%';
-        if (songTitleEl) songTitleEl.textContent = data.title;
-        showToast(`✨ Successfully transcribed '${data.title}' (${data.total_notes} notes)!`, 'success');
-        sendAction({ action: "get_current_song" });
-        sendAction({ action: "play" });
-        fetchLibrary();
-        setTimeout(() => {
-          const playerTab = document.querySelector('[data-view="view-player"]');
-          if (playerTab) playerTab.click();
-          if (progCard) progCard.style.display = 'none';
-        }, 1000);
-      } else {
-        showToast(data.error || 'Failed to transcribe audio', 'error');
-        if (progCard) progCard.style.display = 'none';
-      }
-    } catch (err) {
-      showToast(`Transcription request failed: ${err.message}`, 'error');
-      if (progCard) progCard.style.display = 'none';
-    }
-  }
-
-  const transcribeDrop = document.getElementById('transcribe-drop-zone');
-  const transcribeInput = document.getElementById('transcribe-file-input');
-  if (transcribeDrop) {
-    transcribeDrop.addEventListener('click', () => { if (transcribeInput) transcribeInput.click(); });
-    transcribeDrop.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); transcribeDrop.classList.add('dragover'); });
-    transcribeDrop.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); transcribeDrop.classList.remove('dragover'); });
-    transcribeDrop.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      transcribeDrop.classList.remove('dragover');
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleTranscribeFile(e.dataTransfer.files[0]);
-      }
-    });
-  }
-  if (transcribeInput) {
-    transcribeInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        handleTranscribeFile(e.target.files[0]);
-        transcribeInput.value = '';
-      }
-    });
   }
 
   // ── 15. Themes & Custom CSS Manager ──

@@ -10,7 +10,8 @@ use vitl_piano_desktop::synth::engine::PianoSynthEngine;
 #[test]
 fn test_sheet_parser_and_converter() {
     let sheet = "[8u] w y u [8o] w y o | [9i] e y i";
-    let song = SheetParser::parse_sheet(sheet, "Test Song".to_string(), Some(140.0)).expect("Sheet parse failed");
+    let song = SheetParser::parse_sheet(sheet, "Test Song".to_string(), Some(140.0))
+        .expect("Sheet parse failed");
 
     assert_eq!(song.bpm, 140.0);
     assert_eq!(song.tracks.len(), 1);
@@ -27,9 +28,30 @@ fn test_transposition_optimizer() {
     let mut song = Song::new("High Song".to_string());
     // Add notes that are very high (e.g. MIDI 100 - 106)
     let notes = vec![
-        NoteEvent { note: 100, velocity: 100, start_ms: 0.0, duration_ms: 200.0, track: 0, channel: 0 },
-        NoteEvent { note: 102, velocity: 100, start_ms: 200.0, duration_ms: 200.0, track: 0, channel: 0 },
-        NoteEvent { note: 104, velocity: 100, start_ms: 400.0, duration_ms: 200.0, track: 0, channel: 0 },
+        NoteEvent {
+            note: 100,
+            velocity: 100,
+            start_ms: 0.0,
+            duration_ms: 200.0,
+            track: 0,
+            channel: 0,
+        },
+        NoteEvent {
+            note: 102,
+            velocity: 100,
+            start_ms: 200.0,
+            duration_ms: 200.0,
+            track: 0,
+            channel: 0,
+        },
+        NoteEvent {
+            note: 104,
+            velocity: 100,
+            start_ms: 400.0,
+            duration_ms: 200.0,
+            track: 0,
+            channel: 0,
+        },
     ];
     song.tracks.push(vitl_piano_desktop::core::song::Track {
         name: "High Track".to_string(),
@@ -70,7 +92,10 @@ fn test_synth_engine_sample_generation() {
     let mut sustain_buffer = vec![0.0f32; 1024];
     synth.process_block(&mut sustain_buffer);
     let sustain_energy: f32 = sustain_buffer.iter().map(|s| s.abs()).sum();
-    assert!(sustain_energy > 0.05, "Sustain pedal failed to sustain note energy");
+    assert!(
+        sustain_energy > 0.05,
+        "Sustain pedal failed to sustain note energy"
+    );
 
     // Release pedal
     synth.set_sustain(false);
@@ -89,9 +114,30 @@ fn test_humanizer_chord_flam() {
     });
 
     let chord = vec![
-        NoteEvent { note: 60, velocity: 100, start_ms: 1000.0, duration_ms: 500.0, track: 0, channel: 0 },
-        NoteEvent { note: 64, velocity: 100, start_ms: 1000.0, duration_ms: 500.0, track: 0, channel: 0 },
-        NoteEvent { note: 67, velocity: 100, start_ms: 1000.0, duration_ms: 500.0, track: 0, channel: 0 },
+        NoteEvent {
+            note: 60,
+            velocity: 100,
+            start_ms: 1000.0,
+            duration_ms: 500.0,
+            track: 0,
+            channel: 0,
+        },
+        NoteEvent {
+            note: 64,
+            velocity: 100,
+            start_ms: 1000.0,
+            duration_ms: 500.0,
+            track: 0,
+            channel: 0,
+        },
+        NoteEvent {
+            note: 67,
+            velocity: 100,
+            start_ms: 1000.0,
+            duration_ms: 500.0,
+            track: 0,
+            channel: 0,
+        },
     ];
 
     let result = humanizer.process_chord_notes(&chord);
@@ -115,7 +161,9 @@ fn test_keyboard_layout_mapping() {
     assert_eq!(map_az.key_char, 'a');
 
     // 88-Key low note (MIDI 21 = A0 -> Ctrl + 6)
-    let low_note = qwerty.get_piano_key(21, true).expect("Low note 21 not found");
+    let low_note = qwerty
+        .get_piano_key(21, true)
+        .expect("Low note 21 not found");
     assert!(low_note.is_ctrl);
     assert_eq!(low_note.key_char, '6');
 }
@@ -123,7 +171,8 @@ fn test_keyboard_layout_mapping() {
 #[test]
 fn test_offline_wav_rendering() {
     let sheet = "[8u] w y u [8o]";
-    let song = SheetParser::parse_sheet(sheet, "WAV Test".to_string(), Some(120.0)).expect("Parse failed");
+    let song =
+        SheetParser::parse_sheet(sheet, "WAV Test".to_string(), Some(120.0)).expect("Parse failed");
 
     let temp_wav = std::env::temp_dir().join("vitl_test_render.wav");
     let res = AudioOutputManager::render_song_to_wav(&song, &temp_wav);
@@ -140,21 +189,24 @@ fn test_offline_wav_rendering() {
 fn test_dynamic_bpm_handling() {
     let mut song = Song::new("Dynamic BPM Test".to_string());
     song.bpm = 120.0;
-    song.tempo_events.push(vitl_piano_desktop::core::song::TempoEvent {
-        time_ms: 0.0,
-        bpm: 120.0,
-        us_per_beat: 500_000,
-    });
-    song.tempo_events.push(vitl_piano_desktop::core::song::TempoEvent {
-        time_ms: 10_000.0, // After 10s, tempo changes to 180 BPM
-        bpm: 180.0,
-        us_per_beat: 333_333,
-    });
-    song.tempo_events.push(vitl_piano_desktop::core::song::TempoEvent {
-        time_ms: 25_000.0, // After 25s, tempo drops to 90 BPM
-        bpm: 90.0,
-        us_per_beat: 666_667,
-    });
+    song.tempo_events
+        .push(vitl_piano_desktop::core::song::TempoEvent {
+            time_ms: 0.0,
+            bpm: 120.0,
+            us_per_beat: 500_000,
+        });
+    song.tempo_events
+        .push(vitl_piano_desktop::core::song::TempoEvent {
+            time_ms: 10_000.0, // After 10s, tempo changes to 180 BPM
+            bpm: 180.0,
+            us_per_beat: 333_333,
+        });
+    song.tempo_events
+        .push(vitl_piano_desktop::core::song::TempoEvent {
+            time_ms: 25_000.0, // After 25s, tempo drops to 90 BPM
+            bpm: 90.0,
+            us_per_beat: 666_667,
+        });
 
     assert_eq!(song.get_bpm_at(0.0), 120.0);
     assert_eq!(song.get_bpm_at(5_000.0), 120.0);
@@ -167,12 +219,18 @@ fn test_dynamic_bpm_handling() {
 fn test_soundfont_optional_fallback() {
     let mut synth = PianoSynthEngine::new(44100.0);
     // Initially mode is PhysicalModeling
-    assert_eq!(synth.mode, vitl_piano_desktop::core::config::SynthSoundMode::PhysicalModeling);
+    assert_eq!(
+        synth.mode,
+        vitl_piano_desktop::core::config::SynthSoundMode::PhysicalModeling
+    );
 
     // Attempting to load non-existent SoundFont should fail gracefully and fall back to built-in physical synth
     let res = synth.load_soundfont("/nonexistent/path/soundfont.sf2");
     assert!(res.is_err());
-    assert_eq!(synth.mode, vitl_piano_desktop::core::config::SynthSoundMode::PhysicalModeling);
+    assert_eq!(
+        synth.mode,
+        vitl_piano_desktop::core::config::SynthSoundMode::PhysicalModeling
+    );
 
     // Synthesizer still plays properly with physical modeling
     synth.note_on(60, 100);
@@ -195,14 +253,8 @@ fn test_musescore_importer_parsing() {
         MusescoreImporter::parse_score_id("https://musescore.com/score/5475653"),
         Some(5475653)
     );
-    assert_eq!(
-        MusescoreImporter::parse_score_id("5475653"),
-        Some(5475653)
-    );
-    assert_eq!(
-        MusescoreImporter::parse_score_id("invalid-url-no-id"),
-        None
-    );
+    assert_eq!(MusescoreImporter::parse_score_id("5475653"), Some(5475653));
+    assert_eq!(MusescoreImporter::parse_score_id("invalid-url-no-id"), None);
 
     // Test LibreScore auth token calculation
     let auth = MusescoreImporter::compute_auth_token(5475653, "9654,4e");
@@ -289,7 +341,12 @@ fn test_velocity_configuration_scaling() {
 #[test]
 fn test_sheet_inline_dynamic_bpm() {
     let sheet_with_bpm_tags = "[8u] w y u [bpm:160] [8o] w y o [tempo:90] [9i] e y i";
-    let song = SheetParser::parse_sheet(sheet_with_bpm_tags, "Inline BPM Sheet".to_string(), Some(120.0)).expect("Sheet parse failed");
+    let song = SheetParser::parse_sheet(
+        sheet_with_bpm_tags,
+        "Inline BPM Sheet".to_string(),
+        Some(120.0),
+    )
+    .expect("Sheet parse failed");
 
     assert!(song.tempo_events.len() >= 3);
     assert_eq!(song.tempo_events[0].bpm, 120.0);
@@ -326,7 +383,10 @@ fn test_soundfont_preset_and_discovery() {
     // Discovery should run safely without panicking on any platform
     let soundfonts = discover_system_soundfonts();
     println!("Discovered {} system/local soundfonts", soundfonts.len());
-    assert!(!soundfonts.is_empty(), "Expected at least 1 soundfont discovered in ./soundfonts");
+    assert!(
+        !soundfonts.is_empty(),
+        "Expected at least 1 soundfont discovered in ./soundfonts"
+    );
 
     let mut synth = PianoSynthEngine::new(44100.0);
     let presets = synth.get_soundfont_presets();
@@ -363,8 +423,8 @@ fn test_soundfont_preset_and_discovery() {
 
 #[test]
 fn test_midi_export_and_reparse() {
-    use vitl_piano_desktop::core::song::{NoteEvent, Song, Track};
     use vitl_piano_desktop::core::midi::MidiParser;
+    use vitl_piano_desktop::core::song::{NoteEvent, Song, Track};
 
     let mut song = Song::new("Test Export Song".to_string());
     song.bpm = 140.0;
@@ -391,7 +451,9 @@ fn test_midi_export_and_reparse() {
     song.finalize();
 
     // Export to MIDI bytes
-    let midi_bytes = song.to_midi_bytes().expect("Should export MIDI bytes successfully");
+    let midi_bytes = song
+        .to_midi_bytes()
+        .expect("Should export MIDI bytes successfully");
     assert!(!midi_bytes.is_empty());
     assert_eq!(&midi_bytes[0..4], b"MThd", "Should have valid MIDI header");
 
@@ -416,56 +478,57 @@ fn test_sheet_generation_and_chords() {
     };
 
     // Note 76 = 'f' in VP, Note 75 = 'D' in VP, Chord [60, 64, 67] = [tuo]
-    track.notes.push(NoteEvent { note: 76, velocity: 80, start_ms: 0.0, duration_ms: 100.0, track: 0, channel: 0 });
-    track.notes.push(NoteEvent { note: 75, velocity: 80, start_ms: 150.0, duration_ms: 100.0, track: 0, channel: 0 });
+    track.notes.push(NoteEvent {
+        note: 76,
+        velocity: 80,
+        start_ms: 0.0,
+        duration_ms: 100.0,
+        track: 0,
+        channel: 0,
+    });
+    track.notes.push(NoteEvent {
+        note: 75,
+        velocity: 80,
+        start_ms: 150.0,
+        duration_ms: 100.0,
+        track: 0,
+        channel: 0,
+    });
     // Chord
-    track.notes.push(NoteEvent { note: 60, velocity: 80, start_ms: 300.0, duration_ms: 100.0, track: 0, channel: 0 });
-    track.notes.push(NoteEvent { note: 64, velocity: 80, start_ms: 300.0, duration_ms: 100.0, track: 0, channel: 0 });
-    track.notes.push(NoteEvent { note: 67, velocity: 80, start_ms: 300.0, duration_ms: 100.0, track: 0, channel: 0 });
+    track.notes.push(NoteEvent {
+        note: 60,
+        velocity: 80,
+        start_ms: 300.0,
+        duration_ms: 100.0,
+        track: 0,
+        channel: 0,
+    });
+    track.notes.push(NoteEvent {
+        note: 64,
+        velocity: 80,
+        start_ms: 300.0,
+        duration_ms: 100.0,
+        track: 0,
+        channel: 0,
+    });
+    track.notes.push(NoteEvent {
+        note: 67,
+        velocity: 80,
+        start_ms: 300.0,
+        duration_ms: 100.0,
+        track: 0,
+        channel: 0,
+    });
 
     song.tracks.push(track);
     song.finalize();
 
     let sheet = song.to_sheet_text();
     assert!(sheet.contains("Fur Elise Snippet"));
-    assert!(sheet.contains("[") && sheet.contains("]"), "Should format simultaneous notes as chord");
-}
-
-#[test]
-fn test_transcriber_status_and_spectral_fallback() {
-    use vitl_piano_desktop::core::transcriber::AudioTranscriber;
-
-    let status = AudioTranscriber::check_status();
-    println!("Transcriber status: Python={}, Transkun={}", status.python_available, status.transkun_available);
-    assert!(!status.device.is_empty());
-
-    // Test spectral fallback transcription with dummy WAV file
-    let tmp_wav = std::env::temp_dir().join("vitl_test_transcribe.wav");
-    let tmp_mid = std::env::temp_dir().join("vitl_test_transcribe.mid");
-
-    // Write a small sine wave WAV file
-    let spec = hound::WavSpec {
-        channels: 1,
-        sample_rate: 44100,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    {
-        let mut writer = hound::WavWriter::create(&tmp_wav, spec).unwrap();
-        for t in 0..44100 {
-            let sample = (2.0 * std::f32::consts::PI * 440.0 * (t as f32 / 44100.0)).sin();
-            let val = (sample * 16000.0) as i16;
-            writer.write_sample(val).unwrap();
-        }
-        writer.finalize().unwrap();
-    }
-
-    let song = AudioTranscriber::transcribe_file(&tmp_wav, &tmp_mid).expect("Should transcribe WAV");
-    assert!(!song.tracks.is_empty());
-    println!("Transcribed song notes: {}", song.total_notes);
-
-    let _ = std::fs::remove_file(&tmp_wav);
-    let _ = std::fs::remove_file(&tmp_mid);
+    assert!(
+        sheet.contains("[") && sheet.contains("]"),
+        "Should format simultaneous notes as chord"
+    );
 }
 
 #[test]
@@ -492,7 +555,10 @@ fn test_dsp_equalizer_and_delay() {
         out_l += dl.abs();
         out_r += dr.abs();
     }
-    assert!(out_l > 0.1 && out_r > 0.1, "Delay should produce feedback tails on both channels");
+    assert!(
+        out_l > 0.1 && out_r > 0.1,
+        "Delay should produce feedback tails on both channels"
+    );
 }
 
 #[test]
