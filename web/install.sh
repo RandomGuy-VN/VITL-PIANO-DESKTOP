@@ -134,8 +134,9 @@ fi
 if [ "$INSTALLED_LOCALLY" != "true" ]; then
     MIRRORS=(
         "${VITL_BASE_URL:+$VITL_BASE_URL/vitl-piano-linux.zip}"
-        "https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/download/v1.0-beta.2/vitl-piano-linux.zip"
+        "https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/vitl-piano-linux.zip"
         "https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/latest/download/vitl-piano-linux.zip"
+        "https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/download/v1.0-beta.2/vitl-piano-linux.zip"
         "https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/download/v1.0.0/vitl-piano-linux.zip"
         "https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/download/v1.0-beta/vitl-piano-linux.zip"
     )
