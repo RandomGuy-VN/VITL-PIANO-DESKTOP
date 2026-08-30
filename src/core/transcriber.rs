@@ -39,7 +39,7 @@ impl AudioTranscriber {
             python_version: py_ver,
             transkun_available: transkun_avail,
             device,
-            install_command: "pip install --upgrade transkun torch torchaudio".to_string(),
+            install_command: "pip install --upgrade --break-system-packages transkun torch torchaudio".to_string(),
         }
     }
 
@@ -96,9 +96,9 @@ impl AudioTranscriber {
             return Err("Python is not installed on this system. Please install Python 3.8+ first.".to_string());
         };
 
-        info!("Starting transkun pip install...");
+        info!("Starting transkun pip install with --break-system-packages...");
         let output = Command::new(python_cmd)
-            .args(["-m", "pip", "install", "--upgrade", "transkun", "torchaudio"])
+            .args(["-m", "pip", "install", "--upgrade", "--break-system-packages", "transkun", "torch", "torchaudio"])
             .output()
             .map_err(|e| format!("Failed to execute pip command: {}", e))?;
 
@@ -139,8 +139,24 @@ impl AudioTranscriber {
             }
 
             if output_midi_path.exists() {
-                MidiParser::parse_file(output_midi_path)
-                    .map_err(|e| format!("Failed to parse transcribed MIDI: {}", e))
+                match MidiParser::parse_file(output_midi_path) {
+                    Ok(mut song) => {
+                        song.title = audio_path
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        song.artist = "Transkun Neural AI".to_string();
+                        song.source_type = crate::core::song::SongSourceType::Generated;
+                        song.finalize();
+                        info!("Transkun neural transcription succeeded: {} notes", song.total_notes);
+                        Ok(song)
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse Transkun MIDI output: {}. Falling back to spectral.", e);
+                        Self::fallback_spectral_transcribe(audio_path, output_midi_path)
+                    }
+                }
             } else {
                 Self::fallback_spectral_transcribe(audio_path, output_midi_path)
             }

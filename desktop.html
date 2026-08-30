@@ -3095,14 +3095,16 @@
       if (res.ok && data.success) {
         if (pctText) pctText.textContent = '100%';
         if (bar) bar.style.width = '100%';
+        if (songTitleEl) songTitleEl.textContent = data.title;
         showToast(`✨ Successfully transcribed '${data.title}' (${data.total_notes} notes)!`, 'success');
         sendAction({ action: "get_current_song" });
+        sendAction({ action: "play" });
         fetchLibrary();
         setTimeout(() => {
           const playerTab = document.querySelector('[data-view="view-player"]');
           if (playerTab) playerTab.click();
           if (progCard) progCard.style.display = 'none';
-        }, 1200);
+        }, 1000);
       } else {
         showToast(data.error || 'Failed to transcribe audio', 'error');
         if (progCard) progCard.style.display = 'none';
