@@ -285,6 +285,62 @@ pub fn discover_system_soundfonts() -> Vec<DiscoveredSoundFont> {
     results
 }
 
+pub fn resolve_soundfont_path(path: &str) -> PathBuf {
+    let p = Path::new(path);
+    if p.exists() {
+        return p.to_path_buf();
+    }
+
+    let filename = p.file_name().unwrap_or_default();
+
+    // 1. Check relative to current executable directory
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let c1 = exe_dir.join(path);
+            if c1.exists() { return c1; }
+            let c2 = exe_dir.join("soundfonts").join(filename);
+            if c2.exists() { return c2; }
+            let c3 = exe_dir.join(filename);
+            if c3.exists() { return c3; }
+        }
+    }
+
+    // 2. Check current working directory
+    let cwd_c1 = PathBuf::from("soundfonts").join(filename);
+    if cwd_c1.exists() { return cwd_c1; }
+
+    // 3. Check standard user data / install directory (~/.local/share/vitl-piano/soundfonts/)
+    if let Some(home) = dirs::home_dir() {
+        let c1 = home.join(".local/share/vitl-piano/soundfonts").join(filename);
+        if c1.exists() { return c1; }
+        let c2 = home.join(".local/share/vitl-piano").join(path);
+        if c2.exists() { return c2; }
+    }
+
+    // 4. Check Config / AppData directory
+    if let Some(config_dir) = dirs::config_dir() {
+        let c = config_dir.join("vitl-piano-desktop/soundfonts").join(filename);
+        if c.exists() { return c; }
+    }
+    if let Some(data_dir) = dirs::data_dir() {
+        let c = data_dir.join("vitl-piano/soundfonts").join(filename);
+        if c.exists() { return c; }
+    }
+
+    // 5. Check system soundfont directories
+    let sys_candidates = [
+        PathBuf::from("/usr/share/sounds/sf2").join(filename),
+        PathBuf::from("/usr/share/sounds/sf3").join(filename),
+        PathBuf::from("/usr/share/soundfonts").join(filename),
+        PathBuf::from("C:\\soundfonts").join(filename),
+    ];
+    for sc in sys_candidates {
+        if sc.exists() { return sc; }
+    }
+
+    p.to_path_buf()
+}
+
 pub struct SoundFontEngine {
     synthesizer: Synthesizer,
     pub sample_rate: f32,
@@ -295,7 +351,10 @@ pub struct SoundFontEngine {
 
 impl SoundFontEngine {
     pub fn load_file(path: &str, sample_rate: f32, initial_bank: i32, initial_patch: i32) -> Result<Self, String> {
-        let mut file = File::open(path).map_err(|e| format!("Failed to open SoundFont file '{}': {}", path, e))?;
+        let resolved_path = resolve_soundfont_path(path);
+        let mut file = File::open(&resolved_path).map_err(|e| {
+            format!("Failed to open SoundFont file '{}' (searched: '{}'): {}", path, resolved_path.display(), e)
+        })?;
         let sound_font_raw = SoundFont::new(&mut file).map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
         
         let mut presets = Vec::new();

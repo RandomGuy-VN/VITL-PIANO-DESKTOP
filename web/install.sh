@@ -79,6 +79,8 @@ if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/vitl-piano-desktop" ]; then
     cp -f "$SCRIPT_DIR/desktop.html" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$SCRIPT_DIR/vitl-brand-logo.svg" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$SCRIPT_DIR/vitl-brand-logo.png" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/soundfonts" ] && cp -rf "$SCRIPT_DIR/soundfonts" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/samples" ] && cp -rf "$SCRIPT_DIR/samples" "$INSTALL_DIR/" 2>/dev/null || true
     [ -d "$SCRIPT_DIR/lib" ] && cp -rf "$SCRIPT_DIR/lib" "$INSTALL_DIR/" 2>/dev/null || true
     INSTALLED_LOCALLY=true
 elif [ -f "$CWD/vitl-piano-desktop" ]; then
@@ -88,6 +90,8 @@ elif [ -f "$CWD/vitl-piano-desktop" ]; then
     cp -f "$CWD/desktop.html" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CWD/vitl-brand-logo.svg" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CWD/vitl-brand-logo.png" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$CWD/soundfonts" ] && cp -rf "$CWD/soundfonts" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$CWD/samples" ] && cp -rf "$CWD/samples" "$INSTALL_DIR/" 2>/dev/null || true
     [ -d "$CWD/lib" ] && cp -rf "$CWD/lib" "$INSTALL_DIR/" 2>/dev/null || true
     INSTALLED_LOCALLY=true
 elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../target/release/vitl-piano-desktop" ]; then
@@ -97,6 +101,8 @@ elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../target/release/vitl-piano-desk
     cp -f "$SCRIPT_DIR/../desktop.html" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$SCRIPT_DIR/../vitl-brand-logo.svg" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$SCRIPT_DIR/../vitl-brand-logo.png" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/../soundfonts" ] && cp -rf "$SCRIPT_DIR/../soundfonts" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/../samples" ] && cp -rf "$SCRIPT_DIR/../samples" "$INSTALL_DIR/" 2>/dev/null || true
     [ -d "$SCRIPT_DIR/../lib" ] && cp -rf "$SCRIPT_DIR/../lib" "$INSTALL_DIR/" 2>/dev/null || true
     INSTALLED_LOCALLY=true
 elif [ -f "$CWD/target/release/vitl-piano-desktop" ]; then
@@ -106,6 +112,8 @@ elif [ -f "$CWD/target/release/vitl-piano-desktop" ]; then
     cp -f "$CWD/desktop.html" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CWD/vitl-brand-logo.svg" "$INSTALL_DIR/" 2>/dev/null || true
     cp -f "$CWD/vitl-brand-logo.png" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$CWD/soundfonts" ] && cp -rf "$CWD/soundfonts" "$INSTALL_DIR/" 2>/dev/null || true
+    [ -d "$CWD/samples" ] && cp -rf "$CWD/samples" "$INSTALL_DIR/" 2>/dev/null || true
     [ -d "$CWD/lib" ] && cp -rf "$CWD/lib" "$INSTALL_DIR/" 2>/dev/null || true
     INSTALLED_LOCALLY=true
 elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/vitl-piano-linux.zip" ]; then
