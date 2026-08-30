@@ -451,6 +451,14 @@ fn validate_musescore_input(input: &str) -> std::result::Result<(), String> {
 }
 
 async fn serve_desktop_html() -> impl IntoResponse {
+    let content = if let Ok(c) = tokio::fs::read_to_string("desktop.html").await {
+        c
+    } else if let Ok(local_path) = std::env::var("HOME").map(|h| format!("{}/.local/share/vitl-piano/desktop.html", h)) {
+        tokio::fs::read_to_string(&local_path).await.unwrap_or_else(|_| include_str!("../../desktop.html").to_string())
+    } else {
+        include_str!("../../desktop.html").to_string()
+    };
+
     (
         [
             (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
@@ -461,11 +469,19 @@ async fn serve_desktop_html() -> impl IntoResponse {
             (axum::http::header::PRAGMA, "no-cache"),
             (axum::http::header::EXPIRES, "0"),
         ],
-        include_str!("../../desktop.html"),
+        content,
     )
 }
 
 async fn serve_logo_svg() -> impl IntoResponse {
+    let content = if let Ok(c) = tokio::fs::read_to_string("vitl-brand-logo.svg").await {
+        c
+    } else if let Ok(local_path) = std::env::var("HOME").map(|h| format!("{}/.local/share/vitl-piano/vitl-brand-logo.svg", h)) {
+        tokio::fs::read_to_string(&local_path).await.unwrap_or_else(|_| include_str!("../../vitl-brand-logo.svg").to_string())
+    } else {
+        include_str!("../../vitl-brand-logo.svg").to_string()
+    };
+
     (
         [
             (axum::http::header::CONTENT_TYPE, "image/svg+xml"),
@@ -476,11 +492,19 @@ async fn serve_logo_svg() -> impl IntoResponse {
             (axum::http::header::PRAGMA, "no-cache"),
             (axum::http::header::EXPIRES, "0"),
         ],
-        include_str!("../../vitl-brand-logo.svg"),
+        content,
     )
 }
 
 async fn serve_logo_png() -> impl IntoResponse {
+    let bytes = if let Ok(b) = tokio::fs::read("vitl-brand-logo.png").await {
+        b
+    } else if let Ok(local_path) = std::env::var("HOME").map(|h| format!("{}/.local/share/vitl-piano/vitl-brand-logo.png", h)) {
+        tokio::fs::read(&local_path).await.unwrap_or_else(|_| include_bytes!("../../vitl-brand-logo.png").to_vec())
+    } else {
+        include_bytes!("../../vitl-brand-logo.png").to_vec()
+    };
+
     (
         [
             (axum::http::header::CONTENT_TYPE, "image/png"),
@@ -491,7 +515,7 @@ async fn serve_logo_png() -> impl IntoResponse {
             (axum::http::header::PRAGMA, "no-cache"),
             (axum::http::header::EXPIRES, "0"),
         ],
-        include_bytes!("../../vitl-brand-logo.png").as_slice(),
+        bytes,
     )
 }
 
