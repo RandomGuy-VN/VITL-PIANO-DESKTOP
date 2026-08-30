@@ -883,11 +883,24 @@
 
       <div class="logo-block">
         <svg viewBox="0 0 100 100" width="34" height="34" xmlns="http://www.w3.org/2000/svg" style="border-radius: 8px; flex-shrink: 0;">
-          <rect x="4" y="4" width="92" height="92" rx="22" fill="#181920" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1.5"/>
-          <g>
-            <rect x="22" y="24" width="12" height="52" rx="6" fill="#ffffff" />
-            <rect x="43" y="36" width="12" height="28" rx="6" fill="#10b981" />
-            <circle cx="70" cy="50" r="6" fill="#34d399" />
+          <defs>
+            <linearGradient id="nav-paper" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#fbf9f4"/>
+              <stop offset="100%" stop-color="#efece4"/>
+            </linearGradient>
+            <linearGradient id="nav-moss" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#4a6b4d"/>
+              <stop offset="100%" stop-color="#345037"/>
+            </linearGradient>
+            <filter id="nav-shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1916" flood-opacity="0.12"/>
+            </filter>
+          </defs>
+          <rect x="4" y="4" width="92" height="92" rx="22" fill="url(#nav-paper)" stroke="#dcd7ca" stroke-width="1"/>
+          <g filter="url(#nav-shadow)">
+            <rect x="25" y="25" width="12" height="50" rx="4" fill="#1a1916" />
+            <rect x="44" y="35" width="12" height="30" rx="4" fill="url(#nav-moss)" />
+            <rect x="63" y="45" width="12" height="10" rx="4" fill="#9c978c" />
           </g>
         </svg>
         <div>
