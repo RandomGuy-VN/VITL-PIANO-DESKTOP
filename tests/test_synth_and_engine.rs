@@ -324,6 +324,7 @@ fn test_soundfont_preset_and_discovery() {
     // Discovery should run safely without panicking on any platform
     let soundfonts = discover_system_soundfonts();
     println!("Discovered {} system/local soundfonts", soundfonts.len());
+    assert!(!soundfonts.is_empty(), "Expected at least 1 soundfont discovered in ./soundfonts");
 
     let mut synth = PianoSynthEngine::new(44100.0);
     let presets = synth.get_soundfont_presets();
@@ -332,6 +333,25 @@ fn test_soundfont_preset_and_discovery() {
     // Preset selection when no soundfont loaded returns error gracefully
     let res = synth.set_soundfont_preset(0, 5);
     assert!(res.is_err());
+
+    // Test loading TimGM6mb.sf2
+    let sf_path = "soundfonts/TimGM6mb.sf2";
+    if std::path::Path::new(sf_path).exists() {
+        let load_res = synth.load_soundfont(sf_path);
+        assert!(load_res.is_ok());
+        let presets = synth.get_soundfont_presets();
+        assert!(!presets.is_empty());
+        println!("TimGM6mb has {} presets", presets.len());
+
+        // Select preset 0 (Grand Piano) and synthesize note
+        let set_res = synth.set_soundfont_preset(0, 0);
+        assert!(set_res.is_ok());
+        synth.note_on(60, 100);
+        let mut buf = vec![0.0f32; 512];
+        synth.process_block(&mut buf);
+        let energy: f32 = buf.iter().map(|s| s.abs()).sum();
+        assert!(energy > 0.01);
+    }
 
     // Config defaults
     let config = vitl_piano_desktop::core::config::AppConfig::default();
