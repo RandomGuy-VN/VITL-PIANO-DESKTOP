@@ -358,3 +358,157 @@ fn test_soundfont_preset_and_discovery() {
     assert_eq!(config.synth.soundfont_bank, 0);
     assert_eq!(config.synth.soundfont_patch, 0);
 }
+
+#[test]
+fn test_midi_export_and_reparse() {
+    use vitl_piano_desktop::core::song::{NoteEvent, Song, Track};
+    use vitl_piano_desktop::core::midi::MidiParser;
+
+    let mut song = Song::new("Test Export Song".to_string());
+    song.bpm = 140.0;
+    let mut track = Track {
+        name: "Piano Melody".to_string(),
+        channel: 0,
+        notes: Vec::new(),
+        is_drum: false,
+    };
+
+    // Add scale C4, D4, E4, F4, G4, A4, B4, C5
+    let pitches = [60, 62, 64, 65, 67, 69, 71, 72];
+    for (i, &p) in pitches.iter().enumerate() {
+        track.notes.push(NoteEvent {
+            note: p,
+            velocity: 100,
+            start_ms: (i as f64) * 250.0,
+            duration_ms: 200.0,
+            track: 0,
+            channel: 0,
+        });
+    }
+    song.tracks.push(track);
+    song.finalize();
+
+    // Export to MIDI bytes
+    let midi_bytes = song.to_midi_bytes().expect("Should export MIDI bytes successfully");
+    assert!(!midi_bytes.is_empty());
+    assert_eq!(&midi_bytes[0..4], b"MThd", "Should have valid MIDI header");
+
+    // Parse exported bytes back
+    let reloaded = MidiParser::parse_bytes(&midi_bytes, "reloaded.mid".to_string())
+        .expect("Should parse generated MIDI back");
+    assert_eq!(reloaded.total_notes, 8);
+    assert!((reloaded.bpm - 140.0).abs() < 1.0);
+}
+
+#[test]
+fn test_sheet_generation_and_chords() {
+    use vitl_piano_desktop::core::song::{NoteEvent, Song, Track};
+
+    let mut song = Song::new("Fur Elise Snippet".to_string());
+    song.bpm = 120.0;
+    let mut track = Track {
+        name: "Main".to_string(),
+        channel: 0,
+        notes: Vec::new(),
+        is_drum: false,
+    };
+
+    // Note 76 = 'f' in VP, Note 75 = 'D' in VP, Chord [60, 64, 67] = [tuo]
+    track.notes.push(NoteEvent { note: 76, velocity: 80, start_ms: 0.0, duration_ms: 100.0, track: 0, channel: 0 });
+    track.notes.push(NoteEvent { note: 75, velocity: 80, start_ms: 150.0, duration_ms: 100.0, track: 0, channel: 0 });
+    // Chord
+    track.notes.push(NoteEvent { note: 60, velocity: 80, start_ms: 300.0, duration_ms: 100.0, track: 0, channel: 0 });
+    track.notes.push(NoteEvent { note: 64, velocity: 80, start_ms: 300.0, duration_ms: 100.0, track: 0, channel: 0 });
+    track.notes.push(NoteEvent { note: 67, velocity: 80, start_ms: 300.0, duration_ms: 100.0, track: 0, channel: 0 });
+
+    song.tracks.push(track);
+    song.finalize();
+
+    let sheet = song.to_sheet_text();
+    assert!(sheet.contains("Fur Elise Snippet"));
+    assert!(sheet.contains("[") && sheet.contains("]"), "Should format simultaneous notes as chord");
+}
+
+#[test]
+fn test_transcriber_status_and_spectral_fallback() {
+    use vitl_piano_desktop::core::transcriber::AudioTranscriber;
+
+    let status = AudioTranscriber::check_status();
+    println!("Transcriber status: Python={}, Transkun={}", status.python_available, status.transkun_available);
+    assert!(!status.device.is_empty());
+
+    // Test spectral fallback transcription with dummy WAV file
+    let tmp_wav = std::env::temp_dir().join("vitl_test_transcribe.wav");
+    let tmp_mid = std::env::temp_dir().join("vitl_test_transcribe.mid");
+
+    // Write a small sine wave WAV file
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 44100,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    {
+        let mut writer = hound::WavWriter::create(&tmp_wav, spec).unwrap();
+        for t in 0..44100 {
+            let sample = (2.0 * std::f32::consts::PI * 440.0 * (t as f32 / 44100.0)).sin();
+            let val = (sample * 16000.0) as i16;
+            writer.write_sample(val).unwrap();
+        }
+        writer.finalize().unwrap();
+    }
+
+    let song = AudioTranscriber::transcribe_file(&tmp_wav, &tmp_mid).expect("Should transcribe WAV");
+    assert!(!song.tracks.is_empty());
+    println!("Transcribed song notes: {}", song.total_notes);
+
+    let _ = std::fs::remove_file(&tmp_wav);
+    let _ = std::fs::remove_file(&tmp_mid);
+}
+
+#[test]
+fn test_dsp_equalizer_and_delay() {
+    use vitl_piano_desktop::synth::dsp::{StereoDelay, ThreeBandEqualizer};
+
+    let mut eq = ThreeBandEqualizer::new(44100.0);
+    eq.set_gains(6.0, -3.0, 4.0);
+    let (l, r) = eq.process(0.5, 0.5);
+    assert!(l.is_finite());
+    assert!(r.is_finite());
+
+    let mut delay = StereoDelay::new(44100.0);
+    delay.enabled = true;
+    delay.delay_time_ms = 100.0;
+    delay.feedback = 0.5;
+    delay.wet_mix = 0.5;
+
+    let mut out_l = 0.0;
+    let mut out_r = 0.0;
+    for i in 0..1000 {
+        let input = if i == 0 { 1.0 } else { 0.0 };
+        let (dl, dr) = delay.process(input, input);
+        out_l += dl.abs();
+        out_r += dr.abs();
+    }
+    assert!(out_l > 0.1 && out_r > 0.1, "Delay should produce feedback tails on both channels");
+}
+
+#[test]
+fn test_theme_and_visualizer_configs() {
+    use vitl_piano_desktop::core::config::AppConfig;
+
+    let mut config = AppConfig::default();
+    config.theme.active_theme = "cyberpunk-2077".to_string();
+    config.theme.custom_css = "body { filter: contrast(110%); }".to_string();
+    config.visualizer.palette = "sakura".to_string();
+    config.effects.eq_low = 3.5;
+    config.effects.delay_enabled = true;
+
+    let serialized = serde_json::to_string(&config).expect("Serialize config");
+    let deserialized: AppConfig = serde_json::from_str(&serialized).expect("Deserialize config");
+
+    assert_eq!(deserialized.theme.active_theme, "cyberpunk-2077");
+    assert_eq!(deserialized.visualizer.palette, "sakura");
+    assert_eq!(deserialized.effects.eq_low, 3.5);
+    assert!(deserialized.effects.delay_enabled);
+}

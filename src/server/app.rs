@@ -81,6 +81,28 @@ pub enum ClientAction {
     ListLocalMidis,
     #[serde(rename = "get_state")]
     GetState,
+    #[serde(rename = "get_current_song")]
+    GetCurrentSong,
+    #[serde(rename = "save_song")]
+    SaveSong { song: Song },
+    #[serde(rename = "quantize_song")]
+    QuantizeSong { grid_ms: f64 },
+    #[serde(rename = "transpose_song")]
+    TransposeSong { semitones: i8 },
+    #[serde(rename = "set_effects")]
+    SetEffects {
+        eq_low: f32,
+        eq_mid: f32,
+        eq_high: f32,
+        delay_enabled: bool,
+        delay_time_ms: f32,
+        delay_feedback: f32,
+        delay_mix: f32,
+    },
+    #[serde(rename = "get_transcriber_status")]
+    GetTranscriberStatus,
+    #[serde(rename = "install_transkun")]
+    InstallTranskun,
     #[serde(rename = "render_wav")]
     RenderWav { output_path: String },
     #[serde(rename = "trigger_note")]
@@ -94,6 +116,8 @@ pub enum ServerMessage {
     Status(PlaybackStatus),
     #[serde(rename = "config")]
     Config(AppConfig),
+    #[serde(rename = "current_song")]
+    CurrentSong(Option<Song>),
     #[serde(rename = "hub_results")]
     HubResults(Vec<HubMidiItem>),
     #[serde(rename = "local_midis")]
@@ -107,6 +131,10 @@ pub enum ServerMessage {
     },
     #[serde(rename = "available_soundfonts")]
     AvailableSoundFonts(Vec<DiscoveredSoundFont>),
+    #[serde(rename = "transcriber_status")]
+    TranscriberStatusMsg(crate::core::transcriber::TranscriberStatus),
+    #[serde(rename = "transcribe_progress")]
+    TranscribeProgress { step: String, percent: f32, log: String },
     #[serde(rename = "notification")]
     Notification { level: String, message: String },
 }
@@ -129,6 +157,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/hub_songs", get(get_hub_songs_api))
         .route("/api/upload_midi", post(upload_midi_api))
         .route("/api/import_musescore", post(import_musescore_api))
+        .route("/api/current_song", get(get_current_song_api))
+        .route("/api/save_midi", post(save_midi_api))
+        .route("/api/export_midi", get(export_midi_get_api).post(export_midi_post_api))
+        .route("/api/export_sheet", get(export_sheet_get_api).post(export_sheet_post_api))
+        .route("/api/transcribe", post(transcribe_audio_api))
+        .route("/api/transcriber/status", get(get_transcriber_status_api))
+        .route("/api/transcriber/install", post(post_transcriber_install_api))
         .fallback_service(serve_dir)
         .layer(CorsLayer::permissive())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
@@ -505,6 +540,117 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
             let cfg = state.config.lock().clone();
             send_ws_message(ws, &ServerMessage::Config(cfg)).await;
         }
+        ClientAction::GetCurrentSong => {
+            let cur_song = state.current_song.lock().clone();
+            send_ws_message(ws, &ServerMessage::CurrentSong(cur_song)).await;
+        }
+        ClientAction::SaveSong { mut song } => {
+            song.finalize();
+            *state.current_song.lock() = Some(song.clone());
+            state.player.load_song(song.clone());
+
+            // Save to Midis directory
+            let sanitized_title = song.title.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect::<String>();
+            let filename = format!("{}.mid", sanitized_title);
+            let midi_path = AppConfig::midis_dir().join(&filename);
+            if let Ok(bytes) = song.to_midi_bytes() {
+                let _ = std::fs::write(&midi_path, bytes);
+            }
+
+            send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
+            send_ws_message(ws, &ServerMessage::Notification {
+                level: "success".to_string(),
+                message: format!("Song '{}' saved successfully", song.title),
+            }).await;
+
+            let list = MidiHubClient::list_local_midis();
+            send_ws_message(ws, &ServerMessage::LocalMidis(list)).await;
+        }
+        ClientAction::QuantizeSong { grid_ms } => {
+            let mut song_opt = state.current_song.lock().clone();
+            if let Some(ref mut song) = song_opt {
+                song.quantize(grid_ms);
+                *state.current_song.lock() = Some(song.clone());
+                state.player.load_song(song.clone());
+                send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
+                send_ws_message(ws, &ServerMessage::Notification {
+                    level: "info".to_string(),
+                    message: format!("Quantized to {:.0}ms grid", grid_ms),
+                }).await;
+            }
+        }
+        ClientAction::TransposeSong { semitones } => {
+            let mut song_opt = state.current_song.lock().clone();
+            if let Some(ref mut song) = song_opt {
+                song.transpose(semitones);
+                *state.current_song.lock() = Some(song.clone());
+                state.player.load_song(song.clone());
+                send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
+                send_ws_message(ws, &ServerMessage::Notification {
+                    level: "info".to_string(),
+                    message: format!("Transposed song by {} semitones", semitones),
+                }).await;
+            }
+        }
+        ClientAction::SetEffects {
+            eq_low,
+            eq_mid,
+            eq_high,
+            delay_enabled,
+            delay_time_ms,
+            delay_feedback,
+            delay_mix,
+        } => {
+            {
+                let synth_arc = state.player.synth();
+                let mut synth = synth_arc.lock();
+                synth.set_eq_params(eq_low, eq_mid, eq_high);
+                synth.set_delay_params(delay_enabled, delay_time_ms, delay_feedback, delay_mix);
+            }
+            {
+                let mut cfg = state.config.lock();
+                cfg.effects.eq_low = eq_low;
+                cfg.effects.eq_mid = eq_mid;
+                cfg.effects.eq_high = eq_high;
+                cfg.effects.delay_enabled = delay_enabled;
+                cfg.effects.delay_time_ms = delay_time_ms;
+                cfg.effects.delay_feedback = delay_feedback;
+                cfg.effects.delay_mix = delay_mix;
+                let _ = cfg.save();
+            }
+        }
+        ClientAction::GetTranscriberStatus => {
+            let status = crate::core::transcriber::AudioTranscriber::check_status();
+            send_ws_message(ws, &ServerMessage::TranscriberStatusMsg(status)).await;
+        }
+        ClientAction::InstallTranskun => {
+            send_ws_message(ws, &ServerMessage::Notification {
+                level: "info".to_string(),
+                message: "Installing Transkun in background...".to_string(),
+            }).await;
+            let ws_clone = Arc::clone(ws);
+            tokio::task::spawn_blocking(move || {
+                let res = crate::core::transcriber::AudioTranscriber::install_transkun_sync();
+                tokio::spawn(async move {
+                    match res {
+                        Ok(msg) => {
+                            send_ws_message(&ws_clone, &ServerMessage::Notification {
+                                level: "success".to_string(),
+                                message: msg,
+                            }).await;
+                            let status = crate::core::transcriber::AudioTranscriber::check_status();
+                            send_ws_message(&ws_clone, &ServerMessage::TranscriberStatusMsg(status)).await;
+                        }
+                        Err(err) => {
+                            send_ws_message(&ws_clone, &ServerMessage::Notification {
+                                level: "error".to_string(),
+                                message: err,
+                            }).await;
+                        }
+                    }
+                });
+            });
+        }
         ClientAction::RenderWav { output_path } => {
             let song_opt = state.current_song.lock().clone();
             if let Some(song) = song_opt.as_ref() {
@@ -652,4 +798,167 @@ async fn import_musescore_api(
                 .into_response()
         }
     }
+}
+
+async fn get_current_song_api(State(state): State<AppState>) -> Json<Option<Song>> {
+    let song = state.current_song.lock().clone();
+    Json(song)
+}
+
+async fn save_midi_api(State(state): State<AppState>, Json(mut song): Json<Song>) -> Response {
+    song.finalize();
+    *state.current_song.lock() = Some(song.clone());
+    state.player.load_song(song.clone());
+
+    let sanitized_title = song.title.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect::<String>();
+    let filename = format!("{}.mid", sanitized_title);
+    let midi_path = AppConfig::midis_dir().join(&filename);
+    if let Ok(bytes) = song.to_midi_bytes() {
+        let _ = std::fs::write(&midi_path, &bytes);
+    }
+
+    Json(serde_json::json!({
+        "success": true,
+        "title": song.title,
+        "total_notes": song.total_notes,
+        "file_path": midi_path.to_string_lossy().to_string()
+    })).into_response()
+}
+
+async fn export_midi_get_api(State(state): State<AppState>) -> Response {
+    let song_opt = state.current_song.lock().clone();
+    if let Some(song) = song_opt {
+        match song.to_midi_bytes() {
+            Ok(bytes) => {
+                let filename = format!("{}.mid", song.title.replace(' ', "_"));
+                (
+                    [
+                        (axum::http::header::CONTENT_TYPE, "audio/midi"),
+                        (
+                            axum::http::header::CONTENT_DISPOSITION,
+                            &format!("attachment; filename=\"{}\"", filename),
+                        ),
+                    ],
+                    bytes,
+                )
+                    .into_response()
+            }
+            Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+        }
+    } else {
+        (axum::http::StatusCode::NOT_FOUND, "No active song loaded").into_response()
+    }
+}
+
+async fn export_midi_post_api(Json(song): Json<Song>) -> Response {
+    match song.to_midi_bytes() {
+        Ok(bytes) => {
+            let filename = format!("{}.mid", song.title.replace(' ', "_"));
+            (
+                [
+                    (axum::http::header::CONTENT_TYPE, "audio/midi"),
+                    (
+                        axum::http::header::CONTENT_DISPOSITION,
+                        &format!("attachment; filename=\"{}\"", filename),
+                    ),
+                ],
+                bytes,
+            )
+                .into_response()
+        }
+        Err(e) => (axum::http::StatusCode::BAD_REQUEST, e).into_response(),
+    }
+}
+
+async fn export_sheet_get_api(State(state): State<AppState>) -> Response {
+    let song_opt = state.current_song.lock().clone();
+    if let Some(song) = song_opt {
+        let sheet_text = song.to_sheet_text();
+        let filename = format!("{}.txt", song.title.replace(' ', "_"));
+        (
+            [
+                (axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8"),
+                (
+                    axum::http::header::CONTENT_DISPOSITION,
+                    &format!("attachment; filename=\"{}\"", filename),
+                ),
+            ],
+            sheet_text,
+        )
+            .into_response()
+    } else {
+        (axum::http::StatusCode::NOT_FOUND, "No active song loaded").into_response()
+    }
+}
+
+async fn export_sheet_post_api(Json(song): Json<Song>) -> Response {
+    let sheet_text = song.to_sheet_text();
+    let filename = format!("{}.txt", song.title.replace(' ', "_"));
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8"),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                &format!("attachment; filename=\"{}\"", filename),
+            ),
+        ],
+        sheet_text,
+    )
+        .into_response()
+}
+
+async fn get_transcriber_status_api() -> Json<crate::core::transcriber::TranscriberStatus> {
+    let status = crate::core::transcriber::AudioTranscriber::check_status();
+    Json(status)
+}
+
+async fn post_transcriber_install_api() -> Response {
+    tokio::task::spawn_blocking(|| {
+        let _ = crate::core::transcriber::AudioTranscriber::install_transkun_sync();
+    });
+    Json(serde_json::json!({ "success": true, "message": "Installation started in background" })).into_response()
+}
+
+async fn transcribe_audio_api(State(state): State<AppState>, mut multipart: Multipart) -> Response {
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let original_name = field.file_name().unwrap_or("audio_sample.mp3").to_string();
+        if let Ok(bytes) = field.bytes().await {
+            let temp_dir = std::env::temp_dir().join("vitl_transcribe");
+            let _ = std::fs::create_dir_all(&temp_dir);
+
+            let audio_temp = temp_dir.join(&original_name);
+            let stem = PathBuf::from(&original_name).file_stem().unwrap_or_default().to_string_lossy().to_string();
+            let midi_temp = temp_dir.join(format!("{}.mid", stem));
+
+            if let Err(e) = std::fs::write(&audio_temp, &bytes) {
+                return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "success": false, "error": format!("Failed to write audio: {}", e) }))).into_response();
+            }
+
+            match crate::core::transcriber::AudioTranscriber::transcribe_file(&audio_temp, &midi_temp) {
+                Ok(song) => {
+                    // Copy output MIDI to library
+                    let out_path = AppConfig::midis_dir().join(format!("{}.mid", stem));
+                    if midi_temp.exists() {
+                        let _ = std::fs::copy(&midi_temp, &out_path);
+                    }
+
+                    *state.current_song.lock() = Some(song.clone());
+                    state.player.load_song(song.clone());
+
+                    return Json(serde_json::json!({
+                        "success": true,
+                        "title": song.title,
+                        "total_notes": song.total_notes,
+                        "duration_ms": song.duration_ms,
+                        "file_path": out_path.to_string_lossy().to_string()
+                    })).into_response();
+                }
+                Err(e) => {
+                    return (axum::http::StatusCode::BAD_REQUEST, Json(serde_json::json!({ "success": false, "error": e }))).into_response();
+                }
+            }
+        }
+    }
+
+    Json(serde_json::json!({ "success": false, "error": "No audio file received" })).into_response()
 }

@@ -115,6 +115,108 @@ impl Default for HumanizeConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeConfig {
+    pub active_theme: String,
+    pub custom_css: String,
+    pub background_mode: String, // "gradient", "solid", "image", "matrix", "stars", "waves"
+    pub background_url: Option<String>,
+    pub background_blur: f32,
+    pub background_opacity: f32,
+    pub accent_color: Option<String>,
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            active_theme: "dark-obsidian".to_string(),
+            custom_css: String::new(),
+            background_mode: "gradient".to_string(),
+            background_url: None,
+            background_blur: 0.0,
+            background_opacity: 1.0,
+            accent_color: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VisualizerConfig {
+    pub enabled: bool,
+    pub waterfall_speed: f64,
+    pub palette: String, // "neon-cyber", "classic-gold", "sakura", "ocean-blue", "emerald", "synthwave"
+    pub particle_effects: bool,
+    pub note_glow: bool,
+    pub show_piano_roll: bool,
+    pub tail_rounding: f32,
+    pub split_hands_color: bool,
+    pub show_falling_notes: bool,
+}
+
+impl Default for VisualizerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            waterfall_speed: 1.0,
+            palette: "neon-cyber".to_string(),
+            particle_effects: true,
+            note_glow: true,
+            show_piano_roll: true,
+            tail_rounding: 4.0,
+            split_hands_color: true,
+            show_falling_notes: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EffectsConfig {
+    pub eq_low: f32, // -12.0 to +12.0 dB
+    pub eq_mid: f32, // -12.0 to +12.0 dB
+    pub eq_high: f32, // -12.0 to +12.0 dB
+    pub delay_enabled: bool,
+    pub delay_time_ms: f32,
+    pub delay_feedback: f32,
+    pub delay_mix: f32,
+    pub chorus_enabled: bool,
+    pub chorus_rate: f32,
+    pub chorus_depth: f32,
+}
+
+impl Default for EffectsConfig {
+    fn default() -> Self {
+        Self {
+            eq_low: 0.0,
+            eq_mid: 0.0,
+            eq_high: 0.0,
+            delay_enabled: false,
+            delay_time_ms: 250.0,
+            delay_feedback: 0.35,
+            delay_mix: 0.25,
+            chorus_enabled: false,
+            chorus_rate: 1.5,
+            chorus_depth: 0.3,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriberConfig {
+    pub python_path: Option<String>,
+    pub model_mode: String, // "auto", "transkun", "spectral"
+    pub device: String, // "auto", "cuda", "cpu"
+}
+
+impl Default for TranscriberConfig {
+    fn default() -> Self {
+        Self {
+            python_path: None,
+            model_mode: "auto".to_string(),
+            device: "auto".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub playback_speed: f64,
     pub transpose_offset: i8,
@@ -148,6 +250,14 @@ pub struct AppConfig {
     pub hotkeys: HotkeyConfig,
     pub synth: SynthConfig,
     pub humanize: HumanizeConfig,
+    #[serde(default)]
+    pub theme: ThemeConfig,
+    #[serde(default)]
+    pub visualizer: VisualizerConfig,
+    #[serde(default)]
+    pub effects: EffectsConfig,
+    #[serde(default)]
+    pub transcriber: TranscriberConfig,
     pub custom_mappings_61: HashMap<String, String>,
     pub custom_mappings_low: HashMap<String, String>,
     pub custom_mappings_high: HashMap<String, String>,
@@ -212,6 +322,10 @@ impl Default for AppConfig {
             hotkeys: HotkeyConfig::default(),
             synth: SynthConfig::default(),
             humanize: HumanizeConfig::default(),
+            theme: ThemeConfig::default(),
+            visualizer: VisualizerConfig::default(),
+            effects: EffectsConfig::default(),
+            transcriber: TranscriberConfig::default(),
             custom_mappings_61: HashMap::new(),
             custom_mappings_low: HashMap::new(),
             custom_mappings_high: HashMap::new(),

@@ -7,7 +7,11 @@
 <link rel="icon" type="image/svg+xml" href="vitl-brand-logo.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;450;500;550;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;450;500;550;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Custom CSS Dynamic Injector -->
+<style id="vitl-custom-css"></style>
+
 <style>
   :root {
     --paper:        #f6f4ef;
@@ -39,6 +43,119 @@
     
     --shadow-sm: 0 1px 2px rgba(26, 25, 22, 0.04), 0 2px 4px rgba(26, 25, 22, 0.03);
     --shadow-md: 0 2px 6px rgba(26, 25, 22, 0.05), 0 10px 20px rgba(26, 25, 22, 0.04);
+  }
+
+  body[data-theme="dark-obsidian"] {
+    --paper:        #121316;
+    --paper-raised: #1a1b1f;
+    --paper-sunk:   #0f1012;
+    --paper-card:   #1e1f24;
+    --ink-900: #f4f4f5;
+    --ink-800: #e4e4e7;
+    --ink-700: #d4d4d8;
+    --ink-600: #a1a1aa;
+    --ink-500: #71717a;
+    --ink-400: #52525b;
+    --ink-300: #3f3f46;
+    --ink-200: #27272a;
+    --ink-100: #18181b;
+    --line:       rgba(255, 255, 255, 0.08);
+    --line-strong:rgba(255, 255, 255, 0.15);
+    --accent:        #10b981;
+    --accent-deep:   #059669;
+    --accent-soft:   rgba(16, 185, 129, 0.15);
+    --accent-line:   rgba(16, 185, 129, 0.35);
+  }
+
+  body[data-theme="cyberpunk"] {
+    --paper:        #08080f;
+    --paper-raised: #10101c;
+    --paper-sunk:   #04040a;
+    --paper-card:   #151524;
+    --ink-900: #00f0ff;
+    --ink-800: #fcee0a;
+    --ink-700: #ff0055;
+    --ink-600: #d4d4d8;
+    --ink-500: #8b8b9e;
+    --ink-400: #5b5b70;
+    --line:       rgba(0, 240, 255, 0.15);
+    --line-strong:rgba(255, 0, 85, 0.25);
+    --accent:        #00f0ff;
+    --accent-deep:   #ff0055;
+    --accent-soft:   rgba(0, 240, 255, 0.15);
+    --accent-line:   rgba(0, 240, 255, 0.4);
+  }
+
+  body[data-theme="sakura"] {
+    --paper:        #140f1a;
+    --paper-raised: #1c1524;
+    --paper-sunk:   #0d0a12;
+    --paper-card:   #231b2e;
+    --ink-900: #ffd1dc;
+    --ink-800: #ffb7c5;
+    --ink-700: #ff7597;
+    --ink-600: #c9a0dc;
+    --ink-500: #8f749e;
+    --line:       rgba(255, 117, 151, 0.12);
+    --line-strong:rgba(255, 117, 151, 0.22);
+    --accent:        #ff7597;
+    --accent-deep:   #c94277;
+    --accent-soft:   rgba(255, 117, 151, 0.16);
+    --accent-line:   rgba(255, 117, 151, 0.38);
+  }
+
+  body[data-theme="nord"] {
+    --paper:        #242933;
+    --paper-raised: #2e3440;
+    --paper-sunk:   #1e222a;
+    --paper-card:   #3b4252;
+    --ink-900: #eceff4;
+    --ink-800: #e5e9f0;
+    --ink-700: #d8dee9;
+    --ink-600: #88c0d0;
+    --ink-500: #81a1c1;
+    --line:       rgba(136, 192, 208, 0.12);
+    --line-strong:rgba(136, 192, 208, 0.22);
+    --accent:        #88c0d0;
+    --accent-deep:   #5e81ac;
+    --accent-soft:   rgba(136, 192, 208, 0.16);
+    --accent-line:   rgba(136, 192, 208, 0.35);
+  }
+
+  body[data-theme="midnight"] {
+    --paper:        #000000;
+    --paper-raised: #0a0a0a;
+    --paper-sunk:   #000000;
+    --paper-card:   #121212;
+    --ink-900: #ffffff;
+    --ink-800: #e4e4e7;
+    --ink-700: #a1a1aa;
+    --ink-600: #71717a;
+    --ink-500: #52525b;
+    --line:       rgba(255, 255, 255, 0.1);
+    --line-strong:rgba(255, 255, 255, 0.2);
+    --accent:        #ffffff;
+    --accent-deep:   #cccccc;
+    --accent-soft:   rgba(255, 255, 255, 0.12);
+    --accent-line:   rgba(255, 255, 255, 0.3);
+  }
+
+  body[data-theme="synthwave"] {
+    --paper:        #120826;
+    --paper-raised: #1c0e3a;
+    --paper-sunk:   #0a0418;
+    --paper-card:   #25134d;
+    --ink-900: #ff7b00;
+    --ink-800: #f72585;
+    --ink-700: #7209b7;
+    --ink-600: #4cc9f0;
+    --ink-500: #9d4edd;
+    --line:       rgba(247, 37, 133, 0.15);
+    --line-strong:rgba(255, 123, 0, 0.25);
+    --accent:        #f72585;
+    --accent-deep:   #b5179e;
+    --accent-soft:   rgba(247, 37, 133, 0.18);
+    --accent-line:   rgba(247, 37, 133, 0.4);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -428,10 +545,93 @@
     background: var(--paper-sunk);
   }
 
+  /* Animated Canvas Background Layer */
+  #bg-canvas-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  /* Waterfall Canvas & Visualizer Stage */
+  .visualizer-stage-wrapper {
+    width: 100%;
+    position: relative;
+    border-radius: var(--r-md);
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    background: #090a0f;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    margin-bottom: 20px;
+  }
+  .waterfall-canvas {
+    width: 100%;
+    height: 180px;
+    display: block;
+    background: linear-gradient(180deg, rgba(8,9,14,0.9) 0%, rgba(14,16,24,0.95) 100%);
+  }
+  .visualizer-fullscreen-stage .waterfall-canvas {
+    height: calc(100vh - 280px);
+  }
+
+  /* Piano Roll Studio Grid */
+  .piano-roll-container {
+    width: 100%;
+    height: 480px;
+    display: flex;
+    background: #0f1015;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    position: relative;
+  }
+  .piano-roll-ruler {
+    width: 54px;
+    height: 100%;
+    background: #181920;
+    border-right: 1px solid var(--line);
+    overflow-y: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .ruler-key {
+    height: 16px;
+    font-size: 9.5px;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex;
+    align-items: center;
+    padding-left: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: #888;
+  }
+  .ruler-key.black-key {
+    background: #121318;
+    color: #555;
+  }
+  .ruler-key.c-key {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .piano-roll-canvas-wrap {
+    flex: 1;
+    height: 100%;
+    overflow: auto;
+    position: relative;
+  }
+  #pianoRollCanvas {
+    display: block;
+    cursor: crosshair;
+  }
+
   /* 88-Key Interactive Piano */
   .piano-keyboard-container {
     width: 100%;
-    height: 110px;
+    height: 105px;
     background: var(--ink-900);
     border-radius: var(--r-md);
     border: 1px solid var(--line-strong);
@@ -619,7 +819,9 @@
   }
 </style>
 </head>
-<body>
+<body data-theme="dark-obsidian">
+
+<canvas id="bg-canvas-layer"></canvas>
 
 <div id="app-root">
   <!-- MAIN APP BODY -->
@@ -643,46 +845,55 @@
         <svg viewBox="0 0 100 100" width="34" height="34" xmlns="http://www.w3.org/2000/svg" style="border-radius: 8px; flex-shrink: 0;">
           <defs>
             <linearGradient id="nav-paper" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#fbf9f4"/>
-              <stop offset="100%" stop-color="#efece4"/>
+              <stop offset="0%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#059669"/>
             </linearGradient>
-            <linearGradient id="nav-moss" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stop-color="#4a6b4d"/>
-              <stop offset="100%" stop-color="#345037"/>
-            </linearGradient>
-            <filter id="nav-shadow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1916" flood-opacity="0.12"/>
-            </filter>
           </defs>
-          <rect x="4" y="4" width="92" height="92" rx="22" fill="url(#nav-paper)" stroke="#dcd7ca" stroke-width="1"/>
-          <g filter="url(#nav-shadow)">
-            <rect x="25" y="25" width="12" height="50" rx="4" fill="#1a1916" />
-            <rect x="44" y="35" width="12" height="30" rx="4" fill="url(#nav-moss)" />
-            <rect x="63" y="45" width="12" height="10" rx="4" fill="#9c978c" />
+          <rect x="4" y="4" width="92" height="92" rx="22" fill="#181920" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+          <g>
+            <rect x="25" y="25" width="12" height="50" rx="4" fill="#ffffff" />
+            <rect x="44" y="35" width="12" height="30" rx="4" fill="url(#nav-paper)" />
+            <rect x="63" y="45" width="12" height="10" rx="4" fill="#6ee7b7" />
           </g>
         </svg>
         <div>
           <h2>VITL <em>Piano</em></h2>
-          <span>AUTOPLAYER & SYNTH</span>
+          <span>AIO STUDIO v1.0</span>
         </div>
       </div>
 
       <div class="nav-menu">
         <a class="nav-item active" data-view="view-player">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          Player
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Player & Live
+        </a>
+        <a class="nav-item" data-view="view-visualizer">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          Synthesia Cascade
+        </a>
+        <a class="nav-item" data-view="view-studio">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Piano Roll Studio
+        </a>
+        <a class="nav-item" data-view="view-transcribe">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+          AI Transcriber
         </a>
         <a class="nav-item" data-view="view-library">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-          Library <span id="library-badge" style="margin-left: auto; font-size: 10px; background: var(--accent-soft); color: var(--accent-deep); padding: 1px 6px; border-radius: 99px; font-weight: 600; display: none;">0</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          Library <span id="library-badge" style="margin-left: auto; font-size: 10px; background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 99px; font-weight: 600; display: none;">0</span>
         </a>
         <a class="nav-item" data-view="view-midihub">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path></svg>
           MIDI Hub
         </a>
+        <a class="nav-item" data-view="view-appearance">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a7 7 0 0 0 7 7c0 2-2 3-2 3s1 1 1 3a4 4 0 0 1-8 0c0-2 2-3 2-3s-1-1-1-3a7 7 0 0 1 1-4z"></path></svg>
+          Themes & CSS
+        </a>
         <a class="nav-item" data-view="view-settings">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-          Settings
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          Settings & DSP
         </a>
       </div>
 
@@ -786,8 +997,206 @@
           </button>
         </div>
 
-        <div class="section-label" style="margin-top: 20px;">LIVE 88-KEY PIANO VISUALIZER</div>
-        <div class="piano-keyboard-container" id="player-piano-keyboard"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 8px;">
+          <div class="section-label" style="margin-bottom: 0;">SYNTHESIA WATERFALL & 88-KEY VISUALIZER</div>
+          <button id="toggle-fullscreen-vis-btn" style="background: none; border: none; font-size: 11px; color: var(--accent); cursor: pointer; text-decoration: underline;">Expand Fullscreen Stage</button>
+        </div>
+        
+        <div class="visualizer-stage-wrapper">
+          <canvas class="waterfall-canvas" id="playerWaterfallCanvas"></canvas>
+          <div class="piano-keyboard-container" id="player-piano-keyboard"></div>
+        </div>
+      </div>
+
+      <!-- 2. SYNTHESIA CASCADE FULLSCREEN VIEW -->
+      <div class="view-container" id="view-visualizer">
+        <div class="card" style="padding: 10px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 12px; font-weight: 600; color: var(--ink-900);">Visualizer Palette:</span>
+            <select id="visPaletteSelect" style="padding: 5px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11.5px; outline: none;">
+              <option value="neon-cyber">⚡ Neon Cyber</option>
+              <option value="sakura">🌸 Sakura Blossom</option>
+              <option value="classic-gold">🌟 Champagne Gold</option>
+              <option value="ocean-blue">🌊 Ocean Breeze</option>
+              <option value="emerald">🌲 Emerald Matrix</option>
+              <option value="synthwave">🌆 Synthwave Sunset</option>
+            </select>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-700); cursor: pointer;">
+              <input type="checkbox" id="visParticlesToggle" checked style="accent-color: var(--accent);"> Spark Particles
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-700); cursor: pointer;">
+              <input type="checkbox" id="visHandsToggle" checked style="accent-color: var(--accent);"> Split Left/Right Hand
+            </label>
+          </div>
+        </div>
+
+        <div class="visualizer-stage-wrapper visualizer-fullscreen-stage" style="flex: 1; display: flex; flex-direction: column;">
+          <canvas class="waterfall-canvas" id="fullscreenWaterfallCanvas" style="flex: 1; height: 100%;"></canvas>
+          <div class="piano-keyboard-container" id="fullscreen-piano-keyboard" style="height: 90px;"></div>
+        </div>
+      </div>
+
+      <!-- 3. PIANO ROLL STUDIO & MIDI/SHEET EDITOR -->
+      <div class="view-container" id="view-studio">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px;">
+            <button id="studioTabGridBtn" class="btn active" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; cursor: pointer;">🎹 Piano Roll Grid</button>
+            <button id="studioTabSheetBtn" class="btn" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--paper-sunk); color: var(--ink-800); border: 1px solid var(--line); font-size: 12px; cursor: pointer;">📝 Virtual Piano Sheet Editor</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="studioQuantizeBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); color: var(--ink-900); font-size: 11px; cursor: pointer;">⏱️ Quantize 1/16</button>
+            <button id="studioSaveBtn" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;">💾 Save Changes</button>
+            <button id="studioExportMidiBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); color: var(--ink-900); font-size: 11px; cursor: pointer;">⬇️ Export .mid</button>
+          </div>
+        </div>
+
+        <div id="studioGridView" style="display: flex; flex-direction: column; flex: 1;">
+          <div class="card" style="padding: 8px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 14px;">
+            <span style="font-size: 11.5px; font-weight: 600; color: var(--ink-900);">Tool:</span>
+            <div style="display: flex; gap: 4px;">
+              <button id="toolDraw" class="btn active" style="padding: 4px 8px; border-radius: 4px; background: var(--accent); color: #fff; font-size: 11px; border: 1px solid var(--accent); cursor: pointer;">✏️ Draw</button>
+              <button id="toolSelect" class="btn" style="padding: 4px 8px; border-radius: 4px; background: var(--paper-sunk); color: var(--ink-800); font-size: 11px; border: 1px solid var(--line); cursor: pointer;">🖐️ Select</button>
+              <button id="toolErase" class="btn" style="padding: 4px 8px; border-radius: 4px; background: var(--paper-sunk); color: var(--ink-800); font-size: 11px; border: 1px solid var(--line); cursor: pointer;">🧹 Erase</button>
+            </div>
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 11px; color: var(--ink-600);">Transpose:</span>
+              <button id="studioTransUpBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">+1 st</button>
+              <button id="studioTransDownBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">-1 st</button>
+              <button id="studioOctUpBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">+12 (Oct)</button>
+              <button id="studioOctDownBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">-12 (Oct)</button>
+            </div>
+          </div>
+
+          <div class="piano-roll-container">
+            <div class="piano-roll-ruler" id="pianoRollRuler"></div>
+            <div class="piano-roll-canvas-wrap" id="pianoRollWrap">
+              <canvas id="pianoRollCanvas" width="2400" height="1408"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div id="studioSheetView" style="display: none; flex-direction: column; flex: 1;">
+          <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 12px; font-weight: 600; color: var(--ink-900);">Virtual Piano Sheet Notation (Bracketed Chords & Timing):</span>
+              <button id="studioFormatSheetBtn" style="padding: 4px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); font-size: 11px; cursor: pointer; color: var(--ink-900);">✨ Beautify / Fix Sheet</button>
+            </div>
+            <textarea id="studioSheetTextarea" placeholder="// Paste Virtual Piano sheet text here... Example: [tuo] [tuo] [tuo]" style="flex: 1; width: 100%; min-height: 380px; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6; resize: none; outline: none;"></textarea>
+            <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px;">
+              <button id="studioLoadSheetToPlayerBtn" style="padding: 8px 16px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-weight: 600; cursor: pointer;">▶️ Load Sheet to Player</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. AI AUDIO TRANSCRIBER VIEW -->
+      <div class="view-container" id="view-transcribe">
+        <div class="card" style="padding: 16px 20px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <h3 style="font-size: 15px; font-weight: 600; color: var(--ink-900);">AI Piano Audio-to-MIDI Transcriber</h3>
+              <p style="font-size: 11.5px; color: var(--ink-500);">Convert any song recording (.mp3, .wav, .m4a, .ogg, .flac) into note-accurate piano MIDI</p>
+            </div>
+            <div id="transcriberStatusBadge" style="padding: 4px 10px; border-radius: 99px; background: var(--paper-sunk); border: 1px solid var(--line); font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent);">
+              Checking Transkun status...
+            </div>
+          </div>
+
+          <div id="transkunInstallBanner" style="margin-top: 12px; padding: 12px 14px; border-radius: var(--r-sm); background: rgba(16, 185, 129, 0.08); border: 1px solid var(--accent-line); display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <strong style="color: var(--ink-900); font-size: 12px;">Transkun Neural Model Ready to Install</strong>
+                <div style="font-size: 11px; color: var(--ink-600); margin-top: 2px;">One-click setup installs PyTorch acoustic piano transcriber in the background.</div>
+              </div>
+              <button id="installTranskunBtn" style="padding: 6px 14px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;">Install Transkun</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="file-drop" id="transcribe-drop-zone" style="padding: 36px 20px;">
+          <input type="file" id="transcribe-file-input" accept=".mp3,.wav,.ogg,.flac,.m4a" style="position: absolute; width: 1px; height: 1px; opacity: 0;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+          <h3 style="font-size: 15px; margin-top: 6px;">Drop Audio File to Transcribe (.mp3, .wav, .m4a, .flac)</h3>
+          <p>AI neural model converts piano audio directly into sheet music & MIDI</p>
+        </div>
+
+        <div id="transcribeProgressCard" class="card" style="display: none; padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span id="transcribeStepText" style="font-weight: 600; color: var(--ink-900); font-size: 12.5px;">Transcribing Audio...</span>
+            <span id="transcribePctText" style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent);">50%</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: var(--paper-sunk); border-radius: 99px; overflow: hidden;">
+            <div id="transcribeProgressBar" style="width: 50%; height: 100%; background: var(--accent); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. APPEARANCE & CUSTOM CSS VIEW -->
+      <div class="view-container" id="view-appearance">
+        <div class="section-label">STUDIO THEME PALETTE</div>
+        <div class="card">
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;">
+            <button class="theme-preset-btn" data-theme-val="dark-obsidian" style="padding: 12px; border-radius: var(--r-sm); background: #121316; border: 2px solid var(--accent); color: #f4f4f5; font-size: 12px; font-weight: 600; cursor: pointer;">🌑 Dark Obsidian</button>
+            <button class="theme-preset-btn" data-theme-val="cyberpunk" style="padding: 12px; border-radius: var(--r-sm); background: #08080f; border: 1px solid #00f0ff; color: #00f0ff; font-size: 12px; font-weight: 600; cursor: pointer;">⚡ Cyberpunk</button>
+            <button class="theme-preset-btn" data-theme-val="sakura" style="padding: 12px; border-radius: var(--r-sm); background: #140f1a; border: 1px solid #ff7597; color: #ffd1dc; font-size: 12px; font-weight: 600; cursor: pointer;">🌸 Sakura</button>
+            <button class="theme-preset-btn" data-theme-val="nord" style="padding: 12px; border-radius: var(--r-sm); background: #242933; border: 1px solid #88c0d0; color: #eceff4; font-size: 12px; font-weight: 600; cursor: pointer;">❄️ Nord Frost</button>
+            <button class="theme-preset-btn" data-theme-val="midnight" style="padding: 12px; border-radius: var(--r-sm); background: #000000; border: 1px solid #333; color: #ffffff; font-size: 12px; font-weight: 600; cursor: pointer;">🖤 Midnight OLED</button>
+            <button class="theme-preset-btn" data-theme-val="synthwave" style="padding: 12px; border-radius: var(--r-sm); background: #120826; border: 1px solid #f72585; color: #ff7b00; font-size: 12px; font-weight: 600; cursor: pointer;">🌆 Synthwave</button>
+            <button class="theme-preset-btn" data-theme-val="studio-classic" style="padding: 12px; border-radius: var(--r-sm); background: #f6f4ef; border: 1px solid #4a6b4d; color: #1a1916; font-size: 12px; font-weight: 600; cursor: pointer;">☀️ Classic Light</button>
+          </div>
+        </div>
+
+        <div class="section-label">BACKGROUND LAYER CONFIGURATION</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div>
+              <div style="font-weight: 500; color: var(--ink-900);">Background Mode</div>
+              <div style="font-size: 11px; color: var(--ink-500);">Choose animated canvas, custom wallpaper, or solid gradient</div>
+            </div>
+            <select id="bgModeSelect" style="margin-left: auto; padding: 6px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-family: inherit; font-size: 12px; cursor: pointer;">
+              <option value="stars">🌌 3D Starfield Warp Canvas</option>
+              <option value="matrix">🟢 Matrix Digital Rain Canvas</option>
+              <option value="waves">📊 Real-Time Audio Spectrum Canvas</option>
+              <option value="gradient">🎨 Deep Studio Gradient</option>
+              <option value="image">🖼️ Custom Wallpaper Image</option>
+            </select>
+          </div>
+
+          <div id="bgImageSettings" style="display: none; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line);">
+            <div class="control-row" style="margin-top: 0;">
+              <div class="accent-badge">Image URL</div>
+              <input type="text" id="bgImageUrlInput" placeholder="https://example.com/wallpaper.jpg" style="flex: 1; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11.5px;">
+            </div>
+            <div class="control-row" style="margin-top: 10px;">
+              <div class="accent-badge">Blur</div>
+              <div class="slider-wrapper">
+                <input type="range" min="0" max="30" value="0" id="bgBlurSlider">
+              </div>
+              <div class="val-text" id="bgBlurVal">0px</div>
+            </div>
+            <div class="control-row" style="margin-top: 10px;">
+              <div class="accent-badge">Opacity</div>
+              <div class="slider-wrapper">
+                <input type="range" min="10" max="100" value="100" id="bgOpacitySlider">
+              </div>
+              <div class="val-text" id="bgOpacityVal">100%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label">LIVE CUSTOM CSS EDITOR</div>
+        <div class="card" style="padding: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 600; color: var(--ink-900);">Inject Live Styles (Hot Reload):</span>
+            <button id="resetCustomCssBtn" style="background: none; border: none; font-size: 11px; color: var(--ink-500); cursor: pointer; text-decoration: underline;">Reset to Default</button>
+          </div>
+          <textarea id="customCssTextarea" placeholder="/* Enter custom CSS rules here... e.g. .sidebar { backdrop-filter: blur(20px); } */" style="width: 100%; height: 160px; padding: 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; resize: vertical; outline: none;"></textarea>
+          <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+            <button id="applyCustomCssBtn" style="padding: 6px 14px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;">Apply & Save CSS</button>
+          </div>
+        </div>
       </div>
 
       <!-- LIBRARY VIEW -->
@@ -888,6 +1297,55 @@
               <input type="range" min="0" max="100" value="30" id="synthReverbSlider">
             </div>
             <div class="val-text" id="synthReverbVal">30%</div>
+          </div>
+        </div>
+
+        <div class="section-label">STUDIO 3-BAND EQUALIZER & STEREO DELAY</div>
+        <div class="card">
+          <div class="control-row" style="margin-top: 0;">
+            <div class="accent-badge">Low (100Hz)</div>
+            <div class="slider-wrapper">
+              <input type="range" min="-12" max="12" step="0.5" value="0" id="eqLowSlider">
+            </div>
+            <div class="val-text" id="eqLowVal">0.0 dB</div>
+          </div>
+          <div class="control-row" style="margin-top: 10px;">
+            <div class="accent-badge">Mid (1kHz)</div>
+            <div class="slider-wrapper">
+              <input type="range" min="-12" max="12" step="0.5" value="0" id="eqMidSlider">
+            </div>
+            <div class="val-text" id="eqMidVal">0.0 dB</div>
+          </div>
+          <div class="control-row" style="margin-top: 10px;">
+            <div class="accent-badge">High (6kHz)</div>
+            <div class="slider-wrapper">
+              <input type="range" min="-12" max="12" step="0.5" value="0" id="eqHighSlider">
+            </div>
+            <div class="val-text" id="eqHighVal">0.0 dB</div>
+          </div>
+
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line);">
+            <div class="control-row" style="margin-top: 0;">
+              <div>
+                <div style="font-weight: 500; color: var(--ink-900);">Stereo Ping-Pong Delay</div>
+                <div style="font-size: 11px; color: var(--ink-500);">Spatial echo reflections with stereo spread</div>
+              </div>
+              <input type="checkbox" id="delayEnabledToggle" style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
+            </div>
+            <div class="control-row" style="margin-top: 10px;">
+              <div class="accent-badge">Echo Time</div>
+              <div class="slider-wrapper">
+                <input type="range" min="50" max="1000" step="10" value="250" id="delayTimeSlider">
+              </div>
+              <div class="val-text" id="delayTimeVal">250ms</div>
+            </div>
+            <div class="control-row" style="margin-top: 10px;">
+              <div class="accent-badge">Feedback</div>
+              <div class="slider-wrapper">
+                <input type="range" min="0" max="80" value="35" id="delayFeedbackSlider">
+              </div>
+              <div class="val-text" id="delayFeedbackVal">35%</div>
+            </div>
           </div>
         </div>
 
@@ -1169,6 +1627,9 @@
   let currentTotalDurationMs = 1.0;
   let manualStopRequested = false;
 
+  let currentSong = null;
+  let currentPlaybackMs = 0.0;
+
   function initWebSocket() {
     const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host || '127.0.0.1:4242';
@@ -1182,6 +1643,8 @@
     socket.onopen = () => {
       document.getElementById('ws-status-dot').classList.remove('disconnected');
       document.getElementById('ws-status-text').textContent = 'Rust Backend: Active';
+      sendAction({ action: "get_current_song" });
+      sendAction({ action: "get_transcriber_status" });
     };
     socket.onclose = () => {
       document.getElementById('ws-status-dot').classList.add('disconnected');
@@ -1221,6 +1684,7 @@
       const s = msg.data;
       const wasPlayingBefore = isPlaying;
       isPlaying = (s.state === 'Playing');
+      currentPlaybackMs = s.current_time_ms || 0.0;
       currentTotalDurationMs = s.total_duration_ms > 0 ? s.total_duration_ms : 1.0;
 
       if (isPlaying) {
@@ -1275,6 +1739,20 @@
     } else if (msg.type === 'config') {
       currentConfig = msg.data;
       syncConfigUI(currentConfig);
+    } else if (msg.type === 'current_song') {
+      currentSong = msg.data;
+      if (currentSong) {
+        songTitleEl.textContent = currentSong.title;
+        songSubtitleEl.textContent = `${currentSong.total_notes} notes • ${Math.round(currentSong.bpm)} BPM • ${(currentSong.duration_ms / 1000).toFixed(1)}s`;
+        headerBpmEl.textContent = Math.round(currentSong.bpm);
+        const sheetTa = document.getElementById('studioSheetTextarea');
+        if (sheetTa) {
+          sheetTa.value = currentSong.source_sheet || `// Title: ${currentSong.title}\n// BPM: ${currentSong.bpm}\n\n`;
+        }
+        renderPianoRoll();
+      }
+    } else if (msg.type === 'transcriber_status') {
+      renderTranscriberStatus(msg.data);
     } else if (msg.type === 'notification') {
       const n = msg.data;
       showToast(n.message, n.level);
@@ -1994,10 +2472,506 @@
     }
   });
 
-  // ── Initialize ──
-  initWebSocket();
-  fetchHub();
-  fetchLibrary();
+  // ── 12. Synthesia Waterfall Visualizer & Spark Physics ──
+  const whiteKeyPitches = [
+    21, 23, 24, 26, 28, 29, 31, 33, 35, 36, 38, 40, 41, 43, 45, 47,
+    48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74,
+    76, 77, 79, 81, 83, 84, 86, 88, 89, 91, 93, 95, 96, 98, 100, 101, 103, 105, 107, 108
+  ];
+
+  const blackKeyPosMap = {
+    22: 0.65, 25: 2.65, 27: 3.65, 30: 5.65, 32: 6.65, 34: 7.65,
+    37: 9.65, 39: 10.65, 42: 12.65, 44: 13.65, 46: 14.65,
+    49: 16.65, 51: 17.65, 54: 19.65, 56: 20.65, 58: 21.65,
+    61: 23.65, 63: 24.65, 66: 26.65, 68: 27.65, 70: 28.65,
+    73: 30.65, 75: 31.65, 78: 33.65, 80: 34.65, 82: 35.65,
+    85: 37.65, 87: 38.65, 90: 40.65, 92: 41.65, 94: 42.65,
+    97: 44.65, 99: 45.65, 102: 47.65, 104: 48.65, 106: 49.65
+  };
+
+  const sparkParticles = [];
+  let visPalette = 'neon-cyber';
+  let visParticlesEnabled = true;
+  let visSplitHands = true;
+
+  const paletteGradients = {
+    'neon-cyber': { left: ['#00f0ff', '#0077ff'], right: ['#ff0055', '#ff7700'] },
+    'sakura': { left: ['#ffd1dc', '#ff7597'], right: ['#ff7597', '#c94277'] },
+    'classic-gold': { left: ['#fef08a', '#eab308'], right: ['#fde047', '#ca8a04'] },
+    'ocean-blue': { left: ['#38bdf8', '#0284c7'], right: ['#818cf8', '#4f46e5'] },
+    'emerald': { left: ['#6ee7b7', '#10b981'], right: ['#34d399', '#059669'] },
+    'synthwave': { left: ['#4cc9f0', '#7209b7'], right: ['#f72585', '#ff7b00'] }
+  };
+
+  class WaterfallEngine {
+    constructor(canvasId) {
+      this.canvas = document.getElementById(canvasId);
+      this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+    }
+
+    render(currentTimeMs) {
+      if (!this.canvas || !this.ctx) return;
+      const ctx = this.ctx;
+      const width = this.canvas.width = this.canvas.clientWidth * (window.devicePixelRatio || 1);
+      const height = this.canvas.height = this.canvas.clientHeight * (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, width, height);
+
+      if (!currentSong || !currentSong.tracks) return;
+
+      const totalWhite = 52;
+      const keyWidth = width / totalWhite;
+      const lookaheadMs = 2400.0;
+      const pxPerMs = height / lookaheadMs;
+      const pal = paletteGradients[visPalette] || paletteGradients['neon-cyber'];
+
+      currentSong.tracks.forEach((track, tIdx) => {
+        const isLeftHand = visSplitHands ? (tIdx % 2 === 1) : false;
+        const colors = isLeftHand ? pal.left : pal.right;
+
+        track.notes.forEach(n => {
+          const timeUntilHit = n.start_ms - currentTimeMs;
+          const noteEndMs = n.start_ms + n.duration_ms;
+
+          if (timeUntilHit < lookaheadMs && noteEndMs > currentTimeMs) {
+            const yBottom = height - (timeUntilHit * pxPerMs);
+            const noteHeight = Math.max(8, n.duration_ms * pxPerMs);
+            const yTop = yBottom - noteHeight;
+
+            let xPos = 0;
+            let noteW = keyWidth * 0.82;
+
+            if (blackKeyPosMap[n.note] !== undefined) {
+              xPos = (blackKeyPosMap[n.note] / totalWhite) * width;
+              noteW = keyWidth * 0.65;
+            } else {
+              const wIdx = whiteKeyPitches.indexOf(n.note);
+              if (wIdx >= 0) xPos = wIdx * keyWidth;
+            }
+
+            ctx.save();
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = colors[0];
+            const grad = ctx.createLinearGradient(xPos, yTop, xPos, yBottom);
+            grad.addColorStop(0, colors[0]);
+            grad.addColorStop(1, colors[1]);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.roundRect(xPos + 2, yTop, noteW - 4, noteHeight, 4);
+            ctx.fill();
+            ctx.restore();
+
+            if (visParticlesEnabled && Math.abs(timeUntilHit) < 16) {
+              spawnSparks(xPos + noteW / 2, height, colors[0]);
+            }
+          }
+        });
+      });
+
+      // Render spark particles
+      for (let i = sparkParticles.length - 1; i >= 0; i--) {
+        const p = sparkParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.2;
+        p.alpha -= 0.035;
+        if (p.alpha <= 0) {
+          sparkParticles.splice(i, 1);
+        } else {
+          ctx.save();
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = p.color;
+          ctx.fillRect(p.x, p.y, p.size, p.size);
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  function spawnSparks(x, y, color) {
+    for (let i = 0; i < 6; i++) {
+      sparkParticles.push({
+        x: x + (Math.random() * 6 - 3),
+        y: y,
+        vx: (Math.random() - 0.5) * 5,
+        vy: -Math.random() * 5 - 2,
+        size: Math.random() * 2.5 + 1.5,
+        color,
+        alpha: 1.0
+      });
+    }
+  }
+
+  const playerVis = new WaterfallEngine('playerWaterfallCanvas');
+  const fullVis = new WaterfallEngine('fullscreenWaterfallCanvas');
+
+  function renderVisualizerLoop() {
+    playerVis.render(currentPlaybackMs);
+    fullVis.render(currentPlaybackMs);
+    requestAnimationFrame(renderVisualizerLoop);
+  }
+  requestAnimationFrame(renderVisualizerLoop);
+
+  const visPalSelect = document.getElementById('visPaletteSelect');
+  if (visPalSelect) visPalSelect.onchange = (e) => { visPalette = e.target.value; };
+  const visPartToggle = document.getElementById('visParticlesToggle');
+  if (visPartToggle) visPartToggle.onchange = (e) => { visParticlesEnabled = e.target.checked; };
+  const visHandsToggle = document.getElementById('visHandsToggle');
+  if (visHandsToggle) visHandsToggle.onchange = (e) => { visSplitHands = e.target.checked; };
+
+  // ── 13. Piano Roll Studio Editor ──
+  const prCanvas = document.getElementById('pianoRollCanvas');
+  const prCtx = prCanvas ? prCanvas.getContext('2d') : null;
+  const prRuler = document.getElementById('pianoRollRuler');
+
+  function initPianoRollRuler() {
+    if (!prRuler) return;
+    prRuler.innerHTML = '';
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    for (let p = 108; p >= 21; p--) {
+      const row = document.createElement('div');
+      row.className = 'ruler-key';
+      const isBlack = blackKeyPosMap[p] !== undefined;
+      if (isBlack) row.classList.add('black-key');
+      if (p % 12 === 0) row.classList.add('c-key');
+      const octave = Math.floor(p / 12) - 1;
+      row.textContent = `${noteNames[p % 12]}${octave}`;
+      prRuler.appendChild(row);
+    }
+  }
+  initPianoRollRuler();
+
+  function renderPianoRoll() {
+    if (!prCanvas || !prCtx || !currentSong) return;
+    const ctx = prCtx;
+    const w = prCanvas.width;
+    const h = prCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const rowH = 16;
+    const pxPerSec = 80;
+
+    // Pitch grid lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    ctx.lineWidth = 1;
+    for (let p = 108; p >= 21; p--) {
+      const y = (108 - p) * rowH;
+      if (p % 12 === 0) {
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.06)';
+        ctx.fillRect(0, y, w, rowH);
+      } else if (blackKeyPosMap[p] !== undefined) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fillRect(0, y, w, rowH);
+      }
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // Measure & Second vertical lines
+    for (let sec = 0; sec <= 300; sec++) {
+      const x = sec * pxPerSec;
+      ctx.strokeStyle = (sec % 4 === 0) ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)';
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+
+    // Render Note Blocks
+    if (currentSong.tracks) {
+      currentSong.tracks.forEach((track, tIdx) => {
+        track.notes.forEach(n => {
+          const x = (n.start_ms / 1000) * pxPerSec;
+          const nw = Math.max(4, (n.duration_ms / 1000) * pxPerSec);
+          const y = (108 - n.note) * rowH;
+
+          ctx.fillStyle = (tIdx % 2 === 1) ? '#00f0ff' : '#10b981';
+          ctx.beginPath();
+          ctx.roundRect(x, y + 1, nw - 1, rowH - 2, 3);
+          ctx.fill();
+        });
+      });
+    }
+  }
+
+  // Studio Sub-Tabs & Actions
+  const studioTabGridBtn = document.getElementById('studioTabGridBtn');
+  const studioTabSheetBtn = document.getElementById('studioTabSheetBtn');
+  const studioGridView = document.getElementById('studioGridView');
+  const studioSheetView = document.getElementById('studioSheetView');
+
+  if (studioTabGridBtn) {
+    studioTabGridBtn.onclick = () => {
+      studioGridView.style.display = 'flex';
+      studioSheetView.style.display = 'none';
+      studioTabGridBtn.classList.add('active');
+      studioTabSheetBtn.classList.remove('active');
+      renderPianoRoll();
+    };
+  }
+  if (studioTabSheetBtn) {
+    studioTabSheetBtn.onclick = () => {
+      studioGridView.style.display = 'none';
+      studioSheetView.style.display = 'flex';
+      studioTabGridBtn.classList.remove('active');
+      studioTabSheetBtn.classList.add('active');
+    };
+  }
+
+  const studioSaveBtn = document.getElementById('studioSaveBtn');
+  if (studioSaveBtn) {
+    studioSaveBtn.onclick = () => {
+      if (currentSong) {
+        sendAction({ action: "save_song", song: currentSong });
+        showToast(`Saved '${currentSong.title}' to library!`, 'success');
+      }
+    };
+  }
+  const studioQuantBtn = document.getElementById('studioQuantizeBtn');
+  if (studioQuantBtn) {
+    studioQuantBtn.onclick = () => {
+      sendAction({ action: "quantize_song", grid_ms: 125.0 });
+      showToast("Quantized notes to 1/16 grid", "info");
+    };
+  }
+  const transUp = document.getElementById('studioTransUpBtn');
+  if (transUp) transUp.onclick = () => sendAction({ action: "transpose_song", semitones: 1 });
+  const transDown = document.getElementById('studioTransDownBtn');
+  if (transDown) transDown.onclick = () => sendAction({ action: "transpose_song", semitones: -1 });
+  const octUp = document.getElementById('studioOctUpBtn');
+  if (octUp) octUp.onclick = () => sendAction({ action: "transpose_song", semitones: 12 });
+  const octDown = document.getElementById('studioOctDownBtn');
+  if (octDown) octDown.onclick = () => sendAction({ action: "transpose_song", semitones: -12 });
+  const expMidi = document.getElementById('studioExportMidiBtn');
+  if (expMidi) expMidi.onclick = () => window.open('/api/export_midi', '_blank');
+
+  const studioLoadSheetBtn = document.getElementById('studioLoadSheetToPlayerBtn');
+  if (studioLoadSheetBtn) {
+    studioLoadSheetBtn.onclick = async () => {
+      const text = document.getElementById('studioSheetTextarea').value;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const formData = new FormData();
+      formData.append('file', blob, 'sheet.txt');
+      try {
+        const res = await fetch('/api/upload_midi', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Loaded converted sheet into Player!', 'success');
+          const playerTab = document.querySelector('[data-view="view-player"]');
+          if (playerTab) playerTab.click();
+          sendAction({ action: "get_current_song" });
+        }
+      } catch (err) { showToast(`Sheet conversion error: ${err.message}`, 'error'); }
+    };
+  }
+
+  // ── 14. AI Audio Transcriber Controller ──
+  function renderTranscriberStatus(status) {
+    const badge = document.getElementById('transcriberStatusBadge');
+    const banner = document.getElementById('transkunInstallBanner');
+    if (!badge) return;
+    if (status.transkun_available) {
+      badge.textContent = `Transkun Neural Model: Ready (${status.device})`;
+      badge.style.color = '#10b981';
+      if (banner) banner.style.display = 'none';
+    } else {
+      badge.textContent = `Transkun: Setup Optional`;
+      badge.style.color = '#f59e0b';
+      if (banner) banner.style.display = 'block';
+    }
+  }
+
+  const installTranskunBtn = document.getElementById('installTranskunBtn');
+  if (installTranskunBtn) {
+    installTranskunBtn.onclick = () => {
+      sendAction({ action: "install_transkun" });
+      showToast("Starting Transkun background install via pip...", "info");
+    };
+  }
+
+  const transcribeDrop = document.getElementById('transcribe-drop-zone');
+  const transcribeInput = document.getElementById('transcribe-file-input');
+  if (transcribeDrop && transcribeInput) {
+    transcribeDrop.onclick = () => transcribeInput.click();
+    transcribeInput.onchange = async (e) => {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const progCard = document.getElementById('transcribeProgressCard');
+        if (progCard) progCard.style.display = 'block';
+        const stepText = document.getElementById('transcribeStepText');
+        if (stepText) stepText.textContent = `Transcribing '${file.name}' with Neural Model...`;
+
+        try {
+          const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
+          const data = await res.json();
+          if (data.success) {
+            showToast(`Successfully transcribed '${data.title}'!`, 'success');
+            const playerTab = document.querySelector('[data-view="view-player"]');
+            if (playerTab) playerTab.click();
+            sendAction({ action: "get_current_song" });
+          } else {
+            showToast(`Transcription error: ${data.error}`, 'error');
+          }
+        } catch (err) {
+          showToast(`Upload failed: ${err.message}`, 'error');
+        } finally {
+          if (progCard) progCard.style.display = 'none';
+          transcribeInput.value = '';
+        }
+      }
+    };
+  }
+
+  // ── 15. Themes & Custom CSS Manager ──
+  document.querySelectorAll('.theme-preset-btn').forEach(btn => {
+    btn.onclick = () => {
+      const t = btn.getAttribute('data-theme-val');
+      document.body.setAttribute('data-theme', t);
+      if (currentConfig) {
+        if (!currentConfig.theme) currentConfig.theme = {};
+        currentConfig.theme.active_theme = t;
+        sendConfigUpdate();
+      }
+      showToast(`Switched theme to ${t}`, 'info');
+    };
+  });
+
+  const customCssTextarea = document.getElementById('customCssTextarea');
+  const applyCustomCssBtn = document.getElementById('applyCustomCssBtn');
+  const customCssInjector = document.getElementById('vitl-custom-css');
+
+  if (applyCustomCssBtn && customCssTextarea && customCssInjector) {
+    applyCustomCssBtn.onclick = () => {
+      const css = customCssTextarea.value;
+      customCssInjector.textContent = css;
+      if (currentConfig) {
+        if (!currentConfig.theme) currentConfig.theme = {};
+        currentConfig.theme.custom_css = css;
+        sendConfigUpdate();
+      }
+      showToast("Custom CSS applied & saved!", "success");
+    };
+  }
+
+  const resetCustomCssBtn = document.getElementById('resetCustomCssBtn');
+  if (resetCustomCssBtn) {
+    resetCustomCssBtn.onclick = () => {
+      if (customCssTextarea) customCssTextarea.value = '';
+      if (customCssInjector) customCssInjector.textContent = '';
+      if (currentConfig && currentConfig.theme) {
+        currentConfig.theme.custom_css = '';
+        sendConfigUpdate();
+      }
+    };
+  }
+
+  // ── 16. Animated Canvas Backgrounds (Starfield / Matrix / Audio Waves) ──
+  const bgCanvas = document.getElementById('bg-canvas-layer');
+  const bgCtx = bgCanvas ? bgCanvas.getContext('2d') : null;
+  let bgMode = 'stars';
+
+  const stars = Array.from({ length: 200 }, () => ({
+    x: Math.random() * window.innerWidth,
+    y: Math.random() * window.innerHeight,
+    z: Math.random() * 1000 + 1,
+    size: Math.random() * 2 + 0.5
+  }));
+
+  function renderBgAnimation() {
+    if (!bgCanvas || !bgCtx) return;
+    const w = bgCanvas.width = window.innerWidth;
+    const h = bgCanvas.height = window.innerHeight;
+
+    if (bgMode === 'stars') {
+      bgCtx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      bgCtx.fillRect(0, 0, w, h);
+      bgCtx.fillStyle = '#ffffff';
+
+      stars.forEach(s => {
+        s.z -= 1.5;
+        if (s.z <= 0) { s.z = 1000; s.x = Math.random() * w; s.y = Math.random() * h; }
+        const k = 250 / s.z;
+        const px = (s.x - w / 2) * k + w / 2;
+        const py = (s.y - h / 2) * k + h / 2;
+        if (px >= 0 && px <= w && py >= 0 && py <= h) {
+          const sz = s.size * (1 - s.z / 1000) * 2;
+          bgCtx.fillRect(px, py, sz, sz);
+        }
+      });
+    }
+    requestAnimationFrame(renderBgAnimation);
+  }
+  requestAnimationFrame(renderBgAnimation);
+
+  const bgModeSelect = document.getElementById('bgModeSelect');
+  if (bgModeSelect) bgModeSelect.onchange = (e) => { bgMode = e.target.value; };
+
+  // ── 17. DSP Equalizer & Delay Listeners ──
+  const eqLow = document.getElementById('eqLowSlider');
+  if (eqLow) {
+    eqLow.oninput = (e) => {
+      document.getElementById('eqLowVal').textContent = `${parseFloat(e.target.value).toFixed(1)} dB`;
+      if (currentConfig && currentConfig.effects) {
+        currentConfig.effects.eq_low = parseFloat(e.target.value);
+        sendConfigUpdate();
+      }
+    };
+  }
+  const eqMid = document.getElementById('eqMidSlider');
+  if (eqMid) {
+    eqMid.oninput = (e) => {
+      document.getElementById('eqMidVal').textContent = `${parseFloat(e.target.value).toFixed(1)} dB`;
+      if (currentConfig && currentConfig.effects) {
+        currentConfig.effects.eq_mid = parseFloat(e.target.value);
+        sendConfigUpdate();
+      }
+    };
+  }
+  const eqHigh = document.getElementById('eqHighSlider');
+  if (eqHigh) {
+    eqHigh.oninput = (e) => {
+      document.getElementById('eqHighVal').textContent = `${parseFloat(e.target.value).toFixed(1)} dB`;
+      if (currentConfig && currentConfig.effects) {
+        currentConfig.effects.eq_high = parseFloat(e.target.value);
+        sendConfigUpdate();
+      }
+    };
+  }
+  const delayToggle = document.getElementById('delayEnabledToggle');
+  if (delayToggle) {
+    delayToggle.onchange = (e) => {
+      if (currentConfig && currentConfig.effects) {
+        currentConfig.effects.delay_enabled = e.target.checked;
+        sendConfigUpdate();
+      }
+    };
+  }
+  const delayTime = document.getElementById('delayTimeSlider');
+  if (delayTime) {
+    delayTime.oninput = (e) => {
+      document.getElementById('delayTimeVal').textContent = `${e.target.value}ms`;
+      if (currentConfig && currentConfig.effects) {
+        currentConfig.effects.delay_time_ms = parseFloat(e.target.value);
+        sendConfigUpdate();
+      }
+    };
+  }
+  const delayFb = document.getElementById('delayFeedbackSlider');
+  if (delayFb) {
+    delayFb.oninput = (e) => {
+      document.getElementById('delayFeedbackVal').textContent = `${e.target.value}%`;
+      if (currentConfig && currentConfig.effects) {
+        currentConfig.effects.delay_feedback = parseFloat(e.target.value) / 100;
+        sendConfigUpdate();
+      }
+    };
+  }
 </script>
 </body>
 </html>

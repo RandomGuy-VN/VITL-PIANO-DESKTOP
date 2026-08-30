@@ -1,5 +1,5 @@
 use std::f32::consts::PI;
-use super::dsp::{soft_limit, Reverb};
+use super::dsp::{soft_limit, Reverb, StereoDelay, ThreeBandEqualizer};
 
 const MAX_POLYPHONY: usize = 128;
 const MAX_HARMONICS: usize = 12;
@@ -456,6 +456,8 @@ pub struct PianoSynthEngine {
     voices: Vec<Voice>,
     metronome: MetronomeVoice,
     reverb: Reverb,
+    equalizer: ThreeBandEqualizer,
+    delay: StereoDelay,
     pub volume: f32,
     pub sustain_pedal: bool,
     pub enabled: bool,
@@ -471,6 +473,8 @@ impl PianoSynthEngine {
         let dt = 1.0 / sample_rate;
         let voices = (0..MAX_POLYPHONY).map(|_| Voice::new_inactive()).collect();
         let reverb = Reverb::new(sample_rate);
+        let equalizer = ThreeBandEqualizer::new(sample_rate);
+        let delay = StereoDelay::new(sample_rate);
 
         Self {
             sample_rate,
@@ -478,6 +482,8 @@ impl PianoSynthEngine {
             voices,
             metronome: MetronomeVoice::new(),
             reverb,
+            equalizer,
+            delay,
             volume: 0.8,
             sustain_pedal: false,
             enabled: true,
@@ -667,6 +673,19 @@ impl PianoSynthEngine {
         self.reverb.room_size = room_size.clamp(0.0, 0.98);
     }
 
+    /// Set 3-Band Equalizer (Low, Mid, High in dB)
+    pub fn set_eq_params(&mut self, low_db: f32, mid_db: f32, high_db: f32) {
+        self.equalizer.set_gains(low_db, mid_db, high_db);
+    }
+
+    /// Set Stereo Delay / Echo parameters
+    pub fn set_delay_params(&mut self, enabled: bool, time_ms: f32, feedback: f32, mix: f32) {
+        self.delay.enabled = enabled;
+        self.delay.delay_time_ms = time_ms.clamp(10.0, 1500.0);
+        self.delay.feedback = feedback.clamp(0.0, 0.85);
+        self.delay.wet_mix = mix.clamp(0.0, 1.0);
+    }
+
     /// Compute next stereo audio sample pair
     pub fn next_sample(&mut self) -> (f32, f32) {
         if !self.enabled {
@@ -698,10 +717,16 @@ impl PianoSynthEngine {
         mix_l += metro_l;
         mix_r += metro_r;
 
-        // Apply reverb DSP
-        let (rev_l, rev_r) = self.reverb.process(mix_l, mix_r);
+        // 1. Apply 3-Band Equalizer DSP
+        let (eq_l, eq_r) = self.equalizer.process(mix_l, mix_r);
 
-        // Apply master volume and soft-knee limiter
+        // 2. Apply Stereo Delay / Echo DSP
+        let (del_l, del_r) = self.delay.process(eq_l, eq_r);
+
+        // 3. Apply Algorithmic Stereo Reverb DSP
+        let (rev_l, rev_r) = self.reverb.process(del_l, del_r);
+
+        // 4. Apply master volume and soft-knee limiter
         let out_l = soft_limit(rev_l * self.volume);
         let out_r = soft_limit(rev_r * self.volume);
 
