@@ -295,3 +295,24 @@ fn test_sheet_inline_dynamic_bpm() {
     assert_eq!(song.tempo_events[2].bpm, 90.0);
     assert_eq!(song.get_bpm_at(0.0), 120.0);
 }
+
+#[test]
+fn test_note_lengths_config_clamping_and_hold() {
+    let config = vitl_piano_desktop::core::config::AppConfig::default();
+    assert!(config.note_lengths);
+    assert_eq!(config.min_note_length_ms, 30.0);
+    assert_eq!(config.max_note_length_ms, 5000.0);
+
+    // Test duration clamping
+    let short_dur: f64 = 5.0; // 5ms is too short for OS window event loop
+    let clamped_short = short_dur.clamp(config.min_note_length_ms, config.max_note_length_ms);
+    assert_eq!(clamped_short, 30.0);
+
+    let long_dur: f64 = 12_000.0; // 12s exceeds maximum hold
+    let clamped_long = long_dur.clamp(config.min_note_length_ms, config.max_note_length_ms);
+    assert_eq!(clamped_long, 5000.0);
+
+    let normal_dur: f64 = 1500.0; // 1.5s quarter note
+    let clamped_normal = normal_dur.clamp(config.min_note_length_ms, config.max_note_length_ms);
+    assert_eq!(clamped_normal, 1500.0);
+}

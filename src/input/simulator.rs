@@ -442,6 +442,11 @@ impl InputSimulator {
         }
     }
 
+    /// Check if a key is currently held down
+    pub fn is_key_held(&self, key: Key) -> bool {
+        self.held_keys.lock().contains(&key)
+    }
+
     /// Auto-focus the target game window (e.g. "Roblox")
     pub fn auto_focus_window(title_hint: &str) {
         info!("Attempting to auto-focus window matching: {}", title_hint);

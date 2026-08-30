@@ -936,6 +936,20 @@
             <input type="checkbox" id="noteLengthsToggle" checked style="margin-left: auto; width: 18px; height: 18px; accent-color: var(--accent);">
           </div>
           <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Min Hold</div>
+            <div class="slider-wrapper">
+              <input type="range" min="10" max="200" value="30" id="minNoteLenSlider">
+            </div>
+            <div class="val-text" id="minNoteLenVal">30ms</div>
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
+            <div class="accent-badge">Max Hold</div>
+            <div class="slider-wrapper">
+              <input type="range" min="500" max="10000" step="100" value="5000" id="maxNoteLenSlider">
+            </div>
+            <div class="val-text" id="maxNoteLenVal">5000ms</div>
+          </div>
+          <div class="control-row" style="margin-top: 14px;">
             <div>
               <div style="font-weight: 500; color: var(--ink-900);">88-Key Extended Mode (Ctrl Keys)</div>
               <div style="font-size: 11px; color: var(--ink-500);">Off: 61-Key standard Virtual Piano / Roblox (folds octaves). On: 88-Key with Ctrl modifier.</div>
@@ -1338,6 +1352,18 @@
     }
     const noteLengthsToggle = document.getElementById('noteLengthsToggle');
     if (noteLengthsToggle) noteLengthsToggle.checked = (cfg.note_lengths !== false);
+    const minNoteLenSlider = document.getElementById('minNoteLenSlider');
+    if (minNoteLenSlider) {
+      const minVal = cfg.min_note_length_ms || 30;
+      minNoteLenSlider.value = minVal;
+      document.getElementById('minNoteLenVal').textContent = `${minVal}ms`;
+    }
+    const maxNoteLenSlider = document.getElementById('maxNoteLenSlider');
+    if (maxNoteLenSlider) {
+      const maxVal = cfg.max_note_length_ms || 5000;
+      maxNoteLenSlider.value = maxVal;
+      document.getElementById('maxNoteLenVal').textContent = `${maxVal}ms`;
+    }
     const allow88Toggle = document.getElementById('allow88KeysToggle');
     if (allow88Toggle) allow88Toggle.checked = !!cfg.allow_88_keys;
     const sustainToggle = document.getElementById('sustainToggle');
@@ -1532,6 +1558,20 @@
   if (noteLenEl) {
     noteLenEl.addEventListener('change', (e) => {
       if (currentConfig) { currentConfig.note_lengths = e.target.checked; sendConfigUpdate(); }
+    });
+  }
+  const minNoteLenEl = document.getElementById('minNoteLenSlider');
+  if (minNoteLenEl) {
+    minNoteLenEl.addEventListener('input', (e) => {
+      document.getElementById('minNoteLenVal').textContent = `${e.target.value}ms`;
+      if (currentConfig) { currentConfig.min_note_length_ms = parseFloat(e.target.value); sendConfigUpdate(); }
+    });
+  }
+  const maxNoteLenEl = document.getElementById('maxNoteLenSlider');
+  if (maxNoteLenEl) {
+    maxNoteLenEl.addEventListener('input', (e) => {
+      document.getElementById('maxNoteLenVal').textContent = `${e.target.value}ms`;
+      if (currentConfig) { currentConfig.max_note_length_ms = parseFloat(e.target.value); sendConfigUpdate(); }
     });
   }
   const allow88El = document.getElementById('allow88KeysToggle');

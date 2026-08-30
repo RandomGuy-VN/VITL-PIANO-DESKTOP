@@ -5,12 +5,21 @@ use std::time::{Duration, Instant};
 use tokio::sync::broadcast;
 use tracing::{info, warn};
 
+use rdev::Key;
+
 use super::humanizer::HumanizerEngine;
 use crate::core::config::AppConfig;
 use crate::core::song::{NoteEvent, Song};
 use crate::input::mapping::KeyMappingEngine;
 use crate::input::simulator::InputSimulator;
 use crate::synth::engine::PianoSynthEngine;
+
+#[derive(Debug, Clone)]
+struct ActiveNoteInFlight {
+    final_note: u8,
+    end_time_ms: f64,
+    macro_key: Option<(Key, bool, bool)>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PlayerState {
@@ -143,7 +152,7 @@ impl PlayerEngine {
             let mut anchor_offset_ms = 0.0;
             let mut prev_speed = *speed_arc.lock();
             let mut active_visual_notes: Vec<u8> = Vec::new();
-            let mut active_notes_in_flight: Vec<(u8, f64)> = Vec::new(); // (final_note, end_time_ms)
+            let mut active_notes_in_flight: Vec<ActiveNoteInFlight> = Vec::new();
             let mut last_status_emit = Instant::now();
 
             while !stop_flag.load(Ordering::Relaxed) {
@@ -255,11 +264,15 @@ impl PlayerEngine {
                     };
                     drop(hum);
                     
-                    let mut macro_keys = Vec::new();
+                    let mut macro_tap_keys = Vec::new();
 
                     for note_event in notes_to_play {
                         let final_note = ((note_event.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
-                        let note_dur = (note_event.duration_ms / speed).clamp(cfg.min_note_length_ms, 10_000.0);
+                        let note_dur = if cfg.note_lengths {
+                            (note_event.duration_ms / speed).clamp(cfg.min_note_length_ms, cfg.max_note_length_ms)
+                        } else {
+                            cfg.min_note_length_ms
+                        };
                         let end_time_ms = current_time_ms + note_dur;
 
                         // Calculate dynamic or fixed velocity
@@ -281,6 +294,7 @@ impl PlayerEngine {
                         }
 
                         // 3. Macro keyboard simulation collection
+                        let mut macro_info = None;
                         if cfg.macro_enabled {
                             if cfg.velocity {
                                 let vel_char = map_arc.lock().get_velocity_key(final_velocity);
@@ -288,32 +302,78 @@ impl PlayerEngine {
                             }
 
                             if let Some(key_map) = map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys) {
-                                macro_keys.push((key_map.key_char, key_map.is_shift, key_map.is_ctrl));
+                                if let Some(rk) = InputSimulator::char_to_rdev_key(key_map.key_char) {
+                                    if cfg.note_lengths {
+                                        // If key is already held down by a prior note, pulse key_up first to re-trigger
+                                        if sim_arc.is_key_held(rk) {
+                                            sim_arc.key_up(rk);
+                                        }
+                                        if key_map.is_shift {
+                                            sim_arc.key_down(Key::ShiftLeft);
+                                        }
+                                        if key_map.is_ctrl {
+                                            sim_arc.key_down(Key::ControlLeft);
+                                        }
+                                        sim_arc.key_down(rk);
+                                        macro_info = Some((rk, key_map.is_shift, key_map.is_ctrl));
+                                    } else {
+                                        macro_tap_keys.push((key_map.key_char, key_map.is_shift, key_map.is_ctrl));
+                                    }
+                                }
                             }
                         }
 
-                        active_notes_in_flight.push((final_note, end_time_ms));
+                        active_notes_in_flight.push(ActiveNoteInFlight {
+                            final_note,
+                            end_time_ms,
+                            macro_key: macro_info,
+                        });
                     }
                     
-                    // 4. Send the chord to OS macro simulation instantaneously
-                    if !macro_keys.is_empty() {
+                    // 4. Send the chord to OS macro simulation instantaneously if in tap mode
+                    if !macro_tap_keys.is_empty() {
                         let sim = Arc::clone(&sim_arc);
                         tokio::task::spawn_blocking(move || {
-                            sim.tap_chord(macro_keys, 0);
+                            sim.tap_chord(macro_tap_keys, 0);
                         });
                     }
                 }
 
-                // Clean expired active notes for realistic synthesizer damper release
+                // Clean expired active notes for realistic physical key release and synthesizer damper drop
                 let mut expired_notes = Vec::new();
-                active_notes_in_flight.retain(|&(note, end_ms)| {
-                    if current_time_ms >= end_ms {
-                        expired_notes.push(note);
+                let mut released_shift = false;
+                let mut released_ctrl = false;
+
+                active_notes_in_flight.retain(|item| {
+                    if current_time_ms >= item.end_time_ms {
+                        expired_notes.push(item.final_note);
+                        if let Some((rk, is_shift, is_ctrl)) = item.macro_key {
+                            sim_arc.key_up(rk);
+                            if is_shift { released_shift = true; }
+                            if is_ctrl { released_ctrl = true; }
+                        }
                         false
                     } else {
                         true
                     }
                 });
+
+                if released_shift {
+                    let has_other_shift = active_notes_in_flight.iter().any(|item| {
+                        item.macro_key.map(|(_, s, _)| s).unwrap_or(false)
+                    });
+                    if !has_other_shift {
+                        sim_arc.key_up(Key::ShiftLeft);
+                    }
+                }
+                if released_ctrl {
+                    let has_other_ctrl = active_notes_in_flight.iter().any(|item| {
+                        item.macro_key.map(|(_, _, c)| c).unwrap_or(false)
+                    });
+                    if !has_other_ctrl {
+                        sim_arc.key_up(Key::ControlLeft);
+                    }
+                }
 
                 if cfg.synth.enabled && !expired_notes.is_empty() {
                     let mut synth = synth_arc.lock();
@@ -324,9 +384,9 @@ impl PlayerEngine {
 
                 // Sync visualizer active notes directly with active sounding notes
                 active_visual_notes.clear();
-                for &(note, _) in &active_notes_in_flight {
-                    if !active_visual_notes.contains(&note) {
-                        active_visual_notes.push(note);
+                for item in &active_notes_in_flight {
+                    if !active_visual_notes.contains(&item.final_note) {
+                        active_visual_notes.push(item.final_note);
                     }
                 }
 

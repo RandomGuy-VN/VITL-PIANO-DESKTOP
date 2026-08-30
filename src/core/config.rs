@@ -130,6 +130,8 @@ pub struct AppConfig {
     pub note_lengths: bool,
     #[serde(default = "default_min_note_length")]
     pub min_note_length_ms: f64,
+    #[serde(default = "default_max_note_length")]
+    pub max_note_length_ms: f64,
     pub sustain_cutoff: u8,
     pub auto_focus_window: bool,
     pub target_window_title: String,
@@ -151,6 +153,10 @@ fn default_true() -> bool {
 
 fn default_min_note_length() -> f64 {
     30.0
+}
+
+fn default_max_note_length() -> f64 {
+    5000.0
 }
 
 fn default_velocity_multiplier() -> f64 {
@@ -189,6 +195,7 @@ impl Default for AppConfig {
             allow_88_keys: false,
             note_lengths: true,
             min_note_length_ms: 30.0,
+            max_note_length_ms: 5000.0,
             sustain_cutoff: 63,
             auto_focus_window: true,
             target_window_title: "Roblox".to_string(),
