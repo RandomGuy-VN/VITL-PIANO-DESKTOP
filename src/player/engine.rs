@@ -302,11 +302,6 @@ impl PlayerEngine {
                         // 3. Macro keyboard simulation collection
                         let mut macro_info = None;
                         if cfg.macro_enabled {
-                            if cfg.velocity {
-                                let vel_char = map_arc.lock().get_velocity_key(final_velocity);
-                                sim_arc.send_velocity(vel_char);
-                            }
-
                             if let Some(key_map) = map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys) {
                                 if let Some(rk) = InputSimulator::char_to_rdev_key(key_map.key_char) {
                                     if cfg.note_lengths {
@@ -314,13 +309,20 @@ impl PlayerEngine {
                                         if sim_arc.is_key_held(rk) {
                                             sim_arc.key_up(rk);
                                         }
-                                        if key_map.is_shift {
-                                            sim_arc.key_down(Key::ShiftLeft);
-                                        }
                                         if key_map.is_ctrl {
                                             sim_arc.key_down(Key::ControlLeft);
                                         }
+                                        if key_map.is_shift {
+                                            sim_arc.key_down(Key::ShiftLeft);
+                                        }
                                         sim_arc.key_down(rk);
+                                        // Release modifiers immediately after note registration so they do not taint concurrent notes
+                                        if key_map.is_shift {
+                                            sim_arc.key_up(Key::ShiftLeft);
+                                        }
+                                        if key_map.is_ctrl {
+                                            sim_arc.key_up(Key::ControlLeft);
+                                        }
                                         macro_info = Some((rk, key_map.is_shift, key_map.is_ctrl));
                                     } else {
                                         macro_tap_keys.push((key_map.key_char, key_map.is_shift, key_map.is_ctrl));
@@ -490,6 +492,35 @@ impl PlayerEngine {
 
     pub fn state(&self) -> PlayerState {
         *self.state.lock()
+    }
+
+    pub fn get_status(&self) -> PlaybackStatus {
+        let song_guard = self.current_song.lock();
+        let speed = *self.playback_speed.lock();
+        let (title, total_ms, bpm) = if let Some(s) = song_guard.as_ref() {
+            (s.title.clone(), s.duration_ms, s.get_bpm_at(0.0) * speed)
+        } else {
+            ("No song loaded".to_string(), 0.0, 120.0 * speed)
+        };
+
+        let formatted_curr = format_duration(0.0);
+        let formatted_tot = format_duration(total_ms);
+        let progress = 0.0;
+
+        PlaybackStatus {
+            state: *self.state.lock(),
+            current_time_ms: 0.0,
+            total_duration_ms: total_ms,
+            formatted_current: formatted_curr,
+            formatted_total: formatted_tot,
+            progress,
+            speed,
+            transpose: *self.transpose_offset.lock(),
+            bpm,
+            active_notes: vec![],
+            song_title: title,
+            finished_naturally: false,
+        }
     }
 
     fn broadcast_status(&self, current_time_ms: f64, active_notes: &[u8]) {

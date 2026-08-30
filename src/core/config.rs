@@ -304,7 +304,7 @@ impl Default for AppConfig {
             release_on_pause: true,
             macro_enabled: true,
             use_midi_output: false,
-            velocity: true,
+            velocity: false,
             velocity_multiplier: 1.0,
             fixed_velocity: 100,
             min_velocity: 1,

@@ -1748,6 +1748,10 @@
       }
       manualStopRequested = false;
 
+      if (!currentSong && s.song_title && s.song_title !== 'No song loaded') {
+        sendAction({ action: "get_current_song" });
+      }
+
       keyElementsMap.forEach((elements, note) => {
         const isActive = s.active_notes && s.active_notes.includes(note);
         elements.forEach(el => {

@@ -262,9 +262,11 @@ fn test_midi_note_lengths_handling() {
 #[test]
 fn test_velocity_configuration_scaling() {
     let mut config = vitl_piano_desktop::core::config::AppConfig::default();
-    assert!(config.velocity);
+    assert!(!config.velocity);
     assert_eq!(config.velocity_multiplier, 1.0);
     assert_eq!(config.fixed_velocity, 100);
+
+    config.velocity = true;
 
     // Test dynamic scaling
     let raw_velocity = 80u8;

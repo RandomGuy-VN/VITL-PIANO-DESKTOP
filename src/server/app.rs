@@ -220,6 +220,19 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
         let _ = sender.send(Message::Text(json)).await;
     }
 
+    // Send initial current song if available
+    let cur_song = state.current_song.lock().clone();
+    let song_msg = ServerMessage::CurrentSong(cur_song);
+    if let Ok(json) = serde_json::to_string(&song_msg) {
+        let _ = sender.send(Message::Text(json)).await;
+    }
+
+    // Send initial playback status
+    let initial_status = ServerMessage::Status(state.player.get_status());
+    if let Ok(json) = serde_json::to_string(&initial_status) {
+        let _ = sender.send(Message::Text(json)).await;
+    }
+
     // Shared sender for both tasks
     let ws_sender = Arc::new(tokio::sync::Mutex::new(sender));
 
@@ -432,7 +445,8 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
                     state.config.lock().current_file = path.clone();
                     let _ = state.config.lock().save();
                     *state.current_song.lock() = Some(song.clone());
-                    state.player.load_song(song);
+                    state.player.load_song(song.clone());
+                    send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
                     send_ws_message(ws, &ServerMessage::Notification {
                         level: "success".to_string(),
                         message: "Song loaded successfully".to_string(),
@@ -452,7 +466,8 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
             match SheetParser::parse_sheet(&sheet_text, song_title, None) {
                 Ok(song) => {
                     *state.current_song.lock() = Some(song.clone());
-                    state.player.load_song(song);
+                    state.player.load_song(song.clone());
+                    send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
                 }
                 Err(e) => {
                     send_ws_message(ws, &ServerMessage::Notification {
@@ -473,6 +488,7 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
                     *state.current_song.lock() = Some(song.clone());
                     state.player.load_song(song.clone());
 
+                    send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
                     send_ws_message(ws, &ServerMessage::Notification {
                         level: "success".to_string(),
                         message: format!("Imported MuseScore: {}", song.title),
@@ -510,8 +526,9 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
                     if let Ok(song) = MidiParser::parse_file(&path) {
                         info!("Hub song downloaded and loaded: {}", song.title);
                         *state.current_song.lock() = Some(song.clone());
-                        state.player.load_song(song);
+                        state.player.load_song(song.clone());
                         state.player.play();
+                        send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
                         send_ws_message(ws, &ServerMessage::Notification {
                             level: "success".to_string(),
                             message: format!("Now playing: {}", midi_filename),

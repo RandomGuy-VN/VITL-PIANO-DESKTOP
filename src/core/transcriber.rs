@@ -149,6 +149,22 @@ impl AudioTranscriber {
                         song.artist = "Transkun Neural AI".to_string();
                         song.source_type = crate::core::song::SongSourceType::Generated;
                         song.finalize();
+                        if song.tracks.is_empty() {
+                            song.tracks.push(crate::core::song::Track {
+                                name: "Piano".to_string(),
+                                channel: 0,
+                                notes: Vec::new(),
+                                is_drum: false,
+                            });
+                        }
+                        if song.total_notes == 0 {
+                            info!("Transkun found 0 acoustic piano notes; trying spectral peak fallback...");
+                            if let Ok(spec_song) = Self::fallback_spectral_transcribe(audio_path, output_midi_path) {
+                                if spec_song.total_notes > 0 {
+                                    return Ok(spec_song);
+                                }
+                            }
+                        }
                         info!("Transkun neural transcription succeeded: {} notes", song.total_notes);
                         Ok(song)
                     }
