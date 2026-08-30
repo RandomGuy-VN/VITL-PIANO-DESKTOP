@@ -17,6 +17,7 @@ use crate::synth::engine::PianoSynthEngine;
 #[derive(Debug, Clone)]
 struct ActiveNoteInFlight {
     final_note: u8,
+    channel: u8,
     end_time_ms: f64,
     macro_key: Option<(Key, bool, bool)>,
 }
@@ -285,7 +286,7 @@ impl PlayerEngine {
 
                         // 1. Audio synthesis note on
                         if cfg.synth.enabled {
-                            synth_arc.lock().note_on(final_note, final_velocity);
+                            synth_arc.lock().note_on_channel(note_event.channel as i32, final_note, final_velocity);
                         }
 
                         // 2. Visualizer key active state
@@ -325,6 +326,7 @@ impl PlayerEngine {
 
                         active_notes_in_flight.push(ActiveNoteInFlight {
                             final_note,
+                            channel: note_event.channel,
                             end_time_ms,
                             macro_key: macro_info,
                         });
@@ -346,7 +348,7 @@ impl PlayerEngine {
 
                 active_notes_in_flight.retain(|item| {
                     if current_time_ms >= item.end_time_ms {
-                        expired_notes.push(item.final_note);
+                        expired_notes.push((item.channel, item.final_note));
                         if let Some((rk, is_shift, is_ctrl)) = item.macro_key {
                             sim_arc.key_up(rk);
                             if is_shift { released_shift = true; }
@@ -377,8 +379,8 @@ impl PlayerEngine {
 
                 if cfg.synth.enabled && !expired_notes.is_empty() {
                     let mut synth = synth_arc.lock();
-                    for n in expired_notes {
-                        synth.note_off(n);
+                    for (ch, n) in expired_notes {
+                        synth.note_off_channel(ch as i32, n);
                     }
                 }
 

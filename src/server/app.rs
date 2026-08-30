@@ -25,6 +25,7 @@ use crate::core::transposition::TranspositionOptimizer;
 use crate::hub::{HubMidiItem, LocalMidiFile, MidiHubClient};
 use crate::player::engine::{PlaybackStatus, PlayerEngine};
 use crate::synth::audio_output::AudioOutputManager;
+use crate::synth::{discover_system_soundfonts, DiscoveredSoundFont, SoundFontPresetInfo};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -53,9 +54,15 @@ pub enum ClientAction {
     #[serde(rename = "set_transpose")]
     SetTranspose { transpose: i8 },
     #[serde(rename = "load_soundfont")]
-    LoadSoundFont { path: String },
+    LoadSoundFont { path: String, bank: Option<i32>, patch: Option<i32> },
     #[serde(rename = "unload_soundfont")]
     UnloadSoundFont,
+    #[serde(rename = "set_soundfont_preset")]
+    SetSoundFontPreset { bank: i32, patch: i32 },
+    #[serde(rename = "get_soundfont_presets")]
+    GetSoundFontPresets,
+    #[serde(rename = "list_soundfonts")]
+    ListSoundFonts,
     #[serde(rename = "set_synth_mode")]
     SetSynthMode { mode: String },
     #[serde(rename = "load_file")]
@@ -91,6 +98,15 @@ pub enum ServerMessage {
     HubResults(Vec<HubMidiItem>),
     #[serde(rename = "local_midis")]
     LocalMidis(Vec<LocalMidiFile>),
+    #[serde(rename = "soundfont_presets")]
+    SoundFontPresets {
+        presets: Vec<SoundFontPresetInfo>,
+        current_bank: i32,
+        current_patch: i32,
+        soundfont_path: String,
+    },
+    #[serde(rename = "available_soundfonts")]
+    AvailableSoundFonts(Vec<DiscoveredSoundFont>),
     #[serde(rename = "notification")]
     Notification { level: String, message: String },
 }
@@ -249,20 +265,33 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
         ClientAction::SetTranspose { transpose } => {
             state.player.set_transpose(transpose);
         }
-        ClientAction::LoadSoundFont { path } => {
-            let res = {
+        ClientAction::LoadSoundFont { path, bank, patch } => {
+            let initial_bank = bank.unwrap_or_else(|| state.config.lock().synth.soundfont_bank);
+            let initial_patch = patch.unwrap_or_else(|| state.config.lock().synth.soundfont_patch);
+            let (res, presets, cur_bank, cur_patch) = {
                 let synth_arc = state.player.synth();
                 let mut synth = synth_arc.lock();
-                synth.load_soundfont(&path)
+                let r = synth.load_soundfont_preset(&path, initial_bank, initial_patch);
+                let presets = synth.get_soundfont_presets();
+                let (b, p) = synth.get_soundfont_active_preset().unwrap_or((initial_bank, initial_patch));
+                (r, presets, b, p)
             };
             match res {
                 Ok(()) => {
                     state.config.lock().synth.mode = crate::core::config::SynthSoundMode::SoundFont;
                     state.config.lock().synth.soundfont_path = Some(path.clone());
+                    state.config.lock().synth.soundfont_bank = cur_bank;
+                    state.config.lock().synth.soundfont_patch = cur_patch;
                     let _ = state.config.lock().save();
                     send_ws_message(ws, &ServerMessage::Notification {
                         level: "success".to_string(),
                         message: format!("SoundFont loaded: {}", path),
+                    }).await;
+                    send_ws_message(ws, &ServerMessage::SoundFontPresets {
+                        presets,
+                        current_bank: cur_bank,
+                        current_patch: cur_patch,
+                        soundfont_path: path,
                     }).await;
                 }
                 Err(e) => {
@@ -272,6 +301,50 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
                     }).await;
                 }
             }
+        }
+        ClientAction::SetSoundFontPreset { bank, patch } => {
+            let res = {
+                let synth_arc = state.player.synth();
+                let mut synth = synth_arc.lock();
+                synth.set_soundfont_preset(bank, patch)
+            };
+            match res {
+                Ok(()) => {
+                    state.config.lock().synth.soundfont_bank = bank;
+                    state.config.lock().synth.soundfont_patch = patch;
+                    let _ = state.config.lock().save();
+                    send_ws_message(ws, &ServerMessage::Notification {
+                        level: "info".to_string(),
+                        message: format!("Switched SoundFont instrument (Bank {}, Patch {})", bank, patch),
+                    }).await;
+                }
+                Err(e) => {
+                    send_ws_message(ws, &ServerMessage::Notification {
+                        level: "error".to_string(),
+                        message: format!("Failed to set preset: {}", e),
+                    }).await;
+                }
+            }
+        }
+        ClientAction::GetSoundFontPresets => {
+            let (presets, cur_bank, cur_patch, sf_path) = {
+                let synth_arc = state.player.synth();
+                let synth = synth_arc.lock();
+                let presets = synth.get_soundfont_presets();
+                let (b, p) = synth.get_soundfont_active_preset().unwrap_or((0, 0));
+                let path = synth.soundfont_path.clone().unwrap_or_default();
+                (presets, b, p, path)
+            };
+            send_ws_message(ws, &ServerMessage::SoundFontPresets {
+                presets,
+                current_bank: cur_bank,
+                current_patch: cur_patch,
+                soundfont_path: sf_path,
+            }).await;
+        }
+        ClientAction::ListSoundFonts => {
+            let soundfonts = discover_system_soundfonts();
+            send_ws_message(ws, &ServerMessage::AvailableSoundFonts(soundfonts)).await;
         }
         ClientAction::UnloadSoundFont => {
             {

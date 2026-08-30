@@ -842,15 +842,35 @@
             </select>
           </div>
 
-          <div id="soundfontSettingsBox" style="margin-top: 12px; padding: 12px; border-radius: var(--r-md); background: var(--paper-sunk); border: 1px solid var(--line); display: none;">
-            <div style="font-size: 11.5px; font-weight: 600; color: var(--ink-800); margin-bottom: 6px;">Custom SoundFont File (.sf2 / .sf3):</div>
+          <div id="soundfontSettingsBox" style="margin-top: 12px; padding: 14px; border-radius: var(--r-md); background: var(--paper-sunk); border: 1px solid var(--line); display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="font-size: 11.5px; font-weight: 600; color: var(--ink-800);">SoundFont File (.sf2 / .sf3 / .dls):</div>
+              <button id="rescanSoundfontsBtn" style="background: none; border: none; font-size: 11px; color: var(--accent); cursor: pointer; text-decoration: underline;">Scan System SF2</button>
+            </div>
+            
+            <div id="discoveredSoundfontsWrapper" style="margin-bottom: 8px; display: none;">
+              <select id="discoveredSoundfontsSelect" style="width: 100%; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink-900); font-size: 11px; cursor: pointer;">
+                <option value="">-- Choose Detected SoundFont --</option>
+              </select>
+            </div>
+
             <div style="display: flex; gap: 8px; align-items: center;">
               <input type="text" id="soundfontPathInput" placeholder="/path/to/soundfont.sf2" style="flex: 1; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--paper-raised); color: var(--ink-900);">
-              <input type="file" id="soundfontFileInput" accept=".sf2,.sf3" style="display: none;">
+              <input type="file" id="soundfontFileInput" accept=".sf2,.sf3,.dls" style="display: none;">
               <button id="browseSoundfontBtn" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11.5px; cursor: pointer; white-space: nowrap;">Browse</button>
               <button id="unloadSoundfontBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: rgba(255,0,0,0.06); border: 1px solid rgba(255,0,0,0.2); color: #c2410c; font-size: 11.5px; cursor: pointer; white-space: nowrap;" title="Reset to Built-in Physical Synth">Reset</button>
             </div>
-            <div id="soundfontStatusText" style="font-size: 10.5px; color: var(--ink-500); margin-top: 5px;">Optional SoundFont: When omitted, built-in physical grand piano synthesizer is used.</div>
+            <div id="soundfontStatusText" style="font-size: 10.5px; color: var(--ink-500); margin-top: 6px;">Optional SoundFont: When omitted, built-in physical grand piano synthesizer is used.</div>
+
+            <div id="soundfontPresetWrapper" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <div style="font-size: 11px; font-weight: 600; color: var(--ink-800);">Instrument Preset:</div>
+                <div id="presetCountBadge" style="font-size: 10px; color: var(--ink-500); background: var(--paper-raised); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line);">0 presets</div>
+              </div>
+              <select id="soundfontPresetSelect" style="width: 100%; padding: 6px 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink-900); font-family: inherit; font-size: 11.5px; cursor: pointer;">
+                <option value="0:0">Default Instrument</option>
+              </select>
+            </div>
           </div>
 
           <div class="control-row" style="margin-top: 14px;">
@@ -1264,7 +1284,61 @@
       if (el) el.textContent = msg.data.message;
     } else if (msg.type === 'local_midis') {
       renderLibrary(msg.data || []);
+    } else if (msg.type === 'soundfont_presets') {
+      const d = msg.data;
+      renderSoundFontPresets(d.presets, d.current_bank, d.current_patch);
+    } else if (msg.type === 'available_soundfonts') {
+      renderDiscoveredSoundFonts(msg.data || []);
     }
+  }
+
+  function renderSoundFontPresets(presets, currentBank, currentPatch) {
+    const wrapper = document.getElementById('soundfontPresetWrapper');
+    const select = document.getElementById('soundfontPresetSelect');
+    const badge = document.getElementById('presetCountBadge');
+    if (!wrapper || !select) return;
+
+    if (!presets || presets.length === 0) {
+      wrapper.style.display = 'none';
+      return;
+    }
+
+    wrapper.style.display = 'block';
+    if (badge) badge.textContent = `${presets.length} presets`;
+
+    select.innerHTML = '';
+    presets.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = `${p.bank}:${p.patch}`;
+      const bankStr = String(p.bank).padStart(3, '0');
+      const patchStr = String(p.patch).padStart(3, '0');
+      opt.textContent = `[${bankStr}:${patchStr}] ${p.name}`;
+      if (p.bank === currentBank && p.patch === currentPatch) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  }
+
+  function renderDiscoveredSoundFonts(fonts) {
+    const wrapper = document.getElementById('discoveredSoundfontsWrapper');
+    const select = document.getElementById('discoveredSoundfontsSelect');
+    if (!wrapper || !select) return;
+
+    if (!fonts || fonts.length === 0) {
+      wrapper.style.display = 'none';
+      return;
+    }
+
+    wrapper.style.display = 'block';
+    select.innerHTML = '<option value="">-- Choose Detected SoundFont (' + fonts.length + ' found) --</option>';
+    fonts.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.path;
+      const sizeMb = (f.size_bytes / (1024 * 1024)).toFixed(1);
+      opt.textContent = `📁 ${f.name} (${sizeMb} MB) - ${f.path}`;
+      select.appendChild(opt);
+    });
   }
 
   function syncConfigUI(cfg) {
@@ -1313,6 +1387,7 @@
       if (sfPathInput && cfg.synth.soundfont_path) {
         sfPathInput.value = cfg.synth.soundfont_path;
         if (sfStatus) sfStatus.textContent = `Active SoundFont: ${cfg.synth.soundfont_path}`;
+        sendAction({ action: "get_soundfont_presets" });
       } else if (sfStatus) {
         sfStatus.textContent = 'Optional SoundFont: When omitted, built-in physical grand piano synthesizer is used.';
       }
@@ -1503,10 +1578,47 @@
       if (synthModeSelect) synthModeSelect.value = 'PhysicalModeling';
       const sfBox = document.getElementById('soundfontSettingsBox');
       if (sfBox) sfBox.style.display = 'none';
+      const sfPresetWrapper = document.getElementById('soundfontPresetWrapper');
+      if (sfPresetWrapper) sfPresetWrapper.style.display = 'none';
       if (currentConfig) {
         currentConfig.synth.mode = 'PhysicalModeling';
         currentConfig.synth.soundfont_path = null;
       }
+    });
+  }
+
+  const sfPresetSelect = document.getElementById('soundfontPresetSelect');
+  if (sfPresetSelect) {
+    sfPresetSelect.addEventListener('change', (e) => {
+      const parts = e.target.value.split(':');
+      if (parts.length === 2) {
+        const bank = parseInt(parts[0], 10);
+        const patch = parseInt(parts[1], 10);
+        sendAction({ action: "set_soundfont_preset", bank, patch });
+        if (currentConfig && currentConfig.synth) {
+          currentConfig.synth.soundfont_bank = bank;
+          currentConfig.synth.soundfont_patch = patch;
+        }
+      }
+    });
+  }
+
+  const discSfSelect = document.getElementById('discoveredSoundfontsSelect');
+  if (discSfSelect) {
+    discSfSelect.addEventListener('change', (e) => {
+      const path = e.target.value;
+      if (path) {
+        sendAction({ action: "load_soundfont", path });
+        if (sfPathInput) sfPathInput.value = path;
+      }
+    });
+  }
+
+  const rescanSfBtn = document.getElementById('rescanSoundfontsBtn');
+  if (rescanSfBtn) {
+    rescanSfBtn.addEventListener('click', () => {
+      sendAction({ action: "list_soundfonts" });
+      showToast("Scanning system and local soundfonts...", "info");
     });
   }
 

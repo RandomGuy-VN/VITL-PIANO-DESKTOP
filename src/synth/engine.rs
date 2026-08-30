@@ -199,33 +199,184 @@ impl MetronomeVoice {
 use rustysynth::{SoundFont, Synthesizer, SynthesizerSettings};
 use std::sync::Arc;
 use std::fs::File;
+use std::path::{Path, PathBuf};
 use crate::core::config::SynthSoundMode;
 use tracing::{info, warn, error};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SoundFontPresetInfo {
+    pub bank: i32,
+    pub patch: i32,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DiscoveredSoundFont {
+    pub name: String,
+    pub path: String,
+    pub size_bytes: u64,
+}
+
+/// Discover SoundFonts available on the system and in the application directory
+pub fn discover_system_soundfonts() -> Vec<DiscoveredSoundFont> {
+    let mut results = Vec::new();
+    let mut search_paths = Vec::new();
+
+    // 1. Current directory and ./soundfonts
+    search_paths.push(PathBuf::from("./soundfonts"));
+    search_paths.push(PathBuf::from("."));
+
+    // 2. User local data / config directory
+    if let Some(config_dir) = dirs::config_dir() {
+        search_paths.push(config_dir.join("vitl-piano-desktop").join("soundfonts"));
+    }
+    if let Some(data_dir) = dirs::data_local_dir() {
+        search_paths.push(data_dir.join("soundfonts"));
+    }
+
+    // 3. Linux standard system soundfont paths
+    #[cfg(target_os = "linux")]
+    {
+        search_paths.push(PathBuf::from("/usr/share/sounds/sf2"));
+        search_paths.push(PathBuf::from("/usr/share/sounds/sf3"));
+        search_paths.push(PathBuf::from("/usr/share/soundfonts"));
+        search_paths.push(PathBuf::from("/usr/share/midi"));
+    }
+
+    // 4. Windows common soundfont locations
+    #[cfg(target_os = "windows")]
+    {
+        search_paths.push(PathBuf::from("C:\\soundfonts"));
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            search_paths.push(PathBuf::from(appdata).join("vitl-piano").join("soundfonts"));
+        }
+    }
+
+    let mut seen_paths = std::collections::HashSet::new();
+
+    for dir in search_paths {
+        if dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                        let ext_lower = ext.to_lowercase();
+                        if ext_lower == "sf2" || ext_lower == "sf3" || ext_lower == "dls" {
+                            let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+                            if seen_paths.insert(canonical) {
+                                let name = path.file_stem()
+                                    .and_then(|s| s.to_str())
+                                    .unwrap_or("SoundFont")
+                                    .to_string();
+                                let size_bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                                results.push(DiscoveredSoundFont {
+                                    name,
+                                    path: path.to_string_lossy().to_string(),
+                                    size_bytes,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    results
+}
 
 pub struct SoundFontEngine {
     synthesizer: Synthesizer,
     pub sample_rate: f32,
+    pub presets: Vec<SoundFontPresetInfo>,
+    pub current_bank: i32,
+    pub current_patch: i32,
 }
 
 impl SoundFontEngine {
-    pub fn load_file(path: &str, sample_rate: f32) -> Result<Self, String> {
+    pub fn load_file(path: &str, sample_rate: f32, initial_bank: i32, initial_patch: i32) -> Result<Self, String> {
         let mut file = File::open(path).map_err(|e| format!("Failed to open SoundFont file '{}': {}", path, e))?;
-        let sound_font = Arc::new(SoundFont::new(&mut file).map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?);
-        let settings = SynthesizerSettings::new(sample_rate as i32);
-        let synthesizer = Synthesizer::new(&sound_font, &settings).map_err(|e| format!("Failed to initialize SoundFont synth: {:?}", e))?;
-        Ok(Self { synthesizer, sample_rate })
+        let sound_font_raw = SoundFont::new(&mut file).map_err(|e| format!("Failed to parse SoundFont: {:?}", e))?;
+        
+        let mut presets = Vec::new();
+        for p in sound_font_raw.get_presets() {
+            let name = p.get_name().trim().to_string();
+            presets.push(SoundFontPresetInfo {
+                bank: p.get_bank_number(),
+                patch: p.get_patch_number(),
+                name: if name.is_empty() { format!("Preset {}:{}", p.get_bank_number(), p.get_patch_number()) } else { name },
+            });
+        }
+        presets.sort_by_key(|p| (p.bank, p.patch));
+
+        let sound_font = Arc::new(sound_font_raw);
+        let mut settings = SynthesizerSettings::new(sample_rate as i32);
+        settings.enable_reverb_and_chorus = true;
+        settings.maximum_polyphony = 256;
+        let mut synthesizer = Synthesizer::new(&sound_font, &settings).map_err(|e| format!("Failed to initialize SoundFont synth: {:?}", e))?;
+
+        // Resolve active preset
+        let (bank, patch) = if !presets.is_empty() {
+            if presets.iter().any(|p| p.bank == initial_bank && p.patch == initial_patch) {
+                (initial_bank, initial_patch)
+            } else {
+                (presets[0].bank, presets[0].patch)
+            }
+        } else {
+            (initial_bank, initial_patch)
+        };
+
+        for ch in 0..Synthesizer::CHANNEL_COUNT as i32 {
+            if ch != Synthesizer::PERCUSSION_CHANNEL as i32 {
+                synthesizer.process_midi_message(ch, 0xB0, 0x00, bank >> 7);
+                synthesizer.process_midi_message(ch, 0xB0, 0x20, bank & 0x7F);
+                synthesizer.process_midi_message(ch, 0xC0, patch, 0);
+            }
+        }
+
+        Ok(Self {
+            synthesizer,
+            sample_rate,
+            presets,
+            current_bank: bank,
+            current_patch: patch,
+        })
+    }
+
+    pub fn set_preset(&mut self, bank: i32, patch: i32) {
+        self.current_bank = bank;
+        self.current_patch = patch;
+        for ch in 0..Synthesizer::CHANNEL_COUNT as i32 {
+            if ch != Synthesizer::PERCUSSION_CHANNEL as i32 {
+                self.synthesizer.process_midi_message(ch, 0xB0, 0x00, bank >> 7);
+                self.synthesizer.process_midi_message(ch, 0xB0, 0x20, bank & 0x7F);
+                self.synthesizer.process_midi_message(ch, 0xC0, patch, 0);
+            }
+        }
     }
 
     pub fn note_on(&mut self, note: u8, velocity: u8) {
         self.synthesizer.note_on(0, note as i32, velocity as i32);
     }
 
+    pub fn note_on_channel(&mut self, channel: i32, note: u8, velocity: u8) {
+        let ch = channel.clamp(0, 15);
+        self.synthesizer.note_on(ch, note as i32, velocity as i32);
+    }
+
     pub fn note_off(&mut self, note: u8) {
         self.synthesizer.note_off(0, note as i32);
     }
 
+    pub fn note_off_channel(&mut self, channel: i32, note: u8) {
+        let ch = channel.clamp(0, 15);
+        self.synthesizer.note_off(ch, note as i32);
+    }
+
     pub fn set_sustain(&mut self, down: bool) {
-        self.synthesizer.process_midi_message(0, 0xB0, 64, if down { 127 } else { 0 });
+        for ch in 0..Synthesizer::CHANNEL_COUNT as i32 {
+            self.synthesizer.process_midi_message(ch, 0xB0, 64, if down { 127 } else { 0 });
+        }
     }
 
     pub fn all_notes_off(&mut self) {
@@ -281,12 +432,16 @@ impl PianoSynthEngine {
 
     /// Load an optional custom SoundFont (.sf2 / .sf3)
     pub fn load_soundfont(&mut self, path: &str) -> Result<(), String> {
-        info!("Loading SoundFont from: {}", path);
-        match SoundFontEngine::load_file(path, self.sample_rate) {
+        self.load_soundfont_preset(path, 0, 0)
+    }
+
+    pub fn load_soundfont_preset(&mut self, path: &str, bank: i32, patch: i32) -> Result<(), String> {
+        info!("Loading SoundFont from: {} (bank={}, patch={})", path, bank, patch);
+        match SoundFontEngine::load_file(path, self.sample_rate, bank, patch) {
             Ok(sf) => {
-                self.soundfont_engine = Some(sf);
                 self.soundfont_path = Some(path.to_string());
                 self.mode = SynthSoundMode::SoundFont;
+                self.soundfont_engine = Some(sf);
                 info!("SoundFont loaded successfully: {}", path);
                 Ok(())
             }
@@ -295,6 +450,23 @@ impl PianoSynthEngine {
                 self.mode = SynthSoundMode::PhysicalModeling;
                 Err(e)
             }
+        }
+    }
+
+    pub fn get_soundfont_presets(&self) -> Vec<SoundFontPresetInfo> {
+        self.soundfont_engine.as_ref().map(|sf| sf.presets.clone()).unwrap_or_default()
+    }
+
+    pub fn get_soundfont_active_preset(&self) -> Option<(i32, i32)> {
+        self.soundfont_engine.as_ref().map(|sf| (sf.current_bank, sf.current_patch))
+    }
+
+    pub fn set_soundfont_preset(&mut self, bank: i32, patch: i32) -> Result<(), String> {
+        if let Some(ref mut sf) = self.soundfont_engine {
+            sf.set_preset(bank, patch);
+            Ok(())
+        } else {
+            Err("No SoundFont loaded".to_string())
         }
     }
 
@@ -318,13 +490,17 @@ impl PianoSynthEngine {
 
     /// Trigger a note on event
     pub fn note_on(&mut self, note: u8, velocity: u8) {
+        self.note_on_channel(0, note, velocity);
+    }
+
+    pub fn note_on_channel(&mut self, channel: i32, note: u8, velocity: u8) {
         if !self.enabled || velocity == 0 {
             return;
         }
 
         if self.mode == SynthSoundMode::SoundFont {
             if let Some(ref mut sf) = self.soundfont_engine {
-                sf.note_on(note, velocity);
+                sf.note_on_channel(channel, note, velocity);
                 return;
             }
         }
@@ -370,9 +546,13 @@ impl PianoSynthEngine {
 
     /// Trigger a note off event
     pub fn note_off(&mut self, note: u8) {
+        self.note_off_channel(0, note);
+    }
+
+    pub fn note_off_channel(&mut self, channel: i32, note: u8) {
         if self.mode == SynthSoundMode::SoundFont {
             if let Some(ref mut sf) = self.soundfont_engine {
-                sf.note_off(note);
+                sf.note_off_channel(channel, note);
                 return;
             }
         }

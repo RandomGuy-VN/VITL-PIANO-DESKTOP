@@ -62,6 +62,12 @@ pub struct SynthConfig {
     pub mode: SynthSoundMode,
     #[serde(default)]
     pub soundfont_path: Option<String>,
+    #[serde(default)]
+    pub soundfont_bank: i32,
+    #[serde(default)]
+    pub soundfont_patch: i32,
+    #[serde(default)]
+    pub soundfont_preset_name: Option<String>,
     pub volume: f32,
     pub reverb_mix: f32,
     pub reverb_room_size: f32,
@@ -75,6 +81,9 @@ impl Default for SynthConfig {
             enabled: true,
             mode: SynthSoundMode::PhysicalModeling,
             soundfont_path: None,
+            soundfont_bank: 0,
+            soundfont_patch: 0,
+            soundfont_preset_name: None,
             volume: 0.8,
             reverb_mix: 0.3,
             reverb_room_size: 0.7,

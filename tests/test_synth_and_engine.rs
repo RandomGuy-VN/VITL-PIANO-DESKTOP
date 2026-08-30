@@ -316,3 +316,25 @@ fn test_note_lengths_config_clamping_and_hold() {
     let clamped_normal = normal_dur.clamp(config.min_note_length_ms, config.max_note_length_ms);
     assert_eq!(clamped_normal, 1500.0);
 }
+
+#[test]
+fn test_soundfont_preset_and_discovery() {
+    use vitl_piano_desktop::synth::discover_system_soundfonts;
+
+    // Discovery should run safely without panicking on any platform
+    let soundfonts = discover_system_soundfonts();
+    println!("Discovered {} system/local soundfonts", soundfonts.len());
+
+    let mut synth = PianoSynthEngine::new(44100.0);
+    let presets = synth.get_soundfont_presets();
+    assert!(presets.is_empty()); // None loaded yet
+
+    // Preset selection when no soundfont loaded returns error gracefully
+    let res = synth.set_soundfont_preset(0, 5);
+    assert!(res.is_err());
+
+    // Config defaults
+    let config = vitl_piano_desktop::core::config::AppConfig::default();
+    assert_eq!(config.synth.soundfont_bank, 0);
+    assert_eq!(config.synth.soundfont_patch, 0);
+}
