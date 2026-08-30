@@ -1202,8 +1202,15 @@
       <!-- LIBRARY VIEW -->
       <div class="view-container" id="view-library">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <div class="section-label" style="margin-bottom: 0;">LOCAL MIDI LIBRARY</div>
-          <button id="refresh-library-btn" style="padding: 4px 10px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11px; cursor: pointer; font-family: inherit;">Refresh</button>
+          <div class="section-label" style="margin-bottom: 0;">LOCAL MIDI & SHEET LIBRARY</div>
+          <div style="display: flex; gap: 8px;">
+            <button id="library-import-btn" style="padding: 5px 12px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 11.5px; cursor: pointer; font-weight: 600;">+ Import File</button>
+            <input type="file" id="library-file-input" accept=".mid,.midi,.txt" style="display: none;">
+            <button id="refresh-library-btn" style="padding: 5px 12px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11.5px; cursor: pointer; font-family: inherit; font-weight: 500;">Refresh</button>
+          </div>
+        </div>
+        <div style="margin-bottom: 14px;">
+          <input type="text" id="library-search" placeholder="Search local songs by name..." style="width: 100%; padding: 10px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink-900); font-family: inherit; font-size: 13px; outline: none; box-shadow: var(--shadow-sm);">
         </div>
         <div id="library-container">
           <div class="card" style="padding: 24px; text-align: center; color: var(--ink-500);">
@@ -1214,6 +1221,15 @@
 
       <!-- MIDI HUB VIEW -->
       <div class="view-container" id="view-midihub">
+        <div class="card" style="padding: 14px 16px; margin-bottom: 16px;">
+          <div style="font-weight: 600; font-size: 13px; color: var(--ink-900); margin-bottom: 4px;">📥 Import from MuseScore.com (LibreScore Decryption)</div>
+          <div style="font-size: 11.5px; color: var(--ink-600); margin-bottom: 10px;">Paste any MuseScore sheet music URL or Score ID to download and convert to MIDI automatically</div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="musescore-url-input" placeholder="https://musescore.com/user/123/scores/456 or score ID" style="flex: 1; padding: 8px 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-family: inherit; font-size: 12.5px; outline: none;">
+            <button id="musescore-import-btn" style="padding: 8px 16px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-weight: 600; font-size: 12px; cursor: pointer; white-space: nowrap;">Import MuseScore</button>
+          </div>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <div class="section-label" style="margin-bottom: 0;">ONLINE MIDI HUB (480+ TRACKS)</div>
           <button id="refresh-hub-btn" style="padding: 5px 12px; border-radius: var(--r-sm); background: var(--paper-raised); border: 1px solid var(--line); font-size: 11.5px; cursor: pointer; font-family: inherit; font-weight: 500;">Refresh</button>
@@ -2256,34 +2272,76 @@
   document.getElementById('layoutSelect').addEventListener('change', (e) => { if (currentConfig) { currentConfig.keyboard_layout = e.target.value; sendConfigUpdate(); } });
 
   // ── 7. File upload ──
+  // ── 7. File upload & Intelligent Drag & Drop ──
   const dropZone = document.getElementById('file-drop-zone');
   const fileInput = document.getElementById('file-input');
+
+  function isAudioFile(name) {
+    const ext = (name || '').toLowerCase().split('.').pop();
+    return ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'aac', 'webm', 'wma', 'opus'].includes(ext);
+  }
+
+  function isMidiOrSheetFile(name) {
+    const ext = (name || '').toLowerCase().split('.').pop();
+    return ['mid', 'midi', 'kar', 'txt'].includes(ext);
+  }
 
   // Global drag & drop handler for the entire window
   window.addEventListener('dragover', (e) => {
     e.preventDefault();
-    dropZone.classList.add('dragover');
+    if (dropZone) dropZone.classList.add('dragover');
+    const tZone = document.getElementById('transcribe-drop-zone');
+    if (tZone) tZone.classList.add('dragover');
   });
   window.addEventListener('dragleave', (e) => {
     e.preventDefault();
     if (e.target === document.documentElement || e.target === document.body) {
-      dropZone.classList.remove('dragover');
+      if (dropZone) dropZone.classList.remove('dragover');
+      const tZone = document.getElementById('transcribe-drop-zone');
+      if (tZone) tZone.classList.remove('dragover');
     }
   });
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
-    dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-      uploadFile(e.dataTransfer.files[0]);
+    if (dropZone) dropZone.classList.remove('dragover');
+    const tZone = document.getElementById('transcribe-drop-zone');
+    if (tZone) tZone.classList.remove('dragover');
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      const activeView = document.querySelector('.view-container.active');
+      const activeId = activeView ? activeView.id : '';
+
+      if (isAudioFile(file.name) || activeId === 'view-transcribe') {
+        handleTranscribeFile(file);
+      } else {
+        uploadFile(file);
+      }
     }
   });
 
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) uploadFile(e.target.files[0]); fileInput.value = ''; });
+  if (dropZone) {
+    dropZone.addEventListener('click', () => { if (fileInput) fileInput.click(); });
+  }
+  if (fileInput) {
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        if (isAudioFile(file.name)) {
+          handleTranscribeFile(file);
+        } else {
+          uploadFile(file);
+        }
+      }
+      fileInput.value = '';
+    });
+  }
 
   async function uploadFile(file) {
+    if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
+    showToast(`Uploading '${file.name}'...`, 'info');
     try {
       const res = await fetch('/api/upload_midi', { method: 'POST', body: formData });
       const data = await res.json();
@@ -2291,6 +2349,8 @@
         songTitleEl.textContent = data.filename;
         showToast(`Loaded: ${data.filename}`, 'success');
         sendAction({ action: "play" });
+        sendAction({ action: "get_current_song" });
+        fetchLibrary();
       } else {
         showToast(data.error || 'Failed to parse uploaded file', 'error');
       }
@@ -2463,40 +2523,87 @@
   // ── 9. Library Tab ──
   const libraryContainer = document.getElementById('library-container');
   const libraryBadge = document.getElementById('library-badge');
+  const librarySearch = document.getElementById('library-search');
+  const libraryImportBtn = document.getElementById('library-import-btn');
+  const libraryFileInput = document.getElementById('library-file-input');
+  let localMidisData = [];
 
   function renderLibrary(files) {
-    if (!files || files.length === 0) {
-      libraryContainer.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--ink-500);">No local MIDI files found. Add songs from MIDI Hub or upload files in Player.</div>';
-      libraryBadge.style.display = 'none'; return;
+    localMidisData = files || [];
+    const q = (librarySearch ? librarySearch.value : '').toLowerCase().trim();
+    const filtered = q ? localMidisData.filter(f => f.name.toLowerCase().includes(q)) : localMidisData;
+
+    if (!filtered || filtered.length === 0) {
+      libraryContainer.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--ink-500);">No local MIDI or sheet files found. Add songs from MIDI Hub or click + Import File above.</div>';
+      if (libraryBadge) libraryBadge.style.display = 'none';
+      return;
     }
-    libraryBadge.style.display = 'inline-block';
-    libraryBadge.textContent = files.length;
-    libraryContainer.innerHTML = files.map(f => `
+    if (libraryBadge) {
+      libraryBadge.style.display = 'inline-block';
+      libraryBadge.textContent = filtered.length;
+    }
+    libraryContainer.innerHTML = filtered.map(f => `
       <div class="row-item">
         <div>
           <div style="font-weight:600;color:var(--ink-900);font-size:13.5px;">${escapeHtml(f.name)}</div>
           <div style="font-size:11.5px;color:var(--ink-500);margin-top:2px;">${(f.size_bytes/1024).toFixed(1)} KB</div>
         </div>
-        <button data-library-action="play" data-path="${escapeHtml(f.file_path)}" style="padding:6px 14px;border-radius:var(--r-sm);background:var(--ink-900);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:500;">▶ Play</button>
+        <div style="display: flex; gap: 8px;">
+          <button data-library-action="play" data-path="${escapeHtml(f.file_path)}" style="padding:6px 14px;border-radius:var(--r-sm);background:var(--ink-900);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:500;">▶ Play</button>
+        </div>
       </div>`).join('');
   }
 
-  libraryContainer.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-library-action]');
-    if (!btn) return;
-    const path = btn.dataset.path;
-    if (btn.dataset.libraryAction === 'play') {
-      sendAction({ action: "load_file", path });
-      setTimeout(() => sendAction({ action: "play" }), 200);
-      showToast(`Playing from library: ${path.split('/').pop()}`, 'info');
-    }
-  });
+  if (librarySearch) {
+    librarySearch.addEventListener('input', (e) => {
+      renderLibrary(localMidisData);
+    });
+  }
+
+  if (libraryImportBtn && libraryFileInput) {
+    libraryImportBtn.addEventListener('click', () => libraryFileInput.click());
+    libraryFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        const file = e.target.files[0];
+        if (isAudioFile(file.name)) {
+          handleTranscribeFile(file);
+        } else {
+          uploadFile(file);
+        }
+      }
+      libraryFileInput.value = '';
+    });
+  }
+
+  if (libraryContainer) {
+    libraryContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-library-action]');
+      if (!btn) return;
+      const path = btn.dataset.path;
+      if (btn.dataset.libraryAction === 'play') {
+        sendAction({ action: "load_file", path });
+        setTimeout(() => sendAction({ action: "play" }), 200);
+        showToast(`Playing from library: ${path.split('/').pop()}`, 'info');
+        const playerTab = document.querySelector('[data-view="view-player"]');
+        if (playerTab) playerTab.click();
+      }
+    });
+  }
 
   async function fetchLibrary() {
-    try { const res = await fetch('/api/local_midis'); if (res.ok) renderLibrary(await res.json()); }
-    catch(e) { libraryContainer.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--ink-500);">Failed to load library</div>'; }
+    try {
+      const res = await fetch('/api/local_midis');
+      if (res.ok) {
+        const data = await res.json();
+        renderLibrary(data);
+      }
+    }
+    catch(e) {
+      if (libraryContainer) libraryContainer.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--ink-500);">Failed to load library</div>';
+    }
   }
-  document.getElementById('refresh-library-btn').addEventListener('click', fetchLibrary);
+  const refreshLibBtn = document.getElementById('refresh-library-btn');
+  if (refreshLibBtn) refreshLibBtn.addEventListener('click', fetchLibrary);
 
   // ── 11. In-App Keyboard Shortcuts ──
   window.addEventListener('keydown', (e) => {
@@ -2961,40 +3068,73 @@
     };
   }
 
+  async function handleTranscribeFile(file) {
+    if (!file) return;
+    const progCard = document.getElementById('transcribeProgressCard');
+    const stepText = document.getElementById('transcribeStepText');
+    const pctText = document.getElementById('transcribePctText');
+    const bar = document.getElementById('transcribeProgressBar');
+
+    const transcribeNav = document.querySelector('[data-view="view-transcribe"]');
+    if (transcribeNav) transcribeNav.click();
+
+    if (progCard) progCard.style.display = 'block';
+    if (stepText) stepText.textContent = `Analyzing & transcribing '${file.name}' into piano sheet & MIDI...`;
+    if (pctText) pctText.textContent = '20%';
+    if (bar) bar.style.width = '20%';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    showToast(`Transcribing audio: ${file.name}`, 'info');
+
+    try {
+      if (pctText) pctText.textContent = '45%';
+      if (bar) bar.style.width = '45%';
+      const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (pctText) pctText.textContent = '100%';
+        if (bar) bar.style.width = '100%';
+        showToast(`✨ Successfully transcribed '${data.title}' (${data.total_notes} notes)!`, 'success');
+        sendAction({ action: "get_current_song" });
+        fetchLibrary();
+        setTimeout(() => {
+          const playerTab = document.querySelector('[data-view="view-player"]');
+          if (playerTab) playerTab.click();
+          if (progCard) progCard.style.display = 'none';
+        }, 1200);
+      } else {
+        showToast(data.error || 'Failed to transcribe audio', 'error');
+        if (progCard) progCard.style.display = 'none';
+      }
+    } catch (err) {
+      showToast(`Transcription request failed: ${err.message}`, 'error');
+      if (progCard) progCard.style.display = 'none';
+    }
+  }
+
   const transcribeDrop = document.getElementById('transcribe-drop-zone');
   const transcribeInput = document.getElementById('transcribe-file-input');
-  if (transcribeDrop && transcribeInput) {
-    transcribeDrop.onclick = () => transcribeInput.click();
-    transcribeInput.onchange = async (e) => {
-      if (e.target.files.length > 0) {
-        const file = e.target.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const progCard = document.getElementById('transcribeProgressCard');
-        if (progCard) progCard.style.display = 'block';
-        const stepText = document.getElementById('transcribeStepText');
-        if (stepText) stepText.textContent = `Transcribing '${file.name}' with Neural Model...`;
-
-        try {
-          const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
-          const data = await res.json();
-          if (data.success) {
-            showToast(`Successfully transcribed '${data.title}'!`, 'success');
-            const playerTab = document.querySelector('[data-view="view-player"]');
-            if (playerTab) playerTab.click();
-            sendAction({ action: "get_current_song" });
-          } else {
-            showToast(`Transcription error: ${data.error}`, 'error');
-          }
-        } catch (err) {
-          showToast(`Upload failed: ${err.message}`, 'error');
-        } finally {
-          if (progCard) progCard.style.display = 'none';
-          transcribeInput.value = '';
-        }
+  if (transcribeDrop) {
+    transcribeDrop.addEventListener('click', () => { if (transcribeInput) transcribeInput.click(); });
+    transcribeDrop.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); transcribeDrop.classList.add('dragover'); });
+    transcribeDrop.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); transcribeDrop.classList.remove('dragover'); });
+    transcribeDrop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      transcribeDrop.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleTranscribeFile(e.dataTransfer.files[0]);
       }
-    };
+    });
+  }
+  if (transcribeInput) {
+    transcribeInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleTranscribeFile(e.target.files[0]);
+        transcribeInput.value = '';
+      }
+    });
   }
 
   // ── 15. Themes & Custom CSS Manager ──
