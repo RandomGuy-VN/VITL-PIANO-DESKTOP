@@ -107,7 +107,7 @@ impl SheetParser {
 
     /// Parse Virtual Piano sheet text into a playable `Song`
     pub fn parse_sheet(sheet_text: &str, title: String, default_bpm: Option<f64>) -> Result<Song> {
-        let mut bpm = default_bpm.unwrap_or(120.0);
+        let mut bpm = default_bpm.unwrap_or(120.0).max(1.0);
         let mut cleaned_text = String::new();
 
         // Check for BPM annotations in comments or headers like [bpm: 140] or !140

@@ -120,11 +120,12 @@ impl MusescoreImporter {
                 if let Some(js_url) = caps.get(1) {
                     if let Ok(js_resp) = self.client.get(js_url.as_str()).send().await {
                         if let Ok(js_code) = js_resp.text().await {
-                            let suffix_re = Regex::new(r#""([^"]+)"\)\.substr\(0,4\)"#).unwrap();
-                            if let Some(s_caps) = suffix_re.captures(&js_code) {
-                                if let Some(s) = s_caps.get(1) {
-                                    js_suffix = Some(s.as_str().to_string());
-                                    break;
+                            if let Ok(suffix_re) = Regex::new(r#""([^"]+)"\)\.substr\(0,4\)"#) {
+                                if let Some(s_caps) = suffix_re.captures(&js_code) {
+                                    if let Some(s) = s_caps.get(1) {
+                                        js_suffix = Some(s.as_str().to_string());
+                                        break;
+                                    }
                                 }
                             }
                         }

@@ -22,7 +22,11 @@ impl HumanizerEngine {
 
         let base_delay = self.config.chord_delay_ms;
         let jitter_range = self.config.jitter_ms;
-        let mistake_prob = (self.config.mistake_rate / 100.0).clamp(0.0, 0.5);
+        let mistake_prob = if self.config.mistake_rate.is_nan() {
+            0.0
+        } else {
+            (self.config.mistake_rate / 100.0).clamp(0.0, 0.5)
+        };
 
         for (idx, note) in notes.iter().enumerate() {
             // Finger limit check

@@ -96,11 +96,11 @@ impl MidiParser {
         // Store tempo events in song model
         for &(tick, us_pb) in &raw_tempo_events {
             let time_ms = tick_to_ms(tick);
-            let bpm = 60_000_000.0 / (us_pb as f64);
+            let bpm = 60_000_000.0 / ((us_pb as f64).max(1.0));
             song.tempo_events.push(TempoEvent {
                 time_ms,
                 bpm,
-                us_per_beat: us_pb,
+                us_per_beat: us_pb.max(1),
             });
         }
 

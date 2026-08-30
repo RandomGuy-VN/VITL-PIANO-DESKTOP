@@ -44,39 +44,45 @@ impl AudioOutputManager {
                 err_fn,
                 None,
             )?,
-            SampleFormat::I16 => device.build_output_stream(
-                &stream_config,
-                move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                    let mut synth = engine_clone.lock();
-                    for frame in data.chunks_mut(channels as usize) {
-                        let (l, r) = synth.next_sample();
-                        if frame.len() >= 2 {
-                            frame[0] = (l.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
-                            frame[1] = (r.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
-                        } else if !frame.is_empty() {
-                            frame[0] = (((l + r) * 0.5).clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+            SampleFormat::I16 => {
+                let chunk_size = (channels as usize).max(1);
+                device.build_output_stream(
+                    &stream_config,
+                    move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
+                        let mut synth = engine_clone.lock();
+                        for frame in data.chunks_mut(chunk_size) {
+                            let (l, r) = synth.next_sample();
+                            if frame.len() >= 2 {
+                                frame[0] = (l.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+                                frame[1] = (r.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+                            } else if !frame.is_empty() {
+                                frame[0] = (((l + r) * 0.5).clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+                            }
                         }
-                    }
-                },
-                err_fn,
-                None,
-            )?,
-            SampleFormat::U16 => device.build_output_stream(
-                &stream_config,
-                move |data: &mut [u16], _: &cpal::OutputCallbackInfo| {
-                    let mut synth = engine_clone.lock();
-                    for frame in data.chunks_mut(channels as usize) {
-                        let (l, r) = synth.next_sample();
-                        let mono = ((l + r) * 0.5).clamp(-1.0, 1.0);
-                        let sample_u16 = ((mono + 1.0) * 0.5 * u16::MAX as f32) as u16;
-                        for s in frame {
-                            *s = sample_u16;
+                    },
+                    err_fn,
+                    None,
+                )?
+            }
+            SampleFormat::U16 => {
+                let chunk_size = (channels as usize).max(1);
+                device.build_output_stream(
+                    &stream_config,
+                    move |data: &mut [u16], _: &cpal::OutputCallbackInfo| {
+                        let mut synth = engine_clone.lock();
+                        for frame in data.chunks_mut(chunk_size) {
+                            let (l, r) = synth.next_sample();
+                            let mono = ((l + r) * 0.5).clamp(-1.0, 1.0);
+                            let sample_u16 = ((mono + 1.0) * 0.5 * u16::MAX as f32) as u16;
+                            for s in frame {
+                                *s = sample_u16;
+                            }
                         }
-                    }
-                },
-                err_fn,
-                None,
-            )?,
+                    },
+                    err_fn,
+                    None,
+                )?
+            }
             _ => bail!("Unsupported audio sample format"),
         };
 

@@ -180,6 +180,7 @@ struct BiquadState {
 
 impl ThreeBandEqualizer {
     pub fn new(sample_rate: f32) -> Self {
+        let sample_rate = sample_rate.max(8000.0);
         Self {
             sample_rate,
             low_db: 0.0,
@@ -308,7 +309,8 @@ pub struct StereoDelay {
 
 impl StereoDelay {
     pub fn new(sample_rate: f32) -> Self {
-        let max_samples = (sample_rate * 2.0) as usize; // Max 2 seconds delay
+        let sample_rate = sample_rate.max(8000.0);
+        let max_samples = ((sample_rate * 2.0) as usize).max(4); // Max 2 seconds delay
         Self {
             sample_rate,
             buffer_l: vec![0.0; max_samples],
@@ -322,11 +324,11 @@ impl StereoDelay {
     }
 
     pub fn process(&mut self, in_l: f32, in_r: f32) -> (f32, f32) {
-        if !self.enabled || self.wet_mix <= 0.001 {
+        if !self.enabled || self.wet_mix <= 0.001 || self.buffer_l.len() < 2 {
             return (in_l, in_r);
         }
 
-        let delay_samples = ((self.delay_time_ms * 0.001 * self.sample_rate) as usize).clamp(1, self.buffer_l.len() - 1);
+        let delay_samples = ((self.delay_time_ms.max(1.0) * 0.001 * self.sample_rate) as usize).clamp(1, self.buffer_l.len() - 1);
         let read_idx_l = (self.write_idx + self.buffer_l.len() - delay_samples) % self.buffer_l.len();
         // Ping-pong stereo offset (+20ms for right channel)
         let delay_samples_r = ((self.delay_time_ms * 0.001 * self.sample_rate * 1.08) as usize).clamp(1, self.buffer_r.len() - 1);

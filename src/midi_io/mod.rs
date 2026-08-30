@@ -108,7 +108,7 @@ impl MidiIoManager {
                                     }
                                     if let Some(key_map) = map_arc.lock().get_piano_key(note, cfg.allow_88_keys) {
                                         let sim = Arc::clone(&sim_arc);
-                                        tokio::task::spawn_blocking(move || {
+                                        std::thread::spawn(move || {
                                             sim.tap_piano_key(key_map.key_char, key_map.is_shift, key_map.is_ctrl, 50);
                                         });
                                     }

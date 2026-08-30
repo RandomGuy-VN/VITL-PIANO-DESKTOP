@@ -415,7 +415,7 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
         ClientAction::LoadFile { path } => {
             info!("Loading song file: {}", path);
             let path_buf = PathBuf::from(&path);
-            let res = if path.ends_with(".txt") {
+            let res = if path.to_lowercase().ends_with(".txt") {
                 if let Ok(content) = std::fs::read_to_string(&path_buf) {
                     let title = path_buf.file_stem().unwrap_or_default().to_string_lossy().to_string();
                     SheetParser::parse_sheet(&content, title, None)
@@ -738,7 +738,7 @@ async fn upload_midi_api(State(state): State<AppState>, mut multipart: Multipart
             let target_path = AppConfig::midis_dir().join(&file_name);
             let _ = std::fs::write(&target_path, &bytes);
 
-            let res = if file_name.ends_with(".txt") {
+            let res = if file_name.to_lowercase().ends_with(".txt") {
                 let text = String::from_utf8_lossy(&bytes);
                 SheetParser::parse_sheet(&text, file_name.clone(), None)
             } else {
@@ -825,12 +825,21 @@ async fn save_midi_api(State(state): State<AppState>, Json(mut song): Json<Song>
     })).into_response()
 }
 
+fn sanitize_header_filename(title: &str, ext: &str) -> String {
+    let clean: String = title
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    let base = if clean.is_empty() { "song" } else { &clean };
+    format!("{}.{}", base, ext)
+}
+
 async fn export_midi_get_api(State(state): State<AppState>) -> Response {
     let song_opt = state.current_song.lock().clone();
     if let Some(song) = song_opt {
         match song.to_midi_bytes() {
             Ok(bytes) => {
-                let filename = format!("{}.mid", song.title.replace(' ', "_"));
+                let filename = sanitize_header_filename(&song.title, "mid");
                 (
                     [
                         (axum::http::header::CONTENT_TYPE, "audio/midi"),
@@ -853,7 +862,7 @@ async fn export_midi_get_api(State(state): State<AppState>) -> Response {
 async fn export_midi_post_api(Json(song): Json<Song>) -> Response {
     match song.to_midi_bytes() {
         Ok(bytes) => {
-            let filename = format!("{}.mid", song.title.replace(' ', "_"));
+            let filename = sanitize_header_filename(&song.title, "mid");
             (
                 [
                     (axum::http::header::CONTENT_TYPE, "audio/midi"),
@@ -874,7 +883,7 @@ async fn export_sheet_get_api(State(state): State<AppState>) -> Response {
     let song_opt = state.current_song.lock().clone();
     if let Some(song) = song_opt {
         let sheet_text = song.to_sheet_text();
-        let filename = format!("{}.txt", song.title.replace(' ', "_"));
+        let filename = sanitize_header_filename(&song.title, "txt");
         (
             [
                 (axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8"),
@@ -893,7 +902,7 @@ async fn export_sheet_get_api(State(state): State<AppState>) -> Response {
 
 async fn export_sheet_post_api(Json(song): Json<Song>) -> Response {
     let sheet_text = song.to_sheet_text();
-    let filename = format!("{}.txt", song.title.replace(' ', "_"));
+    let filename = sanitize_header_filename(&song.title, "txt");
     (
         [
             (axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8"),

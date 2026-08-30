@@ -165,16 +165,17 @@ impl AudioTranscriber {
         // Try reading WAV file with hound
         if let Ok(mut reader) = hound::WavReader::open(audio_path) {
             let spec = reader.spec();
-            let sample_rate = spec.sample_rate as f64;
+            let sample_rate = (spec.sample_rate as f64).max(8000.0);
             let samples: Vec<f32> = match spec.sample_format {
                 hound::SampleFormat::Int => {
-                    let max_val = (1 << (spec.bits_per_sample - 1)) as f32;
-                    reader.samples::<i32>().filter_map(|s| s.ok().map(|v| v as f32 / max_val)).collect()
+                    let bits = spec.bits_per_sample.clamp(1, 32);
+                    let max_val = (1u64 << (bits - 1)) as f32;
+                    reader.samples::<i32>().filter_map(|s| s.ok().map(|v| v as f32 / max_val.max(1.0))).collect()
                 }
                 hound::SampleFormat::Float => reader.samples::<f32>().filter_map(|s| s.ok()).collect(),
             };
 
-            let channels = spec.channels as usize;
+            let channels = (spec.channels as usize).max(1);
             let mono_samples: Vec<f32> = if channels > 1 {
                 samples.chunks(channels).map(|ch| ch.iter().sum::<f32>() / channels as f32).collect()
             } else {
@@ -182,8 +183,8 @@ impl AudioTranscriber {
             };
 
             // Analyze energy chunks (50ms frames)
-            let frame_size = (sample_rate * 0.05).round() as usize;
-            let hop_size = frame_size / 2;
+            let frame_size = ((sample_rate * 0.05).round() as usize).max(64);
+            let hop_size = (frame_size / 2).max(32);
             let mut track_notes = Vec::new();
             let mut last_onset_ms = -500.0;
 

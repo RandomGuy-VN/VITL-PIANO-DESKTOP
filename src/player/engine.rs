@@ -270,18 +270,23 @@ impl PlayerEngine {
                     for note_event in notes_to_play {
                         let final_note = ((note_event.note as i16) + (transpose as i16)).clamp(21, 108) as u8;
                         let note_dur = if cfg.note_lengths {
-                            (note_event.duration_ms / speed).clamp(cfg.min_note_length_ms, cfg.max_note_length_ms)
+                            let min_len = cfg.min_note_length_ms.min(cfg.max_note_length_ms).max(10.0);
+                            let max_len = cfg.min_note_length_ms.max(cfg.max_note_length_ms).max(10.0);
+                            (note_event.duration_ms / speed.max(0.01)).clamp(min_len, max_len)
                         } else {
-                            cfg.min_note_length_ms
+                            cfg.min_note_length_ms.max(10.0)
                         };
                         let end_time_ms = current_time_ms + note_dur;
 
                         // Calculate dynamic or fixed velocity
                         let final_velocity = if !cfg.velocity {
-                            cfg.fixed_velocity
+                            cfg.fixed_velocity.clamp(1, 127)
                         } else {
-                            let scaled = (note_event.velocity as f64) * cfg.velocity_multiplier;
-                            (scaled.round() as i16).clamp(cfg.min_velocity as i16, cfg.max_velocity as i16) as u8
+                            let min_v = (cfg.min_velocity as i16).min(cfg.max_velocity as i16).clamp(1, 127);
+                            let max_v = (cfg.min_velocity as i16).max(cfg.max_velocity as i16).clamp(1, 127);
+                            let mult = if cfg.velocity_multiplier.is_nan() { 1.0 } else { cfg.velocity_multiplier.max(0.01) };
+                            let scaled = (note_event.velocity as f64) * mult;
+                            (scaled.round() as i16).clamp(min_v, max_v) as u8
                         };
 
                         // 1. Audio synthesis note on

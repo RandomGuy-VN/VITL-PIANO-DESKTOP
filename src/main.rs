@@ -252,7 +252,19 @@ async fn run_backend(
     let current_song: Arc<Mutex<Option<Song>>> = Arc::new(Mutex::new(None));
     if let Some(file_path) = initial_file {
         info!("Loading requested initial file: {}", file_path);
-        if let Ok(song) = MidiParser::parse_file(&file_path) {
+        let path_buf = std::path::PathBuf::from(&file_path);
+        let res = if file_path.to_lowercase().ends_with(".txt") {
+            if let Ok(content) = std::fs::read_to_string(&path_buf) {
+                let title = path_buf.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                crate::core::sheet::SheetParser::parse_sheet(&content, title, None)
+            } else {
+                Err(anyhow::anyhow!("Failed to read sheet file"))
+            }
+        } else {
+            MidiParser::parse_file(&file_path)
+        };
+
+        if let Ok(song) = res {
             *current_song.lock() = Some(song.clone());
             player.load_song(song);
         }

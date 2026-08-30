@@ -246,15 +246,32 @@ impl Song {
 
         // Tempo track (Track 0)
         let mut tempo_track = Vec::new();
-        let us_per_beat = (60_000_000.0 / self.bpm.max(1.0)).round() as u32;
-        tempo_track.push(midly::TrackEvent {
-            delta: 0.into(),
-            kind: midly::TrackEventKind::Meta(midly::MetaMessage::Tempo(midly::num::u24::from(us_per_beat))),
-        });
         tempo_track.push(midly::TrackEvent {
             delta: 0.into(),
             kind: midly::TrackEventKind::Meta(midly::MetaMessage::TrackName(self.title.as_bytes())),
         });
+
+        if !self.tempo_events.is_empty() {
+            let mut last_tick = 0u32;
+            for te in &self.tempo_events {
+                let ticks_per_ms = (ticks_per_beat as f64 * self.bpm.max(1.0)) / 60000.0;
+                let abs_tick = (te.time_ms * ticks_per_ms).round().max(0.0) as u32;
+                let delta = abs_tick.saturating_sub(last_tick);
+                last_tick = abs_tick;
+                let us = te.us_per_beat.min(0x00FFFFFF);
+                tempo_track.push(midly::TrackEvent {
+                    delta: delta.into(),
+                    kind: midly::TrackEventKind::Meta(midly::MetaMessage::Tempo(midly::num::u24::from(us))),
+                });
+            }
+        } else {
+            let us_per_beat = ((60_000_000.0 / self.bpm.max(1.0)).round() as u32).min(0x00FFFFFF);
+            tempo_track.push(midly::TrackEvent {
+                delta: 0.into(),
+                kind: midly::TrackEventKind::Meta(midly::MetaMessage::Tempo(midly::num::u24::from(us_per_beat))),
+            });
+        }
+
         tempo_track.push(midly::TrackEvent {
             delta: 0.into(),
             kind: midly::TrackEventKind::Meta(midly::MetaMessage::EndOfTrack),
