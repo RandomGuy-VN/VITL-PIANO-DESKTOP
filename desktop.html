@@ -45,6 +45,35 @@
     --shadow-md: 0 2px 6px rgba(26, 25, 22, 0.05), 0 10px 20px rgba(26, 25, 22, 0.04);
   }
 
+  body[data-theme="original"],
+  body[data-theme="studio-classic"],
+  body[data-theme="classic"],
+  body:not([data-theme]),
+  body[data-theme=""] {
+    --paper:        #f6f4ef;
+    --paper-raised: #ffffff;
+    --paper-sunk:   #ede9df;
+    --paper-card:   #ffffff;
+
+    --ink-900: #1a1916;
+    --ink-800: #2a2925;
+    --ink-700: #44423d;
+    --ink-600: #5e5b54;
+    --ink-500: #7a766d;
+    --ink-400: #9c978c;
+    --ink-300: #c2bdb1;
+    --ink-200: #dcd7ca;
+    --ink-100: #ece8de;
+
+    --line:       rgba(26, 25, 22, 0.08);
+    --line-strong:rgba(26, 25, 22, 0.14);
+
+    --accent:        #4a6b4d;
+    --accent-deep:   #345037;
+    --accent-soft:   #e7ede2;
+    --accent-line:   rgba(74, 107, 77, 0.22);
+  }
+
   body[data-theme="dark-obsidian"] {
     --paper:        #121316;
     --paper-raised: #1a1b1f;
@@ -830,7 +859,7 @@
   }
 </style>
 </head>
-<body data-theme="dark-obsidian">
+<body data-theme="original">
 
 <canvas id="bg-canvas-layer"></canvas>
 
@@ -1114,13 +1143,13 @@
         <div class="section-label">STUDIO THEME PALETTE</div>
         <div class="card">
           <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;">
-            <button class="theme-preset-btn" data-theme-val="dark-obsidian" style="padding: 12px; border-radius: var(--r-sm); background: #121316; border: 2px solid var(--accent); color: #f4f4f5; font-size: 12px; font-weight: 600; cursor: pointer;">🌑 Dark Obsidian</button>
+            <button class="theme-preset-btn" data-theme-val="original" style="padding: 12px; border-radius: var(--r-sm); background: #f6f4ef; border: 2px solid var(--accent); color: #1a1916; font-size: 12px; font-weight: 600; cursor: pointer;">☀️ Original Classic</button>
+            <button class="theme-preset-btn" data-theme-val="dark-obsidian" style="padding: 12px; border-radius: var(--r-sm); background: #121316; border: 1px solid var(--line); color: #f4f4f5; font-size: 12px; font-weight: 600; cursor: pointer;">🌑 Dark Obsidian</button>
             <button class="theme-preset-btn" data-theme-val="cyberpunk" style="padding: 12px; border-radius: var(--r-sm); background: #08080f; border: 1px solid #00f0ff; color: #00f0ff; font-size: 12px; font-weight: 600; cursor: pointer;">⚡ Cyberpunk</button>
             <button class="theme-preset-btn" data-theme-val="sakura" style="padding: 12px; border-radius: var(--r-sm); background: #140f1a; border: 1px solid #ff7597; color: #ffd1dc; font-size: 12px; font-weight: 600; cursor: pointer;">🌸 Sakura</button>
             <button class="theme-preset-btn" data-theme-val="nord" style="padding: 12px; border-radius: var(--r-sm); background: #242933; border: 1px solid #88c0d0; color: #eceff4; font-size: 12px; font-weight: 600; cursor: pointer;">❄️ Nord Frost</button>
             <button class="theme-preset-btn" data-theme-val="midnight" style="padding: 12px; border-radius: var(--r-sm); background: #000000; border: 1px solid #333; color: #ffffff; font-size: 12px; font-weight: 600; cursor: pointer;">🖤 Midnight OLED</button>
             <button class="theme-preset-btn" data-theme-val="synthwave" style="padding: 12px; border-radius: var(--r-sm); background: #120826; border: 1px solid #f72585; color: #ff7b00; font-size: 12px; font-weight: 600; cursor: pointer;">🌆 Synthwave</button>
-            <button class="theme-preset-btn" data-theme-val="studio-classic" style="padding: 12px; border-radius: var(--r-sm); background: #f6f4ef; border: 1px solid #4a6b4d; color: #1a1916; font-size: 12px; font-weight: 600; cursor: pointer;">☀️ Classic Light</button>
           </div>
         </div>
 
@@ -2129,7 +2158,7 @@
     optgroup.style.display = (count > 0) ? 'block' : 'none';
   }
 
-  let bgMode = 'stars';
+  let bgMode = 'gradient';
 
   function updateBgSettingsVisibility() {
     const bgImgSet = document.getElementById('bgImageSettings');

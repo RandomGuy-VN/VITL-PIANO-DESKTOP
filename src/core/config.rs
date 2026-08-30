@@ -134,7 +134,7 @@ pub struct ThemeConfig {
 impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
-            active_theme: "dark-obsidian".to_string(),
+            active_theme: "original".to_string(),
             custom_css: String::new(),
             background_mode: "gradient".to_string(),
             background_url: None,
