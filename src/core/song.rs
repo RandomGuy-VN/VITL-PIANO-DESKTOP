@@ -292,16 +292,38 @@ impl Song {
 
         let current_bpm = valid_bpm_or(self.bpm, DEFAULT_BPM);
         let ratio = new_bpm / current_bpm;
+        if (ratio - 1.0).abs() < 1e-6 {
+            return;
+        }
+
         self.bpm = new_bpm;
+
+        // Scale note start and duration timings
+        for track in &mut self.tracks {
+            for note in &mut track.notes {
+                note.start_ms /= ratio;
+                note.duration_ms /= ratio;
+            }
+        }
+
+        // Scale tempo events and us_per_beat
         for tempo_event in &mut self.tempo_events {
             let current_event_bpm = if tempo_event.bpm.is_finite() && tempo_event.bpm > 0.0 {
                 tempo_event.bpm
             } else {
                 60_000_000.0 / tempo_event.us_per_beat.max(1) as f64
             };
+            tempo_event.time_ms /= ratio;
             tempo_event.bpm = current_event_bpm * ratio;
             tempo_event.us_per_beat = bpm_to_us_per_beat(tempo_event.bpm);
         }
+
+        // Scale control events
+        for control in &mut self.control_events {
+            control.time_ms /= ratio;
+        }
+
+        self.duration_ms /= ratio;
     }
 
     /// Transpose all notes in the song by semitones offset (-24 to +24)
@@ -505,10 +527,8 @@ impl Song {
             return String::new();
         }
 
-        // Group notes that start within 25ms of each other into chords.
-        // The sheet grammar has no Ctrl-modifier token for the 88-key extensions,
-        // so only the standard Virtual Piano range (MIDI 36-96) is representable.
-        let mut chords: Vec<Vec<char>> = Vec::new();
+        // Group notes that start within 25ms of each other into chords with timestamps
+        let mut chords_with_time: Vec<(f64, Vec<char>)> = Vec::new();
         let mut current_chord: Vec<char> = Vec::new();
         let mut chord_time = -9999.0;
 
@@ -521,7 +541,7 @@ impl Song {
                     }
                 } else {
                     if !current_chord.is_empty() {
-                        chords.push(std::mem::take(&mut current_chord));
+                        chords_with_time.push((chord_time, std::mem::take(&mut current_chord)));
                     }
                     current_chord.push(ch);
                     chord_time = n.start_ms;
@@ -531,11 +551,11 @@ impl Song {
             }
         }
         if !current_chord.is_empty() {
-            chords.push(current_chord);
+            chords_with_time.push((chord_time, current_chord));
         }
 
         let mut sheet_buf = String::new();
-        sheet_buf.push_str(&format!("// Title: {}\n// BPM: {}\n", self.title, self.bpm));
+        sheet_buf.push_str(&format!("// Title: {}\n// BPM: {}\n", self.title, self.bpm.round() as u32));
         if omitted_notes > 0 {
             sheet_buf.push_str(&format!(
                 "// Warning: {} note(s) outside MIDI 36-96 were omitted; the sheet format has no Ctrl-modifier syntax.\n",
@@ -544,8 +564,17 @@ impl Song {
         }
         sheet_buf.push('\n');
 
+        let mut current_active_bpm = self.bpm;
         let mut col = 0;
-        for chord in chords {
+        for (time_ms, chord) in chords_with_time {
+            let song_bpm_now = self.get_bpm_at(time_ms);
+            if (song_bpm_now - current_active_bpm).abs() >= 1.0 {
+                let bpm_tag = format!("[bpm:{}] ", song_bpm_now.round() as u32);
+                sheet_buf.push_str(&bpm_tag);
+                col += bpm_tag.len();
+                current_active_bpm = song_bpm_now;
+            }
+
             let chord_str = if chord.len() == 1 {
                 chord[0].to_string()
             } else {

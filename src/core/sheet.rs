@@ -195,9 +195,14 @@ impl SheetParser {
             let c = chars[i];
 
             match c {
-                '[' | '{' => {
-                    // Check if this bracket contains a dynamic BPM / tempo tag (e.g. [bpm:140] or [tempo=120])
-                    let close_char = if c == '[' { ']' } else { '}' };
+                '[' | '{' | '(' => {
+                    // Check if this bracket contains a dynamic BPM / tempo tag (e.g. [bpm:140], (bpm=120), [160bpm], {tempo 90})
+                    let close_char = match c {
+                        '[' => ']',
+                        '{' => '}',
+                        '(' => ')',
+                        _ => ']',
+                    };
                     let mut tag_content = String::new();
                     let mut lookahead = i + 1;
                     while lookahead < chars.len() && chars[lookahead] != close_char {
@@ -205,20 +210,42 @@ impl SheetParser {
                         lookahead += 1;
                     }
                     let tag_lower = tag_content.to_lowercase();
-                    if tag_lower.starts_with("bpm") || tag_lower.starts_with("tempo") {
+                    let is_tempo_tag = tag_lower.contains("bpm")
+                        || tag_lower.contains("tempo")
+                        || tag_lower.starts_with("t:")
+                        || tag_lower.starts_with("t=")
+                        || tag_lower.starts_with("t ")
+                        || tag_lower.starts_with("speed:")
+                        || tag_lower.starts_with("speed=");
+
+                    if is_tempo_tag {
                         let num_str: String = tag_content
                             .chars()
                             .filter(|ch| ch.is_ascii_digit() || *ch == '.')
                             .collect();
                         if let Ok(parsed_bpm) = num_str.parse::<f64>() {
-                            if parsed_bpm > 10.0 && parsed_bpm < 500.0 {
+                            if parsed_bpm >= 10.0 && parsed_bpm <= 500.0 {
                                 bpm = parsed_bpm;
                                 step_duration_ms = (60_000.0 / bpm) / 2.0;
-                                song.tempo_events.push(crate::core::song::TempoEvent {
-                                    time_ms: current_ms,
-                                    bpm,
-                                    us_per_beat: (60_000_000.0 / bpm) as u32,
-                                });
+                                if current_ms <= 0.0 {
+                                    song.bpm = bpm;
+                                    if let Some(first_te) = song.tempo_events.first_mut() {
+                                        first_te.bpm = bpm;
+                                        first_te.us_per_beat = (60_000_000.0 / bpm) as u32;
+                                    } else {
+                                        song.tempo_events.push(crate::core::song::TempoEvent {
+                                            time_ms: 0.0,
+                                            bpm,
+                                            us_per_beat: (60_000_000.0 / bpm) as u32,
+                                        });
+                                    }
+                                } else {
+                                    song.tempo_events.push(crate::core::song::TempoEvent {
+                                        time_ms: current_ms,
+                                        bpm,
+                                        us_per_beat: (60_000_000.0 / bpm) as u32,
+                                    });
+                                }
                             }
                         }
                         i = lookahead;

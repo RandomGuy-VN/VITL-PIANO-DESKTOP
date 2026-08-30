@@ -340,7 +340,7 @@ fn test_velocity_configuration_scaling() {
 
 #[test]
 fn test_sheet_inline_dynamic_bpm() {
-    let sheet_with_bpm_tags = "[8u] w y u [bpm:160] [8o] w y o [tempo:90] [9i] e y i";
+    let sheet_with_bpm_tags = "[8u] w y u [bpm:160] [8o] w y o (bpm=140) [9i] e y i [180bpm] [8u] w {tempo 90} [8o]";
     let song = SheetParser::parse_sheet(
         sheet_with_bpm_tags,
         "Inline BPM Sheet".to_string(),
@@ -348,11 +348,35 @@ fn test_sheet_inline_dynamic_bpm() {
     )
     .expect("Sheet parse failed");
 
-    assert!(song.tempo_events.len() >= 3);
+    assert!(song.tempo_events.len() >= 5);
     assert_eq!(song.tempo_events[0].bpm, 120.0);
     assert_eq!(song.tempo_events[1].bpm, 160.0);
-    assert_eq!(song.tempo_events[2].bpm, 90.0);
+    assert_eq!(song.tempo_events[2].bpm, 140.0);
+    assert_eq!(song.tempo_events[3].bpm, 180.0);
+    assert_eq!(song.tempo_events[4].bpm, 90.0);
     assert_eq!(song.get_bpm_at(0.0), 120.0);
+
+    // Test sheet export and re-import with dynamic BPM tags preserved
+    let exported_sheet = song.to_sheet_text();
+    assert!(exported_sheet.contains("[bpm:"));
+    let reloaded = SheetParser::parse_sheet(&exported_sheet, "Reloaded".to_string(), None)
+        .expect("Reload sheet failed");
+    assert!(reloaded.tempo_events.len() >= 4);
+}
+
+#[test]
+fn test_song_set_bpm_scaling() {
+    let sheet = "[8u] w y u [8o] w y o";
+    let mut song = SheetParser::parse_sheet(sheet, "Scale BPM".to_string(), Some(120.0)).unwrap();
+    let initial_dur = song.duration_ms;
+    let initial_note_start = song.tracks[0].notes[3].start_ms;
+
+    // Double the BPM from 120 to 240
+    song.set_bpm(240.0);
+    assert_eq!(song.bpm, 240.0);
+    assert!((song.duration_ms - initial_dur / 2.0).abs() < 1.0);
+    assert!((song.tracks[0].notes[3].start_ms - initial_note_start / 2.0).abs() < 1.0);
+    assert_eq!(song.tempo_events[0].bpm, 240.0);
 }
 
 #[test]
