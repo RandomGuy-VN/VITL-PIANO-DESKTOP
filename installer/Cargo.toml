@@ -1,0 +1,28 @@
+[package]
+name = "vitl-piano-setup"
+version = "1.0.0"
+description = "VITL Piano Setup & Updater"
+authors = ["VITL Piano Team"]
+edition = "2021"
+
+[lib]
+name = "installer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tauri = { version = "2.11.3", features = [] }
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }
+dirs = "5.0"
+tokio = { version = "1", features = ["full"] }
+
+[profile.release.package.windows]
+opt-level = 0
+
+[profile.release.package.unic-ucd-ident]
+opt-level = 0

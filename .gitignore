@@ -35,3 +35,7 @@ simple_roblox_autoplayer.py
 temp.py
 *.wav
 *.tmp
+dist/
+installer/target/
+src-tauri/target/
+

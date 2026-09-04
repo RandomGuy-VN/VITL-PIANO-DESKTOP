@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VITL Piano Setup</title>
+  <link rel="icon" type="image/svg+xml" href="vitl-brand-logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;450;500;550;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper:        #f6f4ef;
+      --paper-raised: #ffffff;
+      --paper-sunk:   #ede9df;
+      --paper-card:   #ffffff;
+
+      --ink-900: #1a1916;
+      --ink-800: #2a2925;
+      --ink-700: #44423d;
+      --ink-600: #5e5b54;
+      --ink-500: #7a766d;
+      --ink-400: #9c978c;
+      --ink-300: #c2bdb1;
+      --ink-200: #dcd7ca;
+      --ink-100: #ece8de;
+
+      --line:        rgba(26, 25, 22, 0.08);
+      --line-strong: rgba(26, 25, 22, 0.14);
+
+      --accent:      #4a6b4d;
+      --accent-deep: #345037;
+      --accent-soft: #e7ede2;
+      --accent-line: rgba(74, 107, 77, 0.22);
+
+      --r-sm: 6px;
+      --r-md: 10px;
+      --r-lg: 14px;
+      
+      --shadow-sm: 0 1px 2px rgba(26, 25, 22, 0.04), 0 2px 4px rgba(26, 25, 22, 0.03);
+      --shadow-md: 0 2px 6px rgba(26, 25, 22, 0.05), 0 10px 20px rgba(26, 25, 22, 0.04);
+      --shadow-lg: 0 12px 36px rgba(26, 25, 22, 0.09);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink-800);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 13.5px;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: row;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Left Brand Sidebar */
+    .sidebar {
+      width: 250px;
+      background: var(--paper-raised);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 18px;
+      flex-shrink: 0;
+      -webkit-app-region: drag;
+    }
+
+    /* macOS Traffic Lights */
+    .traffic-lights {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 22px;
+      -webkit-app-region: no-drag;
+      width: fit-content;
+    }
+
+    .mac-btn {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.14);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      outline: none;
+      position: relative;
+      transition: transform 0.1s ease, filter 0.15s ease;
+    }
+    .mac-btn svg {
+      width: 7px;
+      height: 7px;
+      stroke: rgba(0, 0, 0, 0.65);
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .traffic-lights:hover .mac-btn svg { opacity: 1; }
+    .mac-btn.close { background: #ff5f56; border-color: #e0443e; }
+    .mac-btn.min { background: #ffbd2e; border-color: #dea123; }
+    .mac-btn.max { background: #27c93f; border-color: #1aab29; }
+    .mac-btn:hover { filter: brightness(1.06); transform: scale(1.06); }
+    .mac-btn:active { filter: brightness(0.88); transform: scale(0.94); }
+
+    /* Logo Block */
+    .logo-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      padding: 4px 2px;
+    }
+    .logo-block img {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+    .logo-text h2 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 24px;
+      font-weight: 400;
+      color: var(--ink-900);
+      line-height: 1.05;
+    }
+    .logo-text span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* Features Pillar */
+    .feature-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+      flex: 1;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 8px 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      font-size: 11.5px;
+      color: var(--ink-700);
+      line-height: 1.35;
+    }
+
+    .feature-item svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Status Badge in Sidebar */
+    .status-badge {
+      margin-top: auto;
+      padding: 8px 10px;
+      border-radius: var(--r-md);
+      background: var(--paper-sunk);
+      border: 1px solid var(--line);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink-600);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+    }
+
+    /* Right Main Canvas */
+    .main-canvas {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 22px 28px;
+      background: var(--paper);
+      overflow-y: auto;
+      -webkit-app-region: no-drag;
+    }
+
+    /* Main Header */
+    .main-header {
+      margin-bottom: 16px;
+    }
+    .header-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .main-header h1 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 30px;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--ink-900);
+      line-height: 1.1;
+    }
+    .main-header p {
+      font-size: 12.5px;
+      color: var(--ink-500);
+      margin-top: 3px;
+    }
+
+    .accent-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--accent-line);
+      border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    /* Views */
+    .view {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .view.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--paper-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--r-md);
+      padding: 15px 18px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 10px;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: var(--ink-500);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .path-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .path-input {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--line);
+      background: var(--paper-sunk);
+      color: var(--ink-900);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      outline: none;
+      box-shadow: inset 0 1px 2px rgba(26, 25, 22, 0.04);
+      transition: all 0.15s ease;
+    }
+    .path-input:focus {
+      border-color: var(--accent);
+      background: var(--paper-raised);
+    }
+
+    .btn-browse {
+      padding: 8px 14px;
+      border-radius: var(--r-sm);
+      background: var(--paper-raised);
+      border: 1px solid var(--line);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-800);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-browse:hover {
+      background: var(--paper-sunk);
+      border-color: var(--line-strong);
+    }
+
+    /* Options */
+    .checkbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12.5px;
+      color: var(--ink-700);
+      cursor: pointer;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid var(--line-strong);
+      background: var(--paper-raised);
+      cursor: pointer;
+      display: grid;
+      place-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .checkbox-item input[type="checkbox"]:checked {
+      background: var(--accent);
+      border-color: var(--accent-deep);
+    }
+
+    .checkbox-item input[type="checkbox"]:checked::after {
+      content: '';
+      width: 4px;
+      height: 8px;
+      border: solid #ffffff;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg) translate(-1px, -1px);
+    }
+
+    /* System Meta Row */
+    .meta-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      color: var(--ink-400);
+      padding: 0 2px;
+    }
+
+    /* Action Bar */
+    .action-bar {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .btn-primary {
+      padding: 9px 20px;
+      border-radius: var(--r-sm);
+      background: var(--accent);
+      color: #ffffff;
+      border: 1px solid var(--accent-deep);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(74, 107, 77, 0.25);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary:hover {
+      background: var(--accent-deep);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(74, 107, 77, 0.35);
+    }
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-secondary {
+      padding: 9px 16px;
+      border-radius: var(--r-sm);
+      background: var(--paper-raised);
+      color: var(--ink-700);
+      border: 1px solid var(--line);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+    }
+    .btn-secondary:hover {
+      background: var(--paper-sunk);
+      color: var(--ink-900);
+    }
+
+    /* Progress Screen */
+    .progress-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .progress-number {
+      font-family: 'Instrument Serif', serif;
+      font-size: 52px;
+      font-weight: 400;
+      color: var(--ink-900);
+      line-height: 1;
+      margin-bottom: 12px;
+    }
+
+    .progress-track {
+      width: 100%;
+      max-width: 380px;
+      height: 8px;
+      background: var(--paper-sunk);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 999px;
+      transition: width 0.2s ease-out;
+    }
+
+    .progress-status {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-500);
+      min-height: 18px;
+      max-width: 360px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Finished Screen */
+    .finished-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      gap: 10px;
+    }
+
+    .finished-badge {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .finished-badge svg {
+      width: 28px;
+      height: 28px;
+      stroke: var(--accent);
+    }
+
+    .finished-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 32px;
+      font-style: italic;
+      color: var(--ink-900);
+    }
+
+    .finished-desc {
+      font-size: 13px;
+      color: var(--ink-600);
+      max-width: 360px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left Editorial Sidebar -->
+  <aside class="sidebar">
+    <div class="traffic-lights">
+      <button class="mac-btn close" id="btn-close" title="Close">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <button class="mac-btn min" id="btn-min" title="Minimize">
+        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </button>
+      <button class="mac-btn max" title="Disabled" style="cursor: default; opacity: 0.6;"></button>
+    </div>
+
+    <div class="logo-block">
+      <img src="vitl-brand-logo.svg" alt="VITL Piano Logo" />
+      <div class="logo-text">
+        <h2>VITL Piano</h2>
+        <span>Windows Release</span>
+      </div>
+    </div>
+
+    <div class="feature-list">
+      <div class="feature-item">
+        <svg fill="none" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 8v8M8 12h8"></path>
+        </svg>
+        <span>High-performance native Rust MIDI playback engine</span>
+      </div>
+      <div class="feature-item">
+        <svg fill="none" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+        <span>Real-time SoundFont audio synthesis (SF2)</span>
+      </div>
+      <div class="feature-item">
+        <svg fill="none" stroke-width="2" viewBox="0 0 24 24">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>Zero-latency global background hotkeys</span>
+      </div>
+    </div>
+
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span id="sidebar-version-tag">v1.0 Public Beta (x64)</span>
+    </div>
+  </aside>
+
+  <!-- Right Main Canvas -->
+  <main class="main-canvas">
+
+    <!-- Header -->
+    <header class="main-header">
+      <div class="header-top-row">
+        <h1 id="canvas-title">Installation Setup</h1>
+        <span id="update-badge" class="accent-badge">Checking GitHub...</span>
+      </div>
+      <p id="canvas-subtitle">Configure destination and launch preferences.</p>
+    </header>
+
+    <!-- VIEW 1: Ready to Install / Update -->
+    <div class="view active" id="view-ready">
+      <div class="card">
+        <div class="form-group">
+          <label class="form-label">
+            <span>Destination Path</span>
+            <span style="font-weight: normal; color: var(--ink-400);">%LocalAppData%</span>
+          </label>
+          <div class="path-row">
+            <input type="text" id="target-dir" class="path-input" spellcheck="false" />
+            <button class="btn-browse" id="btn-browse">Browse...</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Integration & Updates</label>
+          <div class="checkbox-list">
+            <label class="checkbox-item">
+              <input type="checkbox" id="chk-online" checked />
+              <span id="chk-online-text">Claim & sync latest release from GitHub (Online Update)</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="chk-desktop" checked />
+              <span>Create Desktop Shortcut</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="chk-startmenu" checked />
+              <span>Create Start Menu Shortcut</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="chk-launch" checked />
+              <span>Launch VITL Piano when finished</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="meta-row">
+        <span>Space: ~45 MB</span>
+        <span>•</span>
+        <span>OS: Windows 10/11</span>
+        <span>•</span>
+        <span id="badge-mode-text" style="color: var(--accent); font-weight: 600;">Clean Install</span>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn-secondary" id="btn-cancel">Cancel</button>
+        <button class="btn-primary" id="btn-install">
+          <span id="btn-install-text">Install Application</span>
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M5 12h14M12 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- VIEW 2: Installing Progress -->
+    <div class="view" id="view-installing">
+      <div class="progress-box">
+        <div class="progress-number" id="prog-num">0%</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="prog-fill"></div>
+        </div>
+        <div class="progress-status" id="prog-msg">Preparing installation bundle...</div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: Finished -->
+    <div class="view" id="view-finished">
+      <div class="finished-box">
+        <div class="finished-badge">
+          <svg fill="none" stroke-width="2.5" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <div class="finished-title">Ready to Play</div>
+        <div class="finished-desc">
+          VITL Piano has been successfully installed and registered on your system.
+        </div>
+      </div>
+
+      <div class="action-bar">
+        <button class="btn-secondary" id="btn-finish-close">Close</button>
+        <button class="btn-primary" id="btn-launch-app">
+          <span>Launch VITL Piano</span>
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path d="M5 12h14M12 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    let installedExe = "";
+    let onlineUpdateInfo = null;
+
+    async function invoke(cmd, args = {}) {
+      if (window.__TAURI__ && window.__TAURI__.core) {
+        return await window.__TAURI__.core.invoke(cmd, args);
+      }
+      return null;
+    }
+
+    function switchView(id) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    async function init() {
+      // Window Controls
+      document.getElementById('btn-close').addEventListener('click', () => invoke('window_action', { action: 'close' }));
+      document.getElementById('btn-min').addEventListener('click', () => invoke('window_action', { action: 'minimize' }));
+      document.getElementById('btn-cancel').addEventListener('click', () => invoke('window_action', { action: 'close' }));
+      document.getElementById('btn-finish-close').addEventListener('click', () => invoke('window_action', { action: 'close' }));
+
+      // Fetch Info
+      const info = await invoke('get_info');
+      if (info) {
+        document.getElementById('target-dir').value = info.default_path;
+        if (info.is_installed) {
+          document.getElementById('canvas-title').innerText = "Upgrade Experience";
+          document.getElementById('canvas-subtitle').innerText = `Upgrading existing installation (${info.existing_version || '1.0.0'})`;
+          document.getElementById('badge-mode-text').innerText = `Update to v${info.app_version}`;
+          document.getElementById('btn-install-text').innerText = "Update Application";
+        }
+      }
+
+      // Check GitHub Live Releases (Like Linux installer)
+      try {
+        onlineUpdateInfo = await invoke('check_update');
+        const badge = document.getElementById('update-badge');
+        if (onlineUpdateInfo && onlineUpdateInfo.available) {
+          badge.innerText = `GitHub: ${onlineUpdateInfo.tag} Available`;
+          badge.style.background = '#e7ede2';
+          badge.style.color = '#4a6b4d';
+          badge.style.borderColor = 'rgba(74, 107, 77, 0.3)';
+          document.getElementById('chk-online-text').innerText = `Claim latest update from GitHub (${onlineUpdateInfo.tag})`;
+        } else {
+          badge.innerText = "Using Offline Package";
+          badge.style.background = '#ede9df';
+          badge.style.color = '#7a766d';
+        }
+      } catch (e) {
+        document.getElementById('update-badge').innerText = "Offline Mode";
+      }
+
+      // Browse Folder
+      document.getElementById('btn-browse').addEventListener('click', async () => {
+        const cur = document.getElementById('target-dir').value;
+        const selected = await invoke('select_folder', { current: cur });
+        if (selected) {
+          document.getElementById('target-dir').value = selected;
+        }
+      });
+
+      // Progress Event
+      if (window.__TAURI__ && window.__TAURI__.event) {
+        window.__TAURI__.event.listen('install-progress', (e) => {
+          const p = e.payload;
+          if (p) {
+            document.getElementById('prog-num').innerText = `${p.percent}%`;
+            document.getElementById('prog-fill').style.width = `${p.percent}%`;
+            document.getElementById('prog-msg').innerText = p.status;
+          }
+        });
+      }
+
+      // Install Trigger
+      document.getElementById('btn-install').addEventListener('click', async () => {
+        switchView('view-installing');
+        document.getElementById('canvas-title').innerText = "Installing Application...";
+        document.getElementById('canvas-subtitle').innerText = "Unpacking files and registering shortcuts.";
+
+        const options = {
+          target_dir: document.getElementById('target-dir').value,
+          create_desktop_shortcut: document.getElementById('chk-desktop').checked,
+          create_start_menu_shortcut: document.getElementById('chk-startmenu').checked,
+          launch_after: document.getElementById('chk-launch').checked,
+          use_online_latest: document.getElementById('chk-online').checked,
+          online_download_url: onlineUpdateInfo ? onlineUpdateInfo.download_url : null
+        };
+
+        try {
+          installedExe = await invoke('perform_install', { options });
+          setTimeout(() => {
+            switchView('view-finished');
+            document.getElementById('canvas-title').innerText = "Setup Completed";
+            document.getElementById('canvas-subtitle').innerText = "Everything is configured and ready.";
+          }, 500);
+        } catch (err) {
+          alert('Setup Error: ' + err);
+          switchView('view-ready');
+        }
+      });
+
+      // Launch Trigger
+      document.getElementById('btn-launch-app').addEventListener('click', async () => {
+        if (installedExe) {
+          await invoke('launch_app', { targetExe: installedExe });
+        }
+        await invoke('window_action', { action: 'close' });
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

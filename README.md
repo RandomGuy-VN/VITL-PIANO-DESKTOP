@@ -48,10 +48,20 @@
 - Interactive 88-key piano visualizer showing live active notes.
 - LiquidGlass warm paper UI design with moss green accents.
 
-## 🚀 Quick Install (Linux)
+## 🚀 Quick Install
 
+### Windows (PowerShell 1-Liner)
+Install or update VITL Piano instantly via PowerShell:
+```powershell
+irm https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.ps1 | iex
+```
+*(Automatically claims the latest release from GitHub, unpacks binaries & SoundFonts, configures Start Menu & Desktop shortcuts, and registers uninstaller).*
+
+- **GUI Setup Installer:** [vitl-piano-setup.exe](https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/latest/download/vitl-piano-setup.exe)
+- **Portable Zip:** [vitl-piano-windows-portable.zip](https://github.com/RandomGuy-VN/VITL-PIANO-DESKTOP/releases/latest/download/vitl-piano-windows-portable.zip)
+
+### Linux (Bash 1-Liner)
 Install and register VITL Piano in one line:
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RandomGuy-VN/VITL-PIANO-DESKTOP/main/web/install.sh | bash
 ```

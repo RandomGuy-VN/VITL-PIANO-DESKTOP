@@ -7,8 +7,8 @@ description = "High-performance VITL Piano Autoplayer & Audio Synthesizer in Rus
 
 [dependencies]
 # Native Desktop Window & Embedded WebView (Tauri Engine)
-wry = "0.47"
-tao = "0.30"
+wry = "0.55"
+tao = "0.34"
 
 # Audio synthesis & streaming
 cpal = "0.15"
