@@ -43,6 +43,16 @@
     
     --shadow-sm: 0 1px 2px rgba(26, 25, 22, 0.04), 0 2px 4px rgba(26, 25, 22, 0.03);
     --shadow-md: 0 2px 6px rgba(26, 25, 22, 0.05), 0 10px 20px rgba(26, 25, 22, 0.04);
+
+    /* Overwritten from the active visualizer palette so the 88 keys, the felt
+       strip and the stage frame stay in the same colour family as the cascade. */
+    --vis-key-lit:         #fb7185;
+    --vis-key-lit-soft:    rgba(251, 113, 133, 0.55);
+    --vis-key-lit-black:   #d95f6d;
+    --vis-key-lit-l:       #22d3ee;
+    --vis-key-lit-l-soft:  rgba(34, 211, 238, 0.55);
+    --vis-key-lit-l-black: #1cade3;
+    --vis-stage-bg:        #0b1020;
   }
 
   body[data-theme="original"],
@@ -491,6 +501,14 @@
   .view-container.active {
     display: block;
   }
+  /* The cascade stage owns the full remaining column height instead of guessing
+     it with a `calc(100vh - 280px)` that broke whenever the toolbar wrapped. */
+  #view-visualizer.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(3px); }
     to { opacity: 1; transform: translateY(0); }
@@ -601,21 +619,38 @@
   .visualizer-stage-wrapper {
     width: 100%;
     position: relative;
+    display: flex;
+    flex-direction: column;
     border-radius: var(--r-md);
     overflow: hidden;
     border: 1px solid var(--line-strong);
-    background: #090a0f;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    background: var(--vis-stage-bg, #090a0f);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.28), inset 0 0 0 1px rgba(255,255,255,0.04);
     margin-bottom: 20px;
   }
   .waterfall-canvas {
     width: 100%;
-    height: 180px;
+    height: 190px;
+    flex: none;
     display: block;
-    background: linear-gradient(180deg, rgba(8,9,14,0.9) 0%, rgba(14,16,24,0.95) 100%);
+    background: var(--vis-stage-bg, #090a0f);
   }
+  /* The stage owns the remaining column height; the canvas takes whatever the
+     keyboard leaves, which keeps one source of truth for the layout. */
+  .visualizer-fullscreen-stage {
+    flex: 1;
+    min-height: 320px;
+    margin-bottom: 0;
+  }
+  /* flex-basis 0 so the canvas's own width/height attributes (which we set from
+     JS) can never feed back into the layout and start a resize loop. */
   .visualizer-fullscreen-stage .waterfall-canvas {
-    height: calc(100vh - 280px);
+    flex: 1 1 0;
+    height: 0;
+    min-height: 0;
+  }
+  .visualizer-fullscreen-stage .piano-keyboard-container {
+    height: 118px;
   }
 
   /* Piano Roll Studio Grid */
@@ -668,47 +703,93 @@
     cursor: crosshair;
   }
 
-  /* 88-Key Interactive Piano */
+  /* 88-Key Interactive Piano.
+     Both key colours are absolutely positioned from the shared geometry table so
+     the keyboard stays pixel-aligned with the waterfall above it. */
   .piano-keyboard-container {
     width: 100%;
-    height: 105px;
-    background: var(--ink-900);
-    border-radius: var(--r-md);
-    border: 1px solid var(--line-strong);
+    height: 108px;
+    flex: none;
+    background: #0b0c10;
     position: relative;
     overflow: hidden;
-    display: flex;
-    margin-bottom: 20px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+    box-shadow: inset 0 5px 9px -4px rgba(0,0,0,0.85);
+    touch-action: none;
+  }
+  /* Felt strip: the red baize every acoustic piano has behind the keys. */
+  .piano-keyboard-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(180deg, var(--vis-key-lit-soft, rgba(120,140,170,0.55)) 0%, rgba(0,0,0,0.65) 100%);
+    z-index: 4;
+    pointer-events: none;
+  }
+  .pk-white, .pk-black {
+    position: absolute;
+    top: 0;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
   }
   .pk-white {
-    flex: 1;
-    background: linear-gradient(180deg, #ffffff 0%, #ede8de 100%);
-    border-right: 1px solid rgba(0, 0, 0, 0.15);
     height: 100%;
-    cursor: pointer;
-    transition: background 0.05s;
-    position: relative;
+    background: linear-gradient(180deg, #ffffff 0%, #fbf9f4 62%, #e6e1d5 100%);
+    border-right: 1px solid rgba(24, 22, 18, 0.22);
+    border-radius: 0 0 3px 3px;
+    box-shadow: inset 0 -6px 7px -6px rgba(40, 34, 24, 0.55);
+    transition: background 60ms linear, box-shadow 60ms linear;
     z-index: 1;
   }
   .pk-white.active, .pk-white:active {
-    background: #84cc16 !important;
-    box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--vis-key-lit, #84cc16) 32%, #ffffff) 0%,
+      var(--vis-key-lit, #84cc16) 100%);
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.30), 0 0 14px var(--vis-key-lit-soft, rgba(132,204,22,0.55));
   }
   .pk-black {
-    position: absolute;
-    top: 0;
-    width: 1.25%;
-    height: 62%;
-    background: linear-gradient(180deg, #333 0%, #111 100%);
+    height: 63%;
+    background: linear-gradient(180deg, #4a4a52 0%, #212127 34%, #0a0a0d 100%);
     border-radius: 0 0 3px 3px;
-    z-index: 2;
-    cursor: pointer;
-    transition: background 0.05s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+    box-shadow: 0 3px 5px rgba(0,0,0,0.55), inset 0 -2px 2px rgba(255,255,255,0.10);
+    transition: background 60ms linear, box-shadow 60ms linear;
+    z-index: 3;
   }
   .pk-black.active, .pk-black:active {
-    background: #4ade80 !important;
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--vis-key-lit-black, #4ade80) 55%, #ffffff) 0%,
+      var(--vis-key-lit-black, #4ade80) 100%);
+    box-shadow: 0 0 12px var(--vis-key-lit-soft, rgba(74,222,128,0.55));
+  }
+  /* A struck key glows in its own hand's colour, matching the bar that landed. */
+  .pk-white.active.lit-left {
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--vis-key-lit-l) 32%, #ffffff) 0%,
+      var(--vis-key-lit-l) 100%);
+    box-shadow: inset 0 3px 7px rgba(0,0,0,0.30), 0 0 14px var(--vis-key-lit-l-soft);
+  }
+  .pk-black.active.lit-left {
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--vis-key-lit-l-black) 55%, #ffffff) 0%,
+      var(--vis-key-lit-l-black) 100%);
+    box-shadow: 0 0 12px var(--vis-key-lit-l-soft);
+  }
+  .pk-white[data-label]::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px;
+    letter-spacing: -0.2px;
+    color: rgba(26, 25, 22, 0.34);
+    pointer-events: none;
+  }
+  .pk-white[data-label].active::after {
+    color: rgba(26, 25, 22, 0.62);
   }
 
   .hub-grid {
@@ -1065,7 +1146,15 @@
               <option value="synthwave">🌆 Synthwave Sunset</option>
             </select>
           </div>
-          <div style="display: flex; align-items: center; gap: 16px;">
+          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 7px;">
+              <span style="font-size: 11.5px; color: var(--ink-700); white-space: nowrap;">Fall Speed</span>
+              <input type="range" id="visSpeedSlider" min="40" max="250" step="5" value="100" style="width: 92px; accent-color: var(--accent); cursor: pointer;">
+              <span id="visSpeedVal" style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--ink-600); min-width: 34px;">1.00x</span>
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-700); cursor: pointer;">
+              <input type="checkbox" id="visGlowToggle" checked style="accent-color: var(--accent);"> Note Glow
+            </label>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-700); cursor: pointer;">
               <input type="checkbox" id="visParticlesToggle" checked style="accent-color: var(--accent);"> Spark Particles
             </label>
@@ -1075,9 +1164,9 @@
           </div>
         </div>
 
-        <div class="visualizer-stage-wrapper visualizer-fullscreen-stage" style="flex: 1; display: flex; flex-direction: column;">
-          <canvas class="waterfall-canvas" id="fullscreenWaterfallCanvas" style="flex: 1; height: 100%;"></canvas>
-          <div class="piano-keyboard-container" id="fullscreen-piano-keyboard" style="height: 90px;"></div>
+        <div class="visualizer-stage-wrapper visualizer-fullscreen-stage">
+          <canvas class="waterfall-canvas" id="fullscreenWaterfallCanvas"></canvas>
+          <div class="piano-keyboard-container" id="fullscreen-piano-keyboard"></div>
         </div>
       </div>
 
@@ -1591,16 +1680,79 @@
     });
   });
 
+  // ── 2b. Shared 88-Key Geometry (single source of truth: DOM keyboard + canvas) ──
+  // Every x position in the app is expressed in "white-key units" measured from the
+  // left edge of A0, so the falling notes, the octave grid and the DOM keys can never
+  // drift apart no matter how the stage is resized.
+  const FIRST_PITCH = 21;   // A0
+  const LAST_PITCH = 108;   // C8
+  const WHITE_KEY_COUNT = 52;
+  const BLACK_KEY_WIDTH_UNITS = 0.60;
+  // Real pianos do not centre black keys on the white-key boundary; these are the
+  // physical offsets (in white-key widths) that make each group look symmetric.
+  const BLACK_KEY_CENTER_SHIFT = { 1: -0.10, 3: 0.10, 6: -0.15, 8: 0.0, 10: 0.15 };
+
+  function isMidiNoteBlack(note) {
+    const n = ((note % 12) + 12) % 12;
+    return n === 1 || n === 3 || n === 6 || n === 8 || n === 10;
+  }
+
+  const keyGeometryMap = Object.create(null);
+  const keyPercentMap = Object.create(null);
+  const whitePitches = [];
+  (() => {
+    let whiteIndex = 0;
+    for (let p = FIRST_PITCH; p <= LAST_PITCH; p++) {
+      if (isMidiNoteBlack(p)) {
+        const center = whiteIndex + (BLACK_KEY_CENTER_SHIFT[p % 12] || 0);
+        keyGeometryMap[p] = {
+          isBlack: true,
+          unitX: center - BLACK_KEY_WIDTH_UNITS / 2,
+          unitW: BLACK_KEY_WIDTH_UNITS
+        };
+      } else {
+        keyGeometryMap[p] = { isBlack: false, unitX: whiteIndex, unitW: 1 };
+        whitePitches.push(p);
+        whiteIndex++;
+      }
+    }
+    for (let p = FIRST_PITCH; p <= LAST_PITCH; p++) {
+      const g = keyGeometryMap[p];
+      keyPercentMap[p] = {
+        left: (g.unitX / WHITE_KEY_COUNT) * 100,
+        width: (g.unitW / WHITE_KEY_COUNT) * 100
+      };
+    }
+  })();
+
+  // Notes the waterfall believes are sounding right now, mapped to the hand that
+  // plays them (0 = right, 1 = left). Derived from the same interpolated clock
+  // that positions the falling bars, so keys light exactly when a bar lands.
+  const visualActiveNotes = new Map();
+
   // ── 3. Interactive 88-Key Piano Builder ──
   const keyElementsMap = new Map();
   const localPointerNotes = new Map();
   const localActiveNoteCounts = new Map();
   let serverActiveNotes = new Set();
 
+  // Only the keys whose state actually flipped are touched: a full 176-element
+  // classList sweep on every status frame was the main source of layout thrash.
+  const highlightedKeyNotes = new Map();
+
   function refreshPianoKeyHighlights() {
     keyElementsMap.forEach((elements, note) => {
-      const isActive = serverActiveNotes.has(note) || (localActiveNoteCounts.get(note) || 0) > 0;
-      elements.forEach(el => el.classList.toggle('active', isActive));
+      const visualHand = visualActiveNotes.get(note);
+      const isActive = visualHand !== undefined
+        || serverActiveNotes.has(note)
+        || (localActiveNoteCounts.get(note) || 0) > 0;
+      const state = isActive ? (visualHand === 1 ? 'L' : 'R') : '';
+      if (state === (highlightedKeyNotes.get(note) || '')) return;
+      for (let i = 0; i < elements.length; i++) {
+        elements[i].classList.toggle('active', isActive);
+        elements[i].classList.toggle('lit-left', state === 'L');
+      }
+      if (isActive) highlightedKeyNotes.set(note, state); else highlightedKeyNotes.delete(note);
     });
   }
 
@@ -1655,6 +1807,7 @@
 
   function build88Keys() {
     keyElementsMap.clear();
+    highlightedKeyNotes.clear();
     const containers = [
       document.getElementById('player-piano-keyboard'),
       document.getElementById('fullscreen-piano-keyboard')
@@ -1662,36 +1815,30 @@
 
     containers.forEach(container => {
       container.innerHTML = '';
-      const whiteNotes = [];
-      const isBlack = (note) => { const n = note % 12; return n===1||n===3||n===6||n===8||n===10; };
-      for (let note = 21; note <= 108; note++) { if (!isBlack(note)) whiteNotes.push(note); }
 
-      whiteNotes.forEach((note) => {
-        const wKey = document.createElement('div');
-        wKey.className = 'pk-white';
-        wKey.dataset.note = note;
-        container.appendChild(wKey);
+      // Both key colours are absolutely positioned from keyPercentMap so the DOM
+      // keyboard lines up with the canvas to the sub-pixel, at any stage width.
+      const addKey = (note, className) => {
+        const key = document.createElement('div');
+        const geom = keyPercentMap[note];
+        key.className = className;
+        key.dataset.note = note;
+        key.style.left = `${geom.left}%`;
+        key.style.width = `${geom.width}%`;
+        // Octave markers on every C, the way Synthesia labels its keyboard.
+        if (note % 12 === 0) key.dataset.label = `C${Math.floor(note / 12) - 1}`;
+        container.appendChild(key);
         if (!keyElementsMap.has(note)) keyElementsMap.set(note, []);
-        keyElementsMap.get(note).push(wKey);
-        bindPianoPointerEvents(wKey, note);
-      });
+        keyElementsMap.get(note).push(key);
+        bindPianoPointerEvents(key, note);
+      };
 
-      const whiteKeyWidthPercent = 100 / 52;
-      let whiteCount = 0;
-      for (let note = 21; note <= 108; note++) {
-        if (isBlack(note)) {
-          const bKey = document.createElement('div');
-          bKey.className = 'pk-black';
-          bKey.dataset.note = note;
-          const leftPercent = (whiteCount * whiteKeyWidthPercent) - (1.25 / 2);
-          bKey.style.left = `${leftPercent}%`;
-          container.appendChild(bKey);
-          if (!keyElementsMap.has(note)) keyElementsMap.set(note, []);
-          keyElementsMap.get(note).push(bKey);
-          bindPianoPointerEvents(bKey, note);
-        } else {
-          whiteCount++;
-        }
+      // Whites first, then blacks, so the blacks stack above without z-index games.
+      for (let note = FIRST_PITCH; note <= LAST_PITCH; note++) {
+        if (!isMidiNoteBlack(note)) addKey(note, 'pk-white');
+      }
+      for (let note = FIRST_PITCH; note <= LAST_PITCH; note++) {
+        if (isMidiNoteBlack(note)) addKey(note, 'pk-black');
       }
     });
     refreshPianoKeyHighlights();
@@ -1796,6 +1943,7 @@
     playbackClock = { serverTimeMs: 0, receivedAt: performance.now(), speed: 1.0 };
     serverActiveNotes = new Set();
     releaseAllLocalNotes(false);
+    resetWaterfallEngines();
     refreshPianoKeyHighlights();
     setPlaybackState(PlaybackState.Stopped, 0);
     if (timelineSlider) timelineSlider.value = 0;
@@ -2079,8 +2227,7 @@
       currentSong = msg.data;
       currentSongRevision++;
       resolveCurrentSongWaiters();
-      playerVis?.resetTimeline();
-      fullVis?.resetTimeline();
+      resetWaterfallEngines();
       if (currentSong) {
         songTitleEl.textContent = currentSong.title;
         songSubtitleEl.textContent = `${currentSong.total_notes} notes • ${Math.round(currentSong.bpm)} BPM • ${(currentSong.duration_ms / 1000).toFixed(1)}s`;
@@ -2373,17 +2520,28 @@
     }
 
     if (cfg.visualizer) {
-      if (cfg.visualizer.palette) {
+      if (cfg.visualizer.palette && paletteGradients[cfg.visualizer.palette]) {
         const vp = document.getElementById('visPaletteSelect');
         if (vp) vp.value = cfg.visualizer.palette;
         visPalette = cfg.visualizer.palette;
       }
       visParticlesEnabled = !!cfg.visualizer.particle_effects;
       visSplitHands = !!cfg.visualizer.split_hands_color;
+      visNoteGlow = cfg.visualizer.note_glow !== false;
+      const speed = Number(cfg.visualizer.waterfall_speed);
+      visFallSpeed = Number.isFinite(speed) && speed > 0 ? Math.max(0.4, Math.min(2.5, speed)) : 1.0;
+
       const vpToggle = document.getElementById('visParticlesToggle');
       if (vpToggle) vpToggle.checked = visParticlesEnabled;
       const vhToggle = document.getElementById('visHandsToggle');
       if (vhToggle) vhToggle.checked = visSplitHands;
+      const vgToggle = document.getElementById('visGlowToggle');
+      if (vgToggle) vgToggle.checked = visNoteGlow;
+      const vsSlider = document.getElementById('visSpeedSlider');
+      if (vsSlider && document.activeElement !== vsSlider) vsSlider.value = Math.round(visFallSpeed * 100);
+      const vsVal = document.getElementById('visSpeedVal');
+      if (vsVal) vsVal.textContent = `${visFallSpeed.toFixed(2)}x`;
+      applyPaletteToKeyboard();
     }
   }
 
@@ -2436,7 +2594,10 @@
 
   timelineSlider.addEventListener('pointerdown', () => { isScrubbing = true; });
   timelineSlider.addEventListener('pointerup', () => { isScrubbing = false; });
-  timelineSlider.addEventListener('input', (e) => { sendAction({ action: "seek", time_ms: (e.target.value / 1000) * currentTotalDurationMs }); });
+  timelineSlider.addEventListener('input', (e) => {
+    resetWaterfallEngines();
+    sendAction({ action: "seek", time_ms: (e.target.value / 1000) * currentTotalDurationMs });
+  });
 
   document.getElementById('speedSlider').addEventListener('input', (e) => {
     const speed = e.target.value / 100;
@@ -3035,188 +3196,595 @@
   });
 
   // ── 12. Synthesia Waterfall Visualizer & Spark Physics ──
-  const whiteKeyPitches = [
-    21, 23, 24, 26, 28, 29, 31, 33, 35, 36, 38, 40, 41, 43, 45, 47,
-    48, 50, 52, 53, 55, 57, 59, 60, 62, 64, 65, 67, 69, 71, 72, 74,
-    76, 77, 79, 81, 83, 84, 86, 88, 89, 91, 93, 95, 96, 98, 100, 101, 103, 105, 107, 108
-  ];
-
-  function isMidiNoteBlack(note) {
-    const n = note % 12;
-    return n === 1 || n === 3 || n === 6 || n === 8 || n === 10;
-  }
-
-  // Precomputed exact key geometry for all 88 keys to match DOM piano keyboard layout exactly
-  const keyGeometryMap = {};
-  (() => {
-    let whiteIndex = 0;
-    for (let p = 21; p <= 108; p++) {
-      if (isMidiNoteBlack(p)) {
-        keyGeometryMap[p] = { isBlack: true, unitX: whiteIndex - 0.325, unitW: 0.65 };
-      } else {
-        keyGeometryMap[p] = { isBlack: false, unitX: whiteIndex, unitW: 1.0 };
-        whiteIndex++;
-      }
-    }
-  })();
-
-  const blackKeyPosMap = {};
-  for (let p = 21; p <= 108; p++) {
-    if (isMidiNoteBlack(p)) {
-      blackKeyPosMap[p] = keyGeometryMap[p].unitX;
-    }
-  }
-
   let visPalette = 'neon-cyber';
   let visParticlesEnabled = true;
   let visSplitHands = true;
+  let visNoteGlow = true;
+  let visFallSpeed = 1.0;
+
+  const VIS_BASE_LOOKAHEAD_MS = 2600;
+  const VIS_MIN_LOOKAHEAD_MS = 800;
+  const VIS_MAX_LOOKAHEAD_MS = 7000;
+  const VIS_MAX_DPR = 2;               // beyond 2x the extra pixels only cost frames
+  const VIS_MAX_PARTICLES = 220;
+  const VIS_KEYBED_HEIGHT = 10;        // the lit "well" drawn just above the hit line
+  const VIS_DECORATION_LIMIT = 260;    // above this many visible notes, drop halos/caps
 
   const paletteGradients = {
-    'neon-cyber': { left: ['#00f0ff', '#0077ff'], right: ['#ff0055', '#ff7700'] },
-    'sakura': { left: ['#ffd1dc', '#ff7597'], right: ['#ff7597', '#c94277'] },
-    'classic-gold': { left: ['#fef08a', '#eab308'], right: ['#fde047', '#ca8a04'] },
-    'ocean-blue': { left: ['#38bdf8', '#0284c7'], right: ['#818cf8', '#4f46e5'] },
-    'emerald': { left: ['#6ee7b7', '#10b981'], right: ['#34d399', '#059669'] },
-    'synthwave': { left: ['#4cc9f0', '#7209b7'], right: ['#f72585', '#ff7b00'] }
+    'neon-cyber':   { left: ['#22d3ee', '#0e7490'], right: ['#fb7185', '#e11d48'], bg: ['#05070f', '#0b1020'] },
+    'sakura':       { left: ['#ffd1dc', '#e8829f'], right: ['#ff8fab', '#b4436c'], bg: ['#0d060a', '#170a12'] },
+    'classic-gold': { left: ['#fef08a', '#d9a521'], right: ['#fbbf24', '#a16207'], bg: ['#0c0a05', '#17130a'] },
+    'ocean-blue':   { left: ['#7dd3fc', '#0369a1'], right: ['#a5b4fc', '#4338ca'], bg: ['#04070f', '#0a1220'] },
+    'emerald':      { left: ['#6ee7b7', '#047857'], right: ['#5eead4', '#0f766e'], bg: ['#040b09', '#081613'] },
+    'synthwave':    { left: ['#4cc9f0', '#5b21b6'], right: ['#f72585', '#c2410c'], bg: ['#0a0514', '#150a24'] }
   };
+
+  function hexToRgb(hex) {
+    const raw = String(hex).replace('#', '');
+    const full = raw.length === 3 ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2] : raw;
+    const value = parseInt(full, 16);
+    if (!Number.isFinite(value)) return [255, 255, 255];
+    return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+  }
+
+  function shadeHex(hex, amount) {
+    const [r, g, b] = hexToRgb(hex);
+    const target = amount < 0 ? 0 : 255;
+    const t = Math.abs(amount);
+    const mix = (c) => Math.round(c + (target - c) * t);
+    return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+  }
+
+  function rgbaHex(hex, alpha) {
+    const [r, g, b] = hexToRgb(hex);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  // Palettes are compiled once (dark variants for black-key lanes, CSS vars for the
+  // DOM keyboard) instead of being re-derived on every frame.
+  const compiledPalettes = new Map();
+  function getCompiledPalette(name) {
+    const key = paletteGradients[name] ? name : 'neon-cyber';
+    let compiled = compiledPalettes.get(key);
+    if (compiled) return compiled;
+    const raw = paletteGradients[key];
+    const variant = (pair) => ({
+      white: pair,
+      black: [shadeHex(pair[0], -0.30), shadeHex(pair[1], -0.30)],
+      cap: shadeHex(pair[0], 0.45),
+      head: pair[0]
+    });
+    compiled = {
+      left: variant(raw.left),
+      right: variant(raw.right),
+      bg: raw.bg,
+      glowLeft: raw.left[0],
+      glowRight: raw.right[0]
+    };
+    compiledPalettes.set(key, compiled);
+    return compiled;
+  }
+
+  function applyPaletteToKeyboard() {
+    const pal = getCompiledPalette(visPalette);
+    const root = document.documentElement;
+    root.style.setProperty('--vis-key-lit', pal.glowRight);
+    root.style.setProperty('--vis-key-lit-soft', rgbaHex(pal.glowRight, 0.55));
+    root.style.setProperty('--vis-key-lit-black', shadeHex(pal.glowRight, -0.18));
+    root.style.setProperty('--vis-key-lit-l', pal.glowLeft);
+    root.style.setProperty('--vis-key-lit-l-soft', rgbaHex(pal.glowLeft, 0.55));
+    root.style.setProperty('--vis-key-lit-l-black', shadeHex(pal.glowLeft, -0.18));
+    root.style.setProperty('--vis-stage-bg', pal.bg[1]);
+  }
+
+  // ── Flattened, start-sorted note index ────────────────────────────────────────
+  // The old renderer walked every note of every track on every animation frame;
+  // on a 10k-note MIDI that is ~600k iterations per second. The index below is
+  // rebuilt only when the song / transpose changes, and each frame binary-searches
+  // it so we touch just the notes that can possibly be on screen.
+  let visNoteIndex = null;
+  let visIndexRevision = -1;
+  let visIndexTranspose = null;
+
+  function resolveTrackHands(song) {
+    const tracks = Array.isArray(song.tracks) ? song.tracks : [];
+    const stats = tracks.map((track, index) => {
+      const notes = Array.isArray(track.notes) ? track.notes : [];
+      let sum = 0;
+      for (let i = 0; i < notes.length; i++) sum += Number(notes[i].note) || 0;
+      return {
+        index,
+        count: notes.length,
+        avg: notes.length ? sum / notes.length : 0,
+        name: String(track.name || '').toLowerCase()
+      };
+    });
+
+    // 1. Trust explicit track names when the MIDI carries them.
+    const hands = new Array(tracks.length).fill(0);
+    let named = false;
+    stats.forEach(stat => {
+      if (/(^|[^a-z])(left|l\.?h\.?|bass|lower)([^a-z]|$)/.test(stat.name)) { hands[stat.index] = 1; named = true; }
+      else if (/(^|[^a-z])(right|r\.?h\.?|treble|upper|melody)([^a-z]|$)/.test(stat.name)) { hands[stat.index] = 0; named = true; }
+    });
+    if (named) return { hands, splitPitch: null };
+
+    // 2. Two voiced tracks: the lower average pitch is the left hand.
+    const voiced = stats.filter(stat => stat.count > 0);
+    if (voiced.length === 2) {
+      const lower = voiced[0].avg <= voiced[1].avg ? voiced[0] : voiced[1];
+      hands[lower.index] = 1;
+      return { hands, splitPitch: null };
+    }
+
+    // 3. Otherwise split on pitch around the song's centre of mass — far more
+    //    musical than the old `trackIndex % 2`, which coloured hands at random.
+    let weighted = 0;
+    let total = 0;
+    stats.forEach(stat => { weighted += stat.avg * stat.count; total += stat.count; });
+    const centre = total ? weighted / total : 60;
+    return { hands: null, splitPitch: Math.round(Math.max(48, Math.min(72, centre))) };
+  }
+
+  function buildVisNoteIndex() {
+    if (!currentSong || !Array.isArray(currentSong.tracks)) {
+      visNoteIndex = null;
+      return null;
+    }
+
+    const { hands, splitPitch } = resolveTrackHands(currentSong);
+    const collected = [];
+    currentSong.tracks.forEach((track, trackIndex) => {
+      if (track && track.is_drum) return;
+      const notes = Array.isArray(track && track.notes) ? track.notes : [];
+      for (let i = 0; i < notes.length; i++) {
+        const event = notes[i];
+        const startMs = Number(event.start_ms);
+        if (!Number.isFinite(startMs)) continue;
+        const durationMs = Math.max(0, Number(event.duration_ms) || 0);
+        const rawPitch = Number(event.note);
+        if (!Number.isFinite(rawPitch)) continue;
+        const pitch = Math.max(FIRST_PITCH, Math.min(LAST_PITCH, Math.round(rawPitch + currentTranspose)));
+        const hand = hands ? (hands[trackIndex] || 0) : (pitch < splitPitch ? 1 : 0);
+        collected.push({ startMs, endMs: startMs + durationMs, pitch, hand });
+      }
+    });
+
+    collected.sort((a, b) => a.startMs - b.startMs);
+
+    const count = collected.length;
+    const index = {
+      count,
+      startMs: new Float64Array(count),
+      endMs: new Float64Array(count),
+      pitch: new Uint8Array(count),
+      hand: new Uint8Array(count),
+      // Running maximum of end times. It is non-decreasing, so a binary search
+      // gives the first index that can still be sounding — everything before it
+      // is guaranteed finished, however long a stray pedal note may be.
+      maxEndUpTo: new Float64Array(count)
+    };
+    let runningMaxEnd = -Infinity;
+    for (let i = 0; i < count; i++) {
+      const note = collected[i];
+      index.startMs[i] = note.startMs;
+      index.endMs[i] = note.endMs;
+      index.pitch[i] = note.pitch;
+      index.hand[i] = note.hand;
+      if (note.endMs > runningMaxEnd) runningMaxEnd = note.endMs;
+      index.maxEndUpTo[i] = runningMaxEnd;
+    }
+    visNoteIndex = index;
+    return index;
+  }
+
+  function getVisNoteIndex() {
+    if (!currentSong) {
+      visNoteIndex = null;
+      visIndexRevision = -1;
+      return null;
+    }
+    if (visNoteIndex && visIndexRevision === currentSongRevision && visIndexTranspose === currentTranspose) {
+      return visNoteIndex;
+    }
+    visIndexRevision = currentSongRevision;
+    visIndexTranspose = currentTranspose;
+    return buildVisNoteIndex();
+  }
+
+  /** First index whose start time is >= `timeMs`. */
+  function lowerBoundStart(index, timeMs) {
+    let low = 0;
+    let high = index.count;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (index.startMs[mid] < timeMs) low = mid + 1; else high = mid;
+    }
+    return low;
+  }
+
+  /** First index that may still be sounding at `timeMs`. */
+  function firstLiveIndex(index, timeMs) {
+    let low = 0;
+    let high = index.count;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (index.maxEndUpTo[mid] <= timeMs) low = mid + 1; else high = mid;
+    }
+    return low;
+  }
 
   class WaterfallEngine {
     constructor(canvasId) {
       this.canvas = document.getElementById(canvasId);
-      this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+      this.ctx = this.canvas ? this.canvas.getContext('2d', { alpha: false }) : null;
       this.particles = [];
+      this.particleCount = 0;
       this.lastTimeMs = null;
       this.cssWidth = 0;
       this.cssHeight = 0;
       this.dpr = 0;
+      this.needsResize = true;
+      this.background = null;
+      this.backgroundKey = '';
+      this.strikeGradients = new Map();
+      this.strikeGradientKey = '';
+      this.activeNotes = new Map();   // pitch -> hand
+      this.strikeColors = new Map();
+      this.visibleBuffer = [];
+      this.lastRenderKey = '';
+      this.observer = null;
+      this.observeSize();
+    }
+
+    observeSize() {
+      if (!this.canvas || typeof ResizeObserver === 'undefined') return;
+      // Measuring clientWidth/clientHeight every frame forced a synchronous layout
+      // 60x a second; the observer lets us measure only when the box really moves.
+      this.observer = new ResizeObserver(() => { this.needsResize = true; });
+      this.observer.observe(this.canvas);
+    }
+
+    invalidateSize() {
+      this.needsResize = true;
     }
 
     resetTimeline() {
       this.lastTimeMs = null;
-      this.particles.length = 0;
+      this.particleCount = 0;
+      this.activeNotes.clear();
+      this.strikeColors.clear();
+      this.lastRenderKey = '';
     }
 
-    resizeCanvas() {
+    ensureCanvasSize() {
       if (!this.canvas || !this.ctx) return false;
+      if (!this.needsResize && this.cssWidth > 0 && this.cssHeight > 0) return true;
+
       const cssWidth = Math.floor(this.canvas.clientWidth);
       const cssHeight = Math.floor(this.canvas.clientHeight);
-      if (cssWidth <= 0 || cssHeight <= 0) return false;
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      if (cssWidth <= 0 || cssHeight <= 0) return false;   // hidden view: retry later
+
+      const dpr = Math.min(VIS_MAX_DPR, Math.max(1, window.devicePixelRatio || 1));
       const targetWidth = Math.round(cssWidth * dpr);
       const targetHeight = Math.round(cssHeight * dpr);
-      if (this.canvas.width !== targetWidth || this.canvas.height !== targetHeight || this.dpr !== dpr) {
+      if (this.canvas.width !== targetWidth || this.canvas.height !== targetHeight) {
         this.canvas.width = targetWidth;
         this.canvas.height = targetHeight;
-        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        this.cssWidth = cssWidth;
-        this.cssHeight = cssHeight;
-        this.dpr = dpr;
       }
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      this.cssWidth = cssWidth;
+      this.cssHeight = cssHeight;
+      this.dpr = dpr;
+      this.needsResize = false;
       return true;
     }
 
-    spawnParticles(xPos, noteWidth, height, color) {
-      if (!visParticlesEnabled || this.particles.length >= 250) return;
-      for (let i = 0; i < 4; i++) {
-        this.particles.push({
-          x: xPos + noteWidth / 2 + (Math.random() * 8 - 4),
-          y: height - 2,
-          vx: (Math.random() - 0.5) * 5,
-          vy: -Math.random() * 5 - 2,
-          size: Math.random() * 2.5 + 1.5,
-          color,
-          alpha: 1.0
-        });
+    /** Lane shading + octave rules are static, so they live on a cached layer. */
+    ensureBackground() {
+      const width = this.cssWidth;
+      const height = this.cssHeight;
+      const key = `${width}x${height}|${visPalette}`;
+      if (this.background && this.backgroundKey === key) return this.background;
+
+      const dpr = this.dpr || 1;
+      const deviceW = Math.round(width * dpr);
+      const deviceH = Math.round(height * dpr);
+      const layer = this.background || document.createElement('canvas');
+      if (layer.width !== deviceW || layer.height !== deviceH) {
+        layer.width = deviceW;
+        layer.height = deviceH;
+      }
+      const ctx = layer.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);   // hairlines stay crisp on HiDPI
+      const pal = getCompiledPalette(visPalette);
+      const keyWidth = width / WHITE_KEY_COUNT;
+
+      ctx.clearRect(0, 0, width, height);
+      const base = ctx.createLinearGradient(0, 0, 0, height);
+      base.addColorStop(0, pal.bg[0]);
+      base.addColorStop(1, pal.bg[1]);
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, width, height);
+
+      // Darker lanes behind every black key: the strongest cue that the falling
+      // notes belong to the keyboard underneath them.
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
+      for (let pitch = FIRST_PITCH; pitch <= LAST_PITCH; pitch++) {
+        const geom = keyGeometryMap[pitch];
+        if (!geom.isBlack) continue;
+        ctx.fillRect(geom.unitX * keyWidth, 0, geom.unitW * keyWidth, height);
+      }
+
+      // Hairlines between whites, brighter at each octave boundary (every C).
+      for (let pitch = FIRST_PITCH; pitch <= LAST_PITCH; pitch++) {
+        const geom = keyGeometryMap[pitch];
+        if (geom.isBlack) continue;
+        const x = Math.round(geom.unitX * keyWidth) + 0.5;
+        const isC = pitch % 12 === 0;
+        ctx.fillStyle = isC ? 'rgba(255, 255, 255, 0.11)' : 'rgba(255, 255, 255, 0.035)';
+        ctx.fillRect(x, 0, 1, height);
+      }
+
+      // Notes fade in out of the dark instead of popping at the top edge.
+      const topFade = ctx.createLinearGradient(0, 0, 0, Math.min(90, height * 0.3));
+      topFade.addColorStop(0, rgbaHex(pal.bg[0], 0.95));
+      topFade.addColorStop(1, rgbaHex(pal.bg[0], 0));
+      ctx.fillStyle = topFade;
+      ctx.fillRect(0, 0, width, Math.min(90, height * 0.3));
+
+      this.background = layer;
+      this.backgroundKey = key;
+      return layer;
+    }
+
+    getStrikeGradient(color) {
+      const key = `${this.cssHeight}`;
+      if (this.strikeGradientKey !== key) {
+        this.strikeGradients.clear();
+        this.strikeGradientKey = key;
+      }
+      let gradient = this.strikeGradients.get(color);
+      if (gradient) return gradient;
+      const height = this.cssHeight;
+      const top = Math.max(0, height - 46);
+      gradient = this.ctx.createLinearGradient(0, top, 0, height);
+      gradient.addColorStop(0, rgbaHex(color, 0));
+      gradient.addColorStop(1, rgbaHex(color, 0.55));
+      this.strikeGradients.set(color, gradient);
+      return gradient;
+    }
+
+    spawnParticles(centerX, color) {
+      if (!visParticlesEnabled) return;
+      const height = this.cssHeight;
+      for (let i = 0; i < 5 && this.particleCount < VIS_MAX_PARTICLES; i++) {
+        let particle = this.particles[this.particleCount];
+        if (!particle) {
+          particle = { x: 0, y: 0, vx: 0, vy: 0, size: 0, color: '#fff', alpha: 1 };
+          this.particles[this.particleCount] = particle;
+        }
+        this.particleCount++;
+        particle.x = centerX + (Math.random() * 7 - 3.5);
+        particle.y = height - 3;
+        particle.vx = (Math.random() - 0.5) * 4.4;
+        particle.vy = -Math.random() * 4.6 - 1.8;
+        particle.size = Math.random() * 2.2 + 1.3;
+        particle.color = color;
+        particle.alpha = 1;
       }
     }
 
-    render(currentTimeMs) {
-      if (!this.resizeCanvas()) return;
+    updateParticles(dtScale) {
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = this.particleCount - 1; i >= 0; i--) {
+        const particle = this.particles[i];
+        particle.x += particle.vx * dtScale;
+        particle.y += particle.vy * dtScale;
+        particle.vy += 0.22 * dtScale;
+        particle.alpha -= 0.030 * dtScale;
+        if (particle.alpha <= 0) {
+          // Swap-remove keeps the pool allocation-free; splice() was O(n) each kill.
+          this.particles[i] = this.particles[this.particleCount - 1];
+          this.particles[this.particleCount - 1] = particle;
+          this.particleCount--;
+          continue;
+        }
+        ctx.globalAlpha = particle.alpha;
+        ctx.fillStyle = particle.color;
+        ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+      }
+      ctx.restore();
+    }
+
+    render(currentTimeMs, dtMs) {
+      if (!this.ensureCanvasSize()) return;
+
+      // Paused / stopped and nothing animating: the canvas already holds exactly
+      // this frame, so re-drawing it 60x a second is pure heat. Every input that
+      // could change a pixel is part of the key.
+      const renderKey = currentTimeMs + '|' + visPalette + '|' + this.cssWidth + 'x' + this.cssHeight
+        + '|' + (visSplitHands ? 1 : 0) + (visNoteGlow ? 1 : 0) + (visParticlesEnabled ? 1 : 0)
+        + '|' + visFallSpeed + '|' + currentSongRevision + '|' + currentTranspose;
+      if (this.particleCount === 0 && renderKey === this.lastRenderKey) return;
+      this.lastRenderKey = renderKey;
+
       const ctx = this.ctx;
       const width = this.cssWidth;
       const height = this.cssHeight;
-      ctx.clearRect(0, 0, width, height);
+      const pal = getCompiledPalette(visPalette);
+      const keyWidth = width / WHITE_KEY_COUNT;
+      const lookaheadMs = Math.max(
+        VIS_MIN_LOOKAHEAD_MS,
+        Math.min(VIS_MAX_LOOKAHEAD_MS, VIS_BASE_LOOKAHEAD_MS / Math.max(0.1, visFallSpeed))
+      );
+      const pxPerMs = height / lookaheadMs;
+      const dtScale = Math.max(0, Math.min(3, dtMs / 16.6667));
 
+      ctx.drawImage(this.ensureBackground(), 0, 0, width, height);
+
+      // A large jump means a seek or a song change: drop stale trails.
       const previousTimeMs = this.lastTimeMs !== null
         && currentTimeMs >= this.lastTimeMs
         && currentTimeMs - this.lastTimeMs <= 250
         ? this.lastTimeMs
         : null;
+      if (this.lastTimeMs !== null && previousTimeMs === null) this.particleCount = 0;
       this.lastTimeMs = currentTimeMs;
 
-      if (currentSong && Array.isArray(currentSong.tracks)) {
-        const totalWhite = 52;
-        const keyWidth = width / totalWhite;
-        const lookaheadMs = 2400.0;
-        const pxPerMs = height / lookaheadMs;
-        const pal = paletteGradients[visPalette] || paletteGradients['neon-cyber'];
+      this.activeNotes.clear();
+      this.strikeColors.clear();
+      const index = getVisNoteIndex();
 
-        currentSong.tracks.forEach((track, trackIndex) => {
-          const isLeftHand = visSplitHands ? (trackIndex % 2 === 1) : false;
-          const colors = isLeftHand ? pal.left : pal.right;
+      if (index && index.count > 0) {
+        const isPlaying = playbackState === PlaybackState.Playing;
+        const scanFrom = firstLiveIndex(index, currentTimeMs);
+        const scanTo = lowerBoundStart(index, currentTimeMs + lookaheadMs);
+        const cornerRadius = Math.min(5, keyWidth * 0.3);
 
-          (track.notes || []).forEach(noteEvent => {
-            const noteStartMs = Number(noteEvent.start_ms) || 0;
-            const noteDurationMs = Math.max(0, Number(noteEvent.duration_ms) || 0);
-            const timeUntilHit = noteStartMs - currentTimeMs;
-            const noteEndMs = noteStartMs + noteDurationMs;
-            const visualPitch = Math.max(21, Math.min(108, Math.round(Number(noteEvent.note) + currentTranspose)));
+        // Geometry is resolved once into a scratch buffer, then drawn in two
+        // passes. Batching the additive halo pass means one composite-mode switch
+        // per frame instead of two per note.
+        const visible = this.visibleBuffer;
+        let visibleCount = 0;
 
-            const keyGeom = keyGeometryMap[visualPitch];
-            if (!keyGeom) return;
+        for (let i = scanFrom; i < scanTo; i++) {
+          const endMs = index.endMs[i];
+          if (endMs <= currentTimeMs) continue;
 
-            const xPos = keyGeom.unitX * keyWidth;
-            const noteWidth = keyGeom.unitW * keyWidth;
+          const startMs = index.startMs[i];
+          const pitch = index.pitch[i];
+          const geom = keyGeometryMap[pitch];
+          if (!geom) continue;
 
-            if (timeUntilHit < lookaheadMs && noteEndMs > currentTimeMs) {
-              const yBottom = height - (timeUntilHit * pxPerMs);
-              const noteHeight = Math.max(8, noteDurationMs * pxPerMs);
-              const yTop = yBottom - noteHeight;
-              ctx.save();
-              ctx.shadowBlur = 8;
-              ctx.shadowColor = colors[0];
-              const gradient = ctx.createLinearGradient(xPos, yTop, xPos, yBottom);
-              gradient.addColorStop(0, colors[0]);
-              gradient.addColorStop(1, colors[1]);
-              ctx.fillStyle = gradient;
-              ctx.beginPath();
-              const drawW = Math.max(1, noteWidth - 3);
-              const drawX = xPos + 1.5;
-              if (ctx.roundRect) {
-                ctx.roundRect(drawX, yTop, drawW, noteHeight, 4);
-              } else {
-                ctx.rect(drawX, yTop, drawW, noteHeight);
-              }
-              ctx.fill();
-              ctx.restore();
-            }
+          const yBottom = height - (startMs - currentTimeMs) * pxPerMs;
+          const yTop = height - (endMs - currentTimeMs) * pxPerMs;
+          if (yTop >= height) continue;
 
-            const crossedStart = playbackState === PlaybackState.Playing
-              && previousTimeMs !== null
-              && noteStartMs > previousTimeMs
-              && noteStartMs <= currentTimeMs;
-            if (crossedStart) this.spawnParticles(xPos, noteWidth, height, colors[0]);
-          });
-        });
-      }
+          const hand = visSplitHands ? index.hand[i] : 0;
+          const shades = hand === 1 ? pal.left : pal.right;
+          const sounding = startMs <= currentTimeMs;
+          if (sounding) {
+            this.activeNotes.set(pitch, hand);
+            this.strikeColors.set(pitch, shades.head);
+          }
 
-      for (let i = this.particles.length - 1; i >= 0; i--) {
-        const particle = this.particles[i];
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-        particle.vy += 0.2;
-        particle.alpha -= 0.035;
-        if (particle.alpha <= 0) {
-          this.particles.splice(i, 1);
-        } else {
+          const inset = geom.isBlack ? 0.75 : 1.25;
+          const drawTop = Math.max(-4, yTop);
+
+          let slot = visible[visibleCount];
+          if (!slot) { slot = {}; visible[visibleCount] = slot; }
+          visibleCount++;
+          slot.x = geom.unitX * keyWidth + inset;
+          slot.w = Math.max(1.5, geom.unitW * keyWidth - inset * 2);
+          slot.y = drawTop;
+          slot.h = Math.max(3, Math.min(yBottom, height) - drawTop);
+          slot.capped = yTop > -2;
+          slot.sounding = sounding;
+          slot.colors = geom.isBlack ? shades.black : shades.white;
+          slot.cap = shades.cap;
+
+          const crossedStart = isPlaying
+            && previousTimeMs !== null
+            && startMs > previousTimeMs
+            && startMs <= currentTimeMs;
+          if (crossedStart) this.spawnParticles(slot.x + slot.w / 2, shades.head);
+        }
+
+        // Hard ceiling on decoration work: in a wall-of-notes passage the halos
+        // overlap into mush anyway, so dropping them keeps the frame bounded
+        // rather than letting the cost scale with the score's density.
+        const decorate = visibleCount <= VIS_DECORATION_LIMIT;
+
+        if (visNoteGlow && decorate) {
           ctx.save();
-          ctx.globalAlpha = particle.alpha;
-          ctx.fillStyle = particle.color;
-          ctx.shadowBlur = 6;
-          ctx.shadowColor = particle.color;
-          ctx.fillRect(particle.x, particle.y, particle.size, particle.size);
+          ctx.globalCompositeOperation = 'lighter';
+          for (let i = 0; i < visibleCount; i++) {
+            const slot = visible[i];
+            ctx.globalAlpha = slot.sounding ? 0.32 : 0.15;
+            ctx.fillStyle = slot.colors[0];
+            this.roundedRect(slot.x - 1.5, slot.y - 1.5, slot.w + 3, slot.h + 3, cornerRadius + 1);
+            ctx.fill();
+          }
           ctx.restore();
         }
+
+        for (let i = 0; i < visibleCount; i++) {
+          const slot = visible[i];
+          const colors = slot.colors;
+          if (slot.h > 14) {
+            const gradient = ctx.createLinearGradient(0, slot.y, 0, slot.y + slot.h);
+            gradient.addColorStop(0, colors[1]);
+            gradient.addColorStop(0.55, colors[0]);
+            gradient.addColorStop(1, colors[1]);
+            ctx.fillStyle = gradient;
+          } else {
+            ctx.fillStyle = colors[0];
+          }
+          this.roundedRect(slot.x, slot.y, slot.w, slot.h, cornerRadius);
+          ctx.fill();
+
+          // Bright leading cap so a run of tied notes still reads as separate hits.
+          if (decorate && slot.capped && slot.h > 6) {
+            ctx.fillStyle = slot.cap;
+            this.roundedRect(slot.x, slot.y, slot.w, Math.min(2.5, slot.h * 0.28), 1.2);
+            ctx.fill();
+          }
+        }
+
+        // Keep the scratch buffer from pinning memory after a dense passage.
+        if (visible.length > visibleCount * 4 && visible.length > 512) visible.length = visibleCount;
+      }
+
+      this.drawHitZone(pal, keyWidth, width, height);
+      this.updateParticles(dtScale);
+    }
+
+    drawHitZone(pal, keyWidth, width, height) {
+      const ctx = this.ctx;
+
+      // Per-key bloom for whatever is sounding, then the hit line itself.
+      if (this.strikeColors.size > 0) {
+        const top = Math.max(0, height - 46);
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        this.strikeColors.forEach((color, pitch) => {
+          const geom = keyGeometryMap[pitch];
+          if (!geom) return;
+          ctx.fillStyle = this.getStrikeGradient(color);
+          ctx.fillRect(geom.unitX * keyWidth, top, geom.unitW * keyWidth, height - top);
+        });
+        ctx.restore();
+      }
+
+      const wellTop = height - VIS_KEYBED_HEIGHT;
+      const well = ctx.createLinearGradient(0, wellTop, 0, height);
+      well.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      well.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+      ctx.fillStyle = well;
+      ctx.fillRect(0, wellTop, width, VIS_KEYBED_HEIGHT);
+
+      ctx.fillStyle = rgbaHex(pal.glowRight, 0.30);
+      ctx.fillRect(0, height - 4, width, 3);
+      ctx.fillStyle = rgbaHex(pal.glowRight, 0.9);
+      ctx.fillRect(0, height - 2, width, 2);
+    }
+
+    roundedRect(x, y, w, h, r) {
+      const ctx = this.ctx;
+      ctx.beginPath();
+      const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+      if (ctx.roundRect) {
+        ctx.roundRect(x, y, w, h, radius);
+      } else {
+        ctx.moveTo(x + radius, y);
+        ctx.arcTo(x + w, y, x + w, y + h, radius);
+        ctx.arcTo(x + w, y + h, x, y + h, radius);
+        ctx.arcTo(x, y + h, x, y, radius);
+        ctx.arcTo(x, y, x + w, y, radius);
+        ctx.closePath();
       }
     }
   }
@@ -3224,12 +3792,23 @@
   const playerVis = new WaterfallEngine('playerWaterfallCanvas');
   const fullVis = new WaterfallEngine('fullscreenWaterfallCanvas');
   let visualizerAnimationFrame = null;
+  let visLastFrameMs = null;
+  let visLastRollRenderMs = 0;
+
+  function resetWaterfallEngines() {
+    playerVis.resetTimeline();
+    fullVis.resetTimeline();
+    if (visualActiveNotes.size) {
+      visualActiveNotes.clear();
+      refreshPianoKeyHighlights();
+    }
+  }
 
   function getVisibleWaterfallEngine() {
     const playerV = document.getElementById('view-player');
     const fullV = document.getElementById('view-visualizer');
-    if (playerV && playerV.classList.contains('active')) return playerVis;
     if (fullV && fullV.classList.contains('active')) return fullVis;
+    if (playerV && playerV.classList.contains('active')) return playerVis;
     return null;
   }
 
@@ -3241,21 +3820,55 @@
   function stopVisualizerLoop() {
     if (visualizerAnimationFrame !== null) cancelAnimationFrame(visualizerAnimationFrame);
     visualizerAnimationFrame = null;
+    visLastFrameMs = null;
+  }
+
+  /** Mirror the waterfall's own note window onto the 88-key DOM keyboard. */
+  function syncVisualKeyHighlights(engine) {
+    const next = engine ? engine.activeNotes : null;
+    if (!next || next.size === 0) {
+      if (visualActiveNotes.size === 0) return;
+      visualActiveNotes.clear();
+      refreshPianoKeyHighlights();
+      return;
+    }
+    if (next.size === visualActiveNotes.size) {
+      let identical = true;
+      next.forEach((hand, note) => { if (visualActiveNotes.get(note) !== hand) identical = false; });
+      if (identical) return;
+    }
+    visualActiveNotes.clear();
+    next.forEach((hand, note) => visualActiveNotes.set(note, hand));
+    refreshPianoKeyHighlights();
   }
 
   function renderVisualizerLoop(now) {
     visualizerAnimationFrame = null;
-    if (document.hidden) return;
+    if (document.hidden) { visLastFrameMs = null; return; }
+
+    const dtMs = visLastFrameMs === null ? 16.6667 : Math.max(0, now - visLastFrameMs);
+    visLastFrameMs = now;
+
     const visualTimeMs = getInterpolatedPlaybackTime(now);
     currentPlaybackMs = visualTimeMs;
     updateBpmPulseForTime(visualTimeMs);
 
     const visibleEngine = getVisibleWaterfallEngine();
-    if (visibleEngine) visibleEngine.render(visualTimeMs);
+    if (visibleEngine) {
+      visibleEngine.render(visualTimeMs, dtMs);
+      syncVisualKeyHighlights(playbackState === PlaybackState.Stopped ? null : visibleEngine);
+    } else {
+      syncVisualKeyHighlights(null);
+    }
 
+    // The Studio roll repaints a multi-thousand-pixel canvas from scratch; at
+    // 60fps it starves the cascade sharing this loop, so cap it near 20fps.
     const studioV = document.getElementById('view-studio');
     if (studioV && studioV.classList.contains('active') && playbackState === PlaybackState.Playing) {
-      renderPianoRoll();
+      if (now - visLastRollRenderMs >= 48) {
+        visLastRollRenderMs = now;
+        renderPianoRoll();
+      }
     }
 
     scheduleVisualizerLoop();
@@ -3265,6 +3878,7 @@
   if (visPalSelect) {
     visPalSelect.onchange = (event) => {
       visPalette = event.target.value;
+      applyPaletteToKeyboard();
       if (currentConfig && currentConfig.visualizer) {
         currentConfig.visualizer.palette = visPalette;
         sendConfigUpdate();
@@ -3275,6 +3889,7 @@
   if (visPartToggle) {
     visPartToggle.onchange = (event) => {
       visParticlesEnabled = event.target.checked;
+      if (!visParticlesEnabled) resetWaterfallEngines();
       if (currentConfig && currentConfig.visualizer) {
         currentConfig.visualizer.particle_effects = visParticlesEnabled;
         sendConfigUpdate();
@@ -3291,6 +3906,32 @@
       }
     };
   }
+  const visGlowToggle = document.getElementById('visGlowToggle');
+  if (visGlowToggle) {
+    visGlowToggle.onchange = (event) => {
+      visNoteGlow = event.target.checked;
+      if (currentConfig && currentConfig.visualizer) {
+        currentConfig.visualizer.note_glow = visNoteGlow;
+        sendConfigUpdate();
+      }
+    };
+  }
+  const visSpeedSlider = document.getElementById('visSpeedSlider');
+  const visSpeedVal = document.getElementById('visSpeedVal');
+  if (visSpeedSlider) {
+    const applyFallSpeed = (persist) => {
+      visFallSpeed = Math.max(0.4, Math.min(2.5, Number(visSpeedSlider.value) / 100));
+      if (visSpeedVal) visSpeedVal.textContent = `${visFallSpeed.toFixed(2)}x`;
+      if (persist && currentConfig && currentConfig.visualizer) {
+        currentConfig.visualizer.waterfall_speed = visFallSpeed;
+        sendConfigUpdate();
+      }
+    };
+    visSpeedSlider.addEventListener('input', () => applyFallSpeed(false));
+    visSpeedSlider.addEventListener('change', () => applyFallSpeed(true));
+  }
+
+  applyPaletteToKeyboard();
 
   // ── 13. Piano Roll Studio Editor & MIDI Builder ──
   const prCanvas = document.getElementById('pianoRollCanvas');
@@ -3929,13 +4570,18 @@
 
   // ── 18. Lifecycle, Window Resizing & Startup Initialization ──
   window.addEventListener('resize', () => {
-    playerVis?.resizeCanvas();
-    fullVis?.resizeCanvas();
+    playerVis?.invalidateSize();
+    fullVis?.invalidateSize();
     renderPianoRoll();
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
+    if (document.hidden) {
+      stopVisualizerLoop();
+    } else {
+      // Drop the stale timestamp so the first frame back does not integrate the
+      // whole hidden interval into the particle physics.
+      visLastFrameMs = null;
       scheduleVisualizerLoop();
     }
   });
