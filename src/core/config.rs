@@ -209,6 +209,30 @@ impl Default for EffectsConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+pub struct BlackMidiConfig {
+    pub enabled: bool,
+    pub auto_detect: bool,
+    pub voice_limit: usize,
+    pub max_macro_rate: usize,
+    pub low_velocity_cull: u8,
+    pub visual_lod: bool,
+}
+
+impl Default for BlackMidiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            auto_detect: true,
+            voice_limit: 96,
+            max_macro_rate: 600,
+            low_velocity_cull: 8,
+            visual_lod: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppConfig {
     pub playback_speed: f64,
     pub transpose_offset: i8,
@@ -248,6 +272,8 @@ pub struct AppConfig {
     pub visualizer: VisualizerConfig,
     #[serde(default)]
     pub effects: EffectsConfig,
+    #[serde(default)]
+    pub black_midi: BlackMidiConfig,
     pub custom_mappings_61: HashMap<String, String>,
     pub custom_mappings_low: HashMap<String, String>,
     pub custom_mappings_high: HashMap<String, String>,
@@ -315,6 +341,7 @@ impl Default for AppConfig {
             theme: ThemeConfig::default(),
             visualizer: VisualizerConfig::default(),
             effects: EffectsConfig::default(),
+            black_midi: BlackMidiConfig::default(),
             custom_mappings_61: HashMap::new(),
             custom_mappings_low: HashMap::new(),
             custom_mappings_high: HashMap::new(),

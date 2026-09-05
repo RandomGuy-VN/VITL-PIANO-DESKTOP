@@ -746,3 +746,126 @@ fn test_client_actions_serialization_roundtrip() {
         assert_eq!(json_str, re_json);
     }
 }
+
+#[test]
+fn test_black_midi_detection_and_metrics() {
+    // 1. Normal song: 10 notes over 5 seconds
+    let mut normal_song = Song::new("Normal Song".to_string());
+    let mut normal_notes = Vec::new();
+    for i in 0..10 {
+        normal_notes.push(NoteEvent {
+            note: 60 + (i % 12),
+            velocity: 80,
+            start_ms: (i as f64) * 500.0,
+            duration_ms: 250.0,
+            track: 0,
+            channel: 0,
+        });
+    }
+    normal_song.tracks.push(vitl_piano_desktop::core::song::Track {
+        name: "Piano".to_string(),
+        channel: 0,
+        notes: normal_notes,
+        is_drum: false,
+    });
+    normal_song.finalize();
+
+    assert!(!normal_song.is_black_midi());
+    assert!((normal_song.note_density() - 2.0).abs() < 0.5);
+
+    // 2. Black MIDI by note count: 16,000 notes
+    let mut dense_song = Song::new("Black MIDI 16k".to_string());
+    let mut dense_notes = Vec::with_capacity(16_000);
+    for i in 0..16_000 {
+        dense_notes.push(NoteEvent {
+            note: 21 + ((i % 88) as u8),
+            velocity: 90,
+            start_ms: (i as f64) * 10.0,
+            duration_ms: 50.0,
+            track: 0,
+            channel: 0,
+        });
+    }
+    dense_song.tracks.push(vitl_piano_desktop::core::song::Track {
+        name: "Black MIDI Track".to_string(),
+        channel: 0,
+        notes: dense_notes,
+        is_drum: false,
+    });
+    dense_song.finalize();
+
+    assert_eq!(dense_song.total_notes, 16_000);
+    assert!(dense_song.is_black_midi());
+
+    // 3. Black MIDI by density rate: 300 notes in 1 second
+    let mut fast_burst_song = Song::new("Burst Song".to_string());
+    let mut burst_notes = Vec::new();
+    for i in 0..300 {
+        burst_notes.push(NoteEvent {
+            note: 21 + ((i % 88) as u8),
+            velocity: 100,
+            start_ms: (i as f64) * 3.0,
+            duration_ms: 20.0,
+            track: 0,
+            channel: 0,
+        });
+    }
+    fast_burst_song.tracks.push(vitl_piano_desktop::core::song::Track {
+        name: "Burst Track".to_string(),
+        channel: 0,
+        notes: burst_notes,
+        is_drum: false,
+    });
+    fast_burst_song.finalize();
+
+    assert!(fast_burst_song.is_black_midi());
+    assert!(fast_burst_song.note_density() >= 200.0);
+    assert!(fast_burst_song.peak_note_density() >= 250);
+}
+
+#[test]
+fn test_synth_under_high_polyphony_burst() {
+    let mut synth = PianoSynthEngine::new(44100.0);
+    synth.volume = 0.8;
+
+    // Fire 200 notes simultaneously to stress test voice stealing and allocation
+    for i in 0..200 {
+        let pitch = 21 + ((i % 88) as u8);
+        let vel = (40 + (i % 80)) as u8;
+        synth.note_on(pitch, vel);
+    }
+
+    // Render audio block: must not panic, must produce finite valid floats
+    let mut buffer = vec![0.0f32; 1024];
+    synth.process_block(&mut buffer);
+
+    for &sample in &buffer {
+        assert!(sample.is_finite(), "Audio sample is NaN or infinite!");
+        assert!(sample >= -1.5 && sample <= 1.5, "Audio sample out of soft limiter range: {}", sample);
+    }
+
+    // Turn off notes
+    for i in 0..200 {
+        let pitch = 21 + ((i % 88) as u8);
+        synth.note_off(pitch);
+    }
+}
+
+#[test]
+fn test_black_midi_config_defaults() {
+    use vitl_piano_desktop::core::config::{AppConfig, BlackMidiConfig};
+
+    let cfg = AppConfig::default();
+    assert!(cfg.black_midi.enabled);
+    assert!(cfg.black_midi.auto_detect);
+    assert_eq!(cfg.black_midi.voice_limit, 96);
+    assert_eq!(cfg.black_midi.max_macro_rate, 600);
+    assert_eq!(cfg.black_midi.low_velocity_cull, 8);
+    assert!(cfg.black_midi.visual_lod);
+
+    // Test JSON roundtrip
+    let json = serde_json::to_string(&cfg.black_midi).expect("serialize black midi config");
+    let parsed: BlackMidiConfig = serde_json::from_str(&json).expect("deserialize black midi config");
+    assert_eq!(parsed.voice_limit, 96);
+}
+

@@ -171,13 +171,28 @@ impl PlayerEngine {
             let all_notes = song_arc.all_notes_flattened();
             let total_duration = song_arc.duration_ms;
 
+            let is_black_midi = song_arc.is_black_midi()
+                || (config_arc.lock().black_midi.enabled && song_arc.total_notes > 10_000);
+            if is_black_midi {
+                info!(
+                    "Black MIDI mode active for '{}': total_notes={}, density={:.1} notes/sec",
+                    song_arc.title,
+                    song_arc.total_notes,
+                    song_arc.note_density()
+                );
+            }
+
             let mut note_cursor = 0;
             let mut current_time_ms = 0.0;
             let mut anchor_time = Instant::now();
             let mut anchor_offset_ms = 0.0;
             let mut prev_speed = *speed_arc.lock();
             let mut active_visual_notes: Vec<u8> = Vec::new();
-            let mut active_notes_in_flight: Vec<ActiveNoteInFlight> = Vec::new();
+            let mut active_notes_in_flight: Vec<ActiveNoteInFlight> =
+                Vec::with_capacity(if is_black_midi { 2048 } else { 256 });
+            let mut active_shift_count: usize = 0;
+            let mut active_ctrl_count: usize = 0;
+            let mut pitch_ref_counts = [0u16; 128];
             let mut last_status_emit = Instant::now();
 
             while !stop_flag.load(Ordering::Relaxed) {
@@ -202,6 +217,9 @@ impl PlayerEngine {
                     sim_arc.release_all();
                     active_visual_notes.clear();
                     active_notes_in_flight.clear();
+                    active_shift_count = 0;
+                    active_ctrl_count = 0;
+                    pitch_ref_counts.fill(0);
                 }
 
                 let current_state = *state_arc.lock();
@@ -214,6 +232,9 @@ impl PlayerEngine {
                     sim_arc.release_all();
                     active_visual_notes.clear();
                     active_notes_in_flight.clear();
+                    active_shift_count = 0;
+                    active_ctrl_count = 0;
+                    pitch_ref_counts.fill(0);
                     tokio::time::sleep(Duration::from_millis(20)).await;
                     anchor_time = Instant::now();
                     anchor_offset_ms = current_time_ms;
@@ -242,6 +263,9 @@ impl PlayerEngine {
                         note_cursor = 0;
                         active_visual_notes.clear();
                         active_notes_in_flight.clear();
+                        active_shift_count = 0;
+                        active_ctrl_count = 0;
+                        pitch_ref_counts.fill(0);
                         synth_arc.lock().all_notes_off();
                         sim_arc.release_all();
                         continue;
@@ -252,6 +276,7 @@ impl PlayerEngine {
                         sim_arc.release_all();
                         active_visual_notes.clear();
                         active_notes_in_flight.clear();
+                        pitch_ref_counts.fill(0);
                         // Send a final status with finished_naturally = true
                         let status = PlaybackStatus {
                             state: PlayerState::Stopped,
@@ -285,18 +310,54 @@ impl PlayerEngine {
                 }
 
                 if !chord_batch.is_empty() {
-                    let mut hum = hum_arc.lock();
-                    let notes_to_play = if hum.config.chord_delay_ms == 0.0
-                        && hum.config.jitter_ms == 0.0
-                        && hum.config.mistake_rate == 0.0
-                    {
+                    // Black MIDI Optimization: Deduplicate unisons and cull inaudible voices
+                    if is_black_midi && chord_batch.len() > 1 {
+                        // Keep the highest velocity note for duplicate unisons
+                        chord_batch.sort_unstable_by(|a, b| {
+                            a.note
+                                .cmp(&b.note)
+                                .then_with(|| a.channel.cmp(&b.channel))
+                                .then_with(|| b.velocity.cmp(&a.velocity))
+                        });
+                        chord_batch.dedup_by(|a, b| a.note == b.note && a.channel == b.channel);
+
+                        // Cull low velocity ghost notes when chord is dense
+                        let min_vel = cfg.black_midi.low_velocity_cull;
+                        if min_vel > 0 && chord_batch.len() > 16 {
+                            chord_batch.retain(|n| n.velocity >= min_vel);
+                        }
+
+                        // Cap simultaneous voices to safe limit (voice stealing)
+                        let voice_limit = cfg.black_midi.voice_limit.clamp(32, 256);
+                        if chord_batch.len() > voice_limit {
+                            chord_batch.sort_unstable_by(|a, b| b.velocity.cmp(&a.velocity));
+                            chord_batch.truncate(voice_limit);
+                        }
+                    }
+
+                    // Humanizer: bypass on dense Black MIDI chords (>24 notes) to prevent latency spikes
+                    let notes_to_play = if is_black_midi && chord_batch.len() > 24 {
                         chord_batch
                     } else {
-                        hum.process_chord_notes(&chord_batch)
+                        let mut hum = hum_arc.lock();
+                        if hum.config.chord_delay_ms == 0.0
+                            && hum.config.jitter_ms == 0.0
+                            && hum.config.mistake_rate == 0.0
+                        {
+                            chord_batch
+                        } else {
+                            hum.process_chord_notes(&chord_batch)
+                        }
                     };
-                    drop(hum);
 
                     let mut macro_tap_keys = Vec::new();
+                    let mut batch_macro_keys_seen = [false; 256];
+                    let mut synth_batch = Vec::new();
+                    let map_guard = if cfg.macro_enabled {
+                        Some(map_arc.lock())
+                    } else {
+                        None
+                    };
 
                     for note_event in notes_to_play {
                         let final_note =
@@ -331,54 +392,59 @@ impl PlayerEngine {
                             (scaled.round() as i16).clamp(min_v, max_v) as u8
                         };
 
-                        // 1. Audio synthesis note on
+                        // 1. Audio synthesis note on queue
                         if cfg.synth.enabled {
-                            synth_arc.lock().note_on_channel(
+                            synth_batch.push((
                                 note_event.channel as i32,
                                 final_note,
                                 final_velocity,
-                            );
+                            ));
                         }
 
-                        // 2. Visualizer key active state
-                        if !active_visual_notes.contains(&final_note) {
-                            active_visual_notes.push(final_note);
-                        }
+                        // 2. Visualizer key active state (O(1) ref count)
+                        pitch_ref_counts[final_note as usize] =
+                            pitch_ref_counts[final_note as usize].saturating_add(1);
 
                         // 3. Macro keyboard simulation collection
                         let mut macro_info = None;
-                        if cfg.macro_enabled {
-                            if let Some(key_map) =
-                                map_arc.lock().get_piano_key(final_note, cfg.allow_88_keys)
-                            {
-                                if let Some(rk) = InputSimulator::char_to_rdev_key(key_map.key_char)
-                                {
-                                    if cfg.note_lengths {
-                                        // If key is already held down by a prior note, pulse key_up first to re-trigger
-                                        if sim_arc.is_key_held(rk) {
-                                            sim_arc.key_up(rk);
+                        if let Some(ref map) = map_guard {
+                            if let Some(key_map) = map.get_piano_key(final_note, cfg.allow_88_keys) {
+                                let key_idx = key_map.key_char as usize;
+                                // In Black MIDI, only trigger each key once per batch
+                                if key_idx < 256 && !batch_macro_keys_seen[key_idx] {
+                                    batch_macro_keys_seen[key_idx] = true;
+                                    if let Some(rk) =
+                                        InputSimulator::char_to_rdev_key(key_map.key_char)
+                                    {
+                                        if cfg.note_lengths {
+                                            // If key is already held down by a prior note, pulse key_up first to re-trigger
+                                            if sim_arc.is_key_held(rk) {
+                                                sim_arc.key_up(rk);
+                                            }
+                                            if key_map.is_ctrl {
+                                                sim_arc.key_down(Key::ControlLeft);
+                                                active_ctrl_count += 1;
+                                            }
+                                            if key_map.is_shift {
+                                                sim_arc.key_down(Key::ShiftLeft);
+                                                active_shift_count += 1;
+                                            }
+                                            sim_arc.key_down(rk);
+                                            if key_map.is_shift {
+                                                sim_arc.key_up(Key::ShiftLeft);
+                                            }
+                                            if key_map.is_ctrl {
+                                                sim_arc.key_up(Key::ControlLeft);
+                                            }
+                                            macro_info =
+                                                Some((rk, key_map.is_shift, key_map.is_ctrl));
+                                        } else {
+                                            macro_tap_keys.push((
+                                                key_map.key_char,
+                                                key_map.is_shift,
+                                                key_map.is_ctrl,
+                                            ));
                                         }
-                                        if key_map.is_ctrl {
-                                            sim_arc.key_down(Key::ControlLeft);
-                                        }
-                                        if key_map.is_shift {
-                                            sim_arc.key_down(Key::ShiftLeft);
-                                        }
-                                        sim_arc.key_down(rk);
-                                        // Release modifiers immediately after note registration so they do not taint concurrent notes
-                                        if key_map.is_shift {
-                                            sim_arc.key_up(Key::ShiftLeft);
-                                        }
-                                        if key_map.is_ctrl {
-                                            sim_arc.key_up(Key::ControlLeft);
-                                        }
-                                        macro_info = Some((rk, key_map.is_shift, key_map.is_ctrl));
-                                    } else {
-                                        macro_tap_keys.push((
-                                            key_map.key_char,
-                                            key_map.is_shift,
-                                            key_map.is_ctrl,
-                                        ));
                                     }
                                 }
                             }
@@ -392,9 +458,24 @@ impl PlayerEngine {
                         });
                     }
 
+                    // Release map lock explicitly
+                    drop(map_guard);
+
+                    // Batch dispatch audio synthesis notes with single lock acquisition
+                    if cfg.synth.enabled && !synth_batch.is_empty() {
+                        let mut synth = synth_arc.lock();
+                        for (channel, note, velocity) in synth_batch {
+                            synth.note_on_channel(channel, note, velocity);
+                        }
+                    }
+
                     // 4. Send the chord to OS macro simulation instantaneously if in tap mode
                     if !macro_tap_keys.is_empty() {
                         let sim = Arc::clone(&sim_arc);
+                        // In Black MIDI, limit tap chord size to prevent OS input flood
+                        if is_black_midi && macro_tap_keys.len() > 32 {
+                            macro_tap_keys.truncate(32);
+                        }
                         tokio::task::spawn_blocking(move || {
                             sim.tap_chord(macro_tap_keys, 0);
                         });
@@ -411,12 +492,21 @@ impl PlayerEngine {
                         expired_notes.push((item.channel, item.final_note));
                         if let Some((rk, is_shift, is_ctrl)) = item.macro_key {
                             sim_arc.key_up(rk);
-                            if is_shift {
-                                released_shift = true;
+                            if is_shift && active_shift_count > 0 {
+                                active_shift_count -= 1;
+                                if active_shift_count == 0 {
+                                    released_shift = true;
+                                }
                             }
-                            if is_ctrl {
-                                released_ctrl = true;
+                            if is_ctrl && active_ctrl_count > 0 {
+                                active_ctrl_count -= 1;
+                                if active_ctrl_count == 0 {
+                                    released_ctrl = true;
+                                }
                             }
+                        }
+                        if pitch_ref_counts[item.final_note as usize] > 0 {
+                            pitch_ref_counts[item.final_note as usize] -= 1;
                         }
                         false
                     } else {
@@ -424,21 +514,11 @@ impl PlayerEngine {
                     }
                 });
 
-                if released_shift {
-                    let has_other_shift = active_notes_in_flight
-                        .iter()
-                        .any(|item| item.macro_key.map(|(_, s, _)| s).unwrap_or(false));
-                    if !has_other_shift {
-                        sim_arc.key_up(Key::ShiftLeft);
-                    }
+                if released_shift && active_shift_count == 0 {
+                    sim_arc.key_up(Key::ShiftLeft);
                 }
-                if released_ctrl {
-                    let has_other_ctrl = active_notes_in_flight
-                        .iter()
-                        .any(|item| item.macro_key.map(|(_, _, c)| c).unwrap_or(false));
-                    if !has_other_ctrl {
-                        sim_arc.key_up(Key::ControlLeft);
-                    }
+                if released_ctrl && active_ctrl_count == 0 {
+                    sim_arc.key_up(Key::ControlLeft);
                 }
 
                 if cfg.synth.enabled && !expired_notes.is_empty() {
@@ -448,11 +528,11 @@ impl PlayerEngine {
                     }
                 }
 
-                // Sync visualizer active notes directly with active sounding notes
+                // Sync visualizer active notes directly with active sounding notes in O(88) time
                 active_visual_notes.clear();
-                for item in &active_notes_in_flight {
-                    if !active_visual_notes.contains(&item.final_note) {
-                        active_visual_notes.push(item.final_note);
+                for pitch in 21..=108 {
+                    if pitch_ref_counts[pitch] > 0 {
+                        active_visual_notes.push(pitch as u8);
                     }
                 }
 

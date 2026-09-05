@@ -508,7 +508,11 @@ impl SoundFontEngine {
 
     pub fn note_on_channel(&mut self, channel: i32, note: u8, velocity: u8) {
         let ch = channel.clamp(0, 15);
-        self.synthesizer.note_on(ch, note as i32, velocity as i32);
+        if velocity == 0 {
+            self.synthesizer.note_off(ch, note as i32);
+        } else {
+            self.synthesizer.note_on(ch, note as i32, velocity as i32);
+        }
     }
 
     pub fn note_off(&mut self, note: u8) {
@@ -690,43 +694,30 @@ impl PianoSynthEngine {
             }
         }
 
-        // Physical Modeling Voice Allocation
-        // Check if note is already playing on a voice; if so, re-trigger it
+        // Physical Modeling Voice Allocation (Single pass search with early exit)
         let mut target_idx = None;
-        for (i, v) in self.voices.iter().enumerate() {
-            if v.is_active && v.note == note {
-                target_idx = Some(i);
-                break;
-            }
-        }
+        let mut first_inactive = None;
+        let mut oldest_idx = 0;
+        let mut max_priority = -1.0f32;
 
-        // Otherwise find first inactive voice
-        if target_idx.is_none() {
-            for (i, v) in self.voices.iter().enumerate() {
-                if !v.is_active {
+        for (i, v) in self.voices.iter().enumerate() {
+            if v.is_active {
+                if v.note == note {
                     target_idx = Some(i);
                     break;
                 }
-            }
-        }
-
-        // Voice stealing: find oldest releasing voice or longest active voice
-        if target_idx.is_none() {
-            let mut oldest_idx = 0;
-            let mut max_time = -1.0;
-            for (i, v) in self.voices.iter().enumerate() {
                 let priority = v.time_active + if v.is_releasing { 100.0 } else { 0.0 };
-                if priority > max_time {
-                    max_time = priority;
+                if priority > max_priority {
+                    max_priority = priority;
                     oldest_idx = i;
                 }
+            } else if first_inactive.is_none() {
+                first_inactive = Some(i);
             }
-            target_idx = Some(oldest_idx);
         }
 
-        if let Some(idx) = target_idx {
-            self.voices[idx].init(note, velocity, self.sample_rate);
-        }
+        let idx = target_idx.or(first_inactive).unwrap_or(oldest_idx);
+        self.voices[idx].init(note, velocity, self.sample_rate);
     }
 
     /// Trigger a note off event

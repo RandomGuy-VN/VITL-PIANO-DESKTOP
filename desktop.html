@@ -2232,7 +2232,9 @@
       resetWaterfallEngines();
       if (currentSong) {
         songTitleEl.textContent = currentSong.title;
-        songSubtitleEl.textContent = `${currentSong.total_notes} notes • ${Math.round(currentSong.bpm)} BPM • ${(currentSong.duration_ms / 1000).toFixed(1)}s`;
+        const isBlack = (currentSong.total_notes >= 15000) || (currentSong.duration_ms > 0 && (currentSong.total_notes / (currentSong.duration_ms / 1000)) >= 200);
+        const blackBadge = isBlack ? ' • ⚡ BLACK MIDI OPTIMIZED' : '';
+        songSubtitleEl.textContent = `${currentSong.total_notes} notes • ${Math.round(currentSong.bpm)} BPM • ${(currentSong.duration_ms / 1000).toFixed(1)}s${blackBadge}`;
         headerBpmEl.textContent = Math.round(currentSong.bpm);
         const sheetTa = document.getElementById('studioSheetTextarea');
         if (sheetTa) {
@@ -3211,6 +3213,7 @@
   const VIS_MAX_PARTICLES = 220;
   const VIS_KEYBED_HEIGHT = 10;        // the lit "well" drawn just above the hit line
   const VIS_DECORATION_LIMIT = 260;    // above this many visible notes, drop halos/caps
+  const VIS_HIGH_DENSITY_THRESHOLD = 200; // direct fillRect fast-path and column coalescing threshold
 
   const paletteGradients = {
     'neon-cyber':   { left: ['#22d3ee', '#0e7490'], right: ['#fb7185', '#e11d48'], bg: ['#05070f', '#0b1020'] },
@@ -3434,6 +3437,7 @@
       this.activeNotes = new Map();   // pitch -> hand
       this.strikeColors = new Map();
       this.visibleBuffer = [];
+      this.lastSlotPerPitch = new Int32Array(128);
       this.lastRenderKey = '';
       this.observer = null;
       this.observeSize();
@@ -3646,11 +3650,15 @@
         const scanTo = lowerBoundStart(index, currentTimeMs + lookaheadMs);
         const cornerRadius = Math.min(5, keyWidth * 0.3);
 
+        const isBlackMidi = Boolean(currentSong && (currentSong.total_notes >= 15000 || (currentSong.duration_ms > 0 && (currentSong.total_notes / (currentSong.duration_ms / 1000)) >= 200)));
+        const isDensePassage = isBlackMidi || ((scanTo - scanFrom) > 200);
+
         // Geometry is resolved once into a scratch buffer, then drawn in two
         // passes. Batching the additive halo pass means one composite-mode switch
         // per frame instead of two per note.
         const visible = this.visibleBuffer;
         let visibleCount = 0;
+        this.lastSlotPerPitch.fill(-1);
 
         for (let i = scanFrom; i < scanTo; i++) {
           const endMs = index.endMs[i];
@@ -3675,30 +3683,52 @@
 
           const inset = geom.isBlack ? 0.75 : 1.25;
           const drawTop = Math.max(-4, yTop);
-
-          let slot = visible[visibleCount];
-          if (!slot) { slot = {}; visible[visibleCount] = slot; }
-          visibleCount++;
-          slot.x = geom.unitX * keyWidth + inset;
-          slot.w = Math.max(1.5, geom.unitW * keyWidth - inset * 2);
-          slot.y = drawTop;
-          slot.h = Math.max(3, Math.min(yBottom, height) - drawTop);
-          slot.capped = yTop > -2;
-          slot.sounding = sounding;
-          slot.colors = geom.isBlack ? shades.black : shades.white;
-          slot.cap = shades.cap;
+          const drawBottom = Math.min(yBottom, height);
 
           const crossedStart = isPlaying
             && previousTimeMs !== null
             && startMs > previousTimeMs
             && startMs <= currentTimeMs;
-          if (crossedStart) this.spawnParticles(slot.x + slot.w / 2, shades.head);
+          if (crossedStart) {
+            if (!isDensePassage || Math.random() < 0.15) {
+              this.spawnParticles(geom.unitX * keyWidth + geom.unitW * keyWidth * 0.5, shades.head);
+            }
+          }
+
+          // Column coalescing: merge overlapping or contiguous micro-notes on the same pitch
+          if (isDensePassage && pitch < 128) {
+            const lastIdx = this.lastSlotPerPitch[pitch];
+            if (lastIdx >= 0) {
+              const prevSlot = visible[lastIdx];
+              if (prevSlot && prevSlot.hand === hand && drawBottom >= prevSlot.y - 1.5) {
+                prevSlot.y = Math.min(prevSlot.y, drawTop);
+                prevSlot.bottom = Math.max(prevSlot.bottom, drawBottom);
+                prevSlot.h = Math.max(3, prevSlot.bottom - prevSlot.y);
+                if (sounding) prevSlot.sounding = true;
+                continue;
+              }
+            }
+          }
+
+          let slot = visible[visibleCount];
+          if (!slot) { slot = {}; visible[visibleCount] = slot; }
+          if (pitch < 128) this.lastSlotPerPitch[pitch] = visibleCount;
+          visibleCount++;
+
+          slot.x = geom.unitX * keyWidth + inset;
+          slot.w = Math.max(1.5, geom.unitW * keyWidth - inset * 2);
+          slot.y = drawTop;
+          slot.bottom = drawBottom;
+          slot.h = Math.max(3, drawBottom - drawTop);
+          slot.capped = yTop > -2;
+          slot.sounding = sounding;
+          slot.colors = geom.isBlack ? shades.black : shades.white;
+          slot.cap = shades.cap;
+          slot.hand = hand;
         }
 
-        // Hard ceiling on decoration work: in a wall-of-notes passage the halos
-        // overlap into mush anyway, so dropping them keeps the frame bounded
-        // rather than letting the cost scale with the score's density.
-        const decorate = visibleCount <= VIS_DECORATION_LIMIT;
+        const isHighDensity = isDensePassage || visibleCount > VIS_HIGH_DENSITY_THRESHOLD;
+        const decorate = !isHighDensity && visibleCount <= VIS_DECORATION_LIMIT;
 
         if (visNoteGlow && decorate) {
           ctx.save();
@@ -3713,27 +3743,59 @@
           ctx.restore();
         }
 
-        for (let i = 0; i < visibleCount; i++) {
-          const slot = visible[i];
-          const colors = slot.colors;
-          if (slot.h > 14) {
-            const gradient = ctx.createLinearGradient(0, slot.y, 0, slot.y + slot.h);
-            gradient.addColorStop(0, colors[1]);
-            gradient.addColorStop(0.55, colors[0]);
-            gradient.addColorStop(1, colors[1]);
-            ctx.fillStyle = gradient;
-          } else {
-            ctx.fillStyle = colors[0];
+        if (isHighDensity) {
+          // Fast direct fillRect path for Black MIDI & ultra-dense passages:
+          // Eliminates path overhead and linear gradient creation
+          for (let i = 0; i < visibleCount; i++) {
+            const slot = visible[i];
+            ctx.fillStyle = slot.colors[0];
+            ctx.fillRect(slot.x, slot.y, slot.w, slot.h);
           }
-          this.roundedRect(slot.x, slot.y, slot.w, slot.h, cornerRadius);
-          ctx.fill();
-
-          // Bright leading cap so a run of tied notes still reads as separate hits.
-          if (decorate && slot.capped && slot.h > 6) {
-            ctx.fillStyle = slot.cap;
-            this.roundedRect(slot.x, slot.y, slot.w, Math.min(2.5, slot.h * 0.28), 1.2);
+        } else {
+          for (let i = 0; i < visibleCount; i++) {
+            const slot = visible[i];
+            const colors = slot.colors;
+            if (slot.h > 14) {
+              const gradient = ctx.createLinearGradient(0, slot.y, 0, slot.y + slot.h);
+              gradient.addColorStop(0, colors[1]);
+              gradient.addColorStop(0.55, colors[0]);
+              gradient.addColorStop(1, colors[1]);
+              ctx.fillStyle = gradient;
+            } else {
+              ctx.fillStyle = colors[0];
+            }
+            this.roundedRect(slot.x, slot.y, slot.w, slot.h, cornerRadius);
             ctx.fill();
+
+            // Bright leading cap so a run of tied notes still reads as separate hits.
+            if (decorate && slot.capped && slot.h > 6) {
+              ctx.fillStyle = slot.cap;
+              this.roundedRect(slot.x, slot.y, slot.w, Math.min(2.5, slot.h * 0.28), 1.2);
+              ctx.fill();
+            }
           }
+        }
+
+        // Draw Black MIDI indicator badge on the canvas if active
+        if (isBlackMidi) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(10, 10, 15, 0.75)';
+          const badgeX = width - 160;
+          const badgeY = 12;
+          const badgeW = 150;
+          const badgeH = 22;
+          if (ctx.roundRect) ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
+          else ctx.rect(badgeX, badgeY, badgeW, badgeH);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 190, 0, 0.6)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.font = 'bold 9.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillStyle = '#ffcc00';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('⚡ BLACK MIDI OPTIMIZED', badgeX + badgeW / 2, badgeY + badgeH / 2);
+          ctx.restore();
         }
 
         // Keep the scratch buffer from pinning memory after a dense passage.
@@ -4062,20 +4124,25 @@
 
     // Render Note Blocks
     if (currentSong && currentSong.tracks) {
+      const isBlack = (currentSong.total_notes >= 15000) || (currentSong.duration_ms > 0 && (currentSong.total_notes / (currentSong.duration_ms / 1000)) >= 200);
       currentSong.tracks.forEach((track, tIdx) => {
+        ctx.fillStyle = (tIdx % 2 === 1) ? '#00f0ff' : '#10b981';
         (track.notes || []).forEach(n => {
           const x = (n.start_ms / 1000) * pxPerSec;
-          const nw = Math.max(6, (n.duration_ms / 1000) * pxPerSec);
+          const nw = Math.max(isBlack ? 2 : 6, (n.duration_ms / 1000) * pxPerSec);
           const y = (108 - n.note) * rowH;
 
-          ctx.fillStyle = (tIdx % 2 === 1) ? '#00f0ff' : '#10b981';
-          ctx.beginPath();
-          if (ctx.roundRect) {
-            ctx.roundRect(x, y + 1, nw - 1, rowH - 2, 3);
+          if (isBlack) {
+            ctx.fillRect(x, y + 1, nw - 1, rowH - 2);
           } else {
-            ctx.rect(x, y + 1, nw - 1, rowH - 2);
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(x, y + 1, nw - 1, rowH - 2, 3);
+            } else {
+              ctx.rect(x, y + 1, nw - 1, rowH - 2);
+            }
+            ctx.fill();
           }
-          ctx.fill();
         });
       });
     }

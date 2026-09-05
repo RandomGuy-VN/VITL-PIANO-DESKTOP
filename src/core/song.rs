@@ -255,6 +255,50 @@ impl Song {
         all
     }
 
+    /// Returns whether this song is categorized as Black MIDI
+    pub fn is_black_midi(&self) -> bool {
+        if self.total_notes >= 15_000 {
+            return true;
+        }
+        if self.duration_ms > 0.0 {
+            let density = (self.total_notes as f64) / (self.duration_ms / 1000.0);
+            if density >= 200.0 {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Average note density in notes per second
+    pub fn note_density(&self) -> f64 {
+        if self.duration_ms > 0.0 {
+            (self.total_notes as f64) / (self.duration_ms / 1000.0)
+        } else {
+            0.0
+        }
+    }
+
+    /// Computes the peak note density (maximum notes starting in any 1-second window)
+    pub fn peak_note_density(&self) -> usize {
+        let notes = self.all_notes_flattened();
+        if notes.is_empty() {
+            return 0;
+        }
+        let mut max_in_window = 0;
+        let mut right = 0;
+        for left in 0..notes.len() {
+            let window_end = notes[left].start_ms + 1000.0;
+            while right < notes.len() && notes[right].start_ms <= window_end {
+                right += 1;
+            }
+            let count = right - left;
+            if count > max_in_window {
+                max_in_window = count;
+            }
+        }
+        max_in_window
+    }
+
     /// Formats the song duration as MM:SS or HH:MM:SS
     pub fn formatted_duration(&self) -> String {
         let total_seconds = (self.duration_ms / 1000.0).round() as u64;
