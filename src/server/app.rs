@@ -984,20 +984,33 @@ async fn handle_client_action(action: ClientAction, state: &AppState, ws: &WsSen
                 })
                 .collect::<String>();
             let filename = format!("{}.mid", sanitized_title);
-            let midi_path = AppConfig::midis_dir().join(&filename);
-            if let Ok(bytes) = song.to_midi_bytes() {
-                let _ = std::fs::write(&midi_path, bytes);
-            }
+            let midis_dir = AppConfig::midis_dir();
+            let midi_path = midis_dir.join(&filename);
+            // The directory only existed if the user had already downloaded
+            // from the Hub, so a first save reported success while writing
+            // nothing and the Library stayed empty.
+            let write_result = std::fs::create_dir_all(&midis_dir)
+                .and_then(|()| song.to_midi_bytes().map_err(std::io::Error::other))
+                .and_then(|bytes| std::fs::write(&midi_path, bytes));
 
             send_ws_message(ws, &ServerMessage::CurrentSong(Some(song.clone()))).await;
-            send_ws_message(
-                ws,
-                &ServerMessage::Notification {
+            let notification = match write_result {
+                Ok(()) => ServerMessage::Notification {
                     level: "success".to_string(),
-                    message: format!("Song '{}' saved successfully", song.title),
+                    message: format!("Song '{}' saved to {}", song.title, midi_path.display()),
                 },
-            )
-            .await;
+                Err(e) => {
+                    warn!("Failed to write {}: {}", midi_path.display(), e);
+                    ServerMessage::Notification {
+                        level: "error".to_string(),
+                        message: format!(
+                            "Loaded '{}' into the player, but saving the file failed: {}",
+                            song.title, e
+                        ),
+                    }
+                }
+            };
+            send_ws_message(ws, &notification).await;
 
             let list = MidiHubClient::list_local_midis();
             send_ws_message(ws, &ServerMessage::LocalMidis(list)).await;
