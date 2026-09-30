@@ -653,56 +653,329 @@
     height: 118px;
   }
 
-  /* Piano Roll Studio Grid */
-  .piano-roll-container {
-    width: 100%;
-    height: 480px;
+  /* ── Piano Roll Studio / MIDI Builder ──────────────────────────────
+     The stage is a CSS grid: ruler across the top, keybed down the left,
+     the roll in the middle and the velocity lane underneath. Every cell is
+     a canvas sized to the *viewport*, never to the song, so a 20-minute
+     file costs exactly as much to paint as a 4-bar sketch. */
+  #view-studio.active {
     display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .studio-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+  }
+  .studio-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: none;
+    padding: 7px 11px;
+    background: var(--paper-card);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-sm);
+  }
+  .studio-strip .sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 1px 3px;
+    background: var(--line-strong);
+  }
+  .studio-strip .push { margin-left: auto; }
+
+  .s-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ink-500);
+    white-space: nowrap;
+  }
+  .s-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 500;
+    line-height: 1.15;
+    color: var(--ink-800);
+    background: var(--paper-sunk);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  }
+  .s-btn:hover:not(:disabled) {
+    background: var(--paper-raised);
+    border-color: var(--line-strong);
+    color: var(--ink-900);
+  }
+  .s-btn:active:not(:disabled) { transform: translateY(1px); }
+  .s-btn:disabled { opacity: 0.38; cursor: default; }
+  .s-btn.active,
+  .s-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .s-btn.primary { font-weight: 600; }
+  .s-btn.primary:hover:not(:disabled),
+  .s-btn.active:hover:not(:disabled) {
+    background: var(--accent-deep);
+    border-color: var(--accent-deep);
+    color: #fff;
+  }
+  .s-btn.icon {
+    padding: 5px 0;
+    width: 28px;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .s-btn .kb {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    opacity: 0.6;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 0 3px;
+    line-height: 1.3;
+  }
+  .s-seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--paper-sunk);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+  }
+  .s-seg .s-btn {
+    background: transparent;
+    border-color: transparent;
+    padding: 4px 9px;
+  }
+  .s-seg .s-btn:hover:not(:disabled):not(.active) {
+    background: var(--paper-raised);
+    border-color: var(--line);
+  }
+  /* Same specificity as the rule above, so the active state has to be stated
+     again here or the segment would fall back to transparent. */
+  .s-seg .s-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .s-seg .s-btn.active:hover:not(:disabled) {
+    background: var(--accent-deep);
+    border-color: var(--accent-deep);
+  }
+  .s-field {
+    padding: 4px 7px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line);
+    background: var(--paper-sunk);
+    color: var(--ink-900);
+    font-family: inherit;
+    font-size: 11.5px;
+    outline: none;
+  }
+  select.s-field { cursor: pointer; }
+  .s-field:focus { border-color: var(--accent-line); }
+  .s-num {
+    width: 58px;
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .s-title-input {
+    min-width: 170px;
+    font-weight: 600;
+  }
+  .s-read {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--ink-600);
+    white-space: nowrap;
+  }
+  .s-read b { color: var(--ink-900); font-weight: 600; }
+  .s-chip {
+    padding: 2.5px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .s-chip.muted {
+    background: var(--paper-sunk);
+    color: var(--ink-500);
+  }
+  .s-dirty-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 5px #f59e0b;
+    display: none;
+  }
+  .s-dirty .s-dirty-dot { display: block; }
+
+  .pr-stage {
+    flex: 1 1 auto;
+    min-height: 240px;
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    grid-template-rows: 28px minmax(0, 1fr) auto;
     background: #0f1015;
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     overflow: hidden;
-    position: relative;
+    box-shadow: var(--shadow-sm);
+    user-select: none;
+    -webkit-user-select: none;
   }
-  .piano-roll-ruler {
-    width: 54px;
-    height: 100%;
-    background: #181920;
-    border-right: 1px solid var(--line);
-    overflow-y: hidden;
-    position: relative;
-    flex-shrink: 0;
-  }
-  .ruler-key {
-    height: 16px;
-    font-size: 9.5px;
-    font-family: 'JetBrains Mono', monospace;
+  .pr-cell { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+  .pr-cell > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .pr-corner {
+    grid-area: 1 / 1;
+    border-right: 1px solid rgba(255,255,255,0.09);
+    border-bottom: 1px solid rgba(255,255,255,0.09);
+    background: #16171d;
     display: flex;
     align-items: center;
-    padding-left: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    color: #888;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: #6b7280;
   }
-  .ruler-key.black-key {
-    background: #121318;
-    color: #555;
+  .pr-ruler {
+    grid-area: 1 / 2;
+    border-bottom: 1px solid rgba(255,255,255,0.09);
+    background: #16171d;
+    cursor: text;
   }
-  .ruler-key.c-key {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--accent);
-    font-weight: 600;
+  .pr-keys {
+    grid-area: 2 / 1;
+    border-right: 1px solid rgba(255,255,255,0.09);
+    background: #101116;
+    cursor: pointer;
+    touch-action: none;
   }
-  .piano-roll-canvas-wrap {
-    flex: 1;
-    height: 100%;
+  .pr-grid { grid-area: 2 / 2; }
+  .pr-vel-head {
+    grid-area: 3 / 1;
+    border-right: 1px solid rgba(255,255,255,0.09);
+    border-top: 1px solid rgba(255,255,255,0.09);
+    background: #16171d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+  }
+  .pr-vel {
+    grid-area: 3 / 2;
+    height: 76px;
+    border-top: 1px solid rgba(255,255,255,0.09);
+    background: #101116;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .pr-stage.no-vel .pr-vel,
+  .pr-stage.no-vel .pr-vel-head { display: none; }
+
+  /* The scroll pane floats above the roll canvas purely to own the native
+     scrollbars and the wheel/trackpad gestures; the spacer inside it is what
+     gives the song its virtual size. */
+  .pr-scroll {
+    position: absolute;
+    inset: 0;
     overflow: auto;
-    position: relative;
+    z-index: 2;
+    touch-action: none;
   }
-  #pianoRollCanvas {
-    display: block;
-    cursor: crosshair;
+  .pr-scroll.grabbing { cursor: grabbing; }
+  .pr-spacer { width: 1px; height: 1px; }
+  .pr-scroll::-webkit-scrollbar { width: 11px; height: 11px; }
+  .pr-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+  .pr-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.18);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  .pr-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.32); background-clip: content-box; }
+  .pr-scroll::-webkit-scrollbar-corner { background: transparent; }
+
+  .studio-hint {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: none;
+    padding: 0 3px;
+    font-size: 10.5px;
+    color: var(--ink-500);
+  }
+  .studio-hint kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--paper-sunk);
+    border: 1px solid var(--line-strong);
+    color: var(--ink-700);
+  }
+  .studio-hint .cursor-read {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink-600);
   }
 
+  .studio-pane {
+    display: none;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+  }
+  .studio-pane.active { display: flex; }
+  .s-range {
+    flex: none !important;
+    width: 84px;
+  }
+  #studioSheetTextarea {
+    flex: 1 1 auto;
+    min-height: 260px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    background: var(--paper-card);
+    color: var(--ink-900);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    resize: none;
+    outline: none;
+    box-shadow: var(--shadow-sm);
+  }
+  #studioSheetTextarea:focus { border-color: var(--accent-line); }
   /* 88-Key Interactive Piano.
      Both key colours are absolutely positioned from the shared geometry table so
      the keyboard stays pixel-aligned with the waterfall above it. */
@@ -1171,66 +1444,146 @@
       </div>
 
       <!-- 3. PIANO ROLL STUDIO & MIDI/SHEET EDITOR -->
+      <!-- 6. PIANO ROLL STUDIO / MIDI BUILDER -->
       <div class="view-container" id="view-studio">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-          <div style="display: flex; gap: 8px;">
-            <button id="studioTabGridBtn" class="btn active" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; cursor: pointer;">🎹 Piano Roll Grid</button>
-            <button id="studioTabSheetBtn" class="btn" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--paper-sunk); color: var(--ink-800); border: 1px solid var(--line); font-size: 12px; cursor: pointer;">📝 Virtual Piano Sheet Editor</button>
-          </div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-            <button id="studioNewSongBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); color: var(--ink-900); font-size: 11px; cursor: pointer;">➕ New Song</button>
-            <button id="studioClearNotesBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); color: var(--ink-900); font-size: 11px; cursor: pointer;">🗑️ Clear</button>
-            <button id="studioQuantizeBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); color: var(--ink-900); font-size: 11px; cursor: pointer;">⏱️ Quantize 1/16</button>
-            <button id="studioSaveBtn" style="padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;">💾 Save Changes</button>
-            <button id="studioExportMidiBtn" style="padding: 6px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); color: var(--ink-900); font-size: 11px; cursor: pointer;">⬇️ Export .mid</button>
-          </div>
-        </div>
+        <div class="studio-shell">
 
-        <div id="studioGridView" style="display: flex; flex-direction: column; flex: 1;">
-          <div class="card" style="padding: 8px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-            <span style="font-size: 11.5px; font-weight: 600; color: var(--ink-900);">Tool:</span>
-            <div style="display: flex; gap: 4px;">
-              <button id="toolDraw" class="btn active" style="padding: 4px 8px; border-radius: 4px; background: var(--accent); color: #fff; font-size: 11px; border: 1px solid var(--accent); cursor: pointer;">✏️ Draw</button>
-              <button id="toolSelect" class="btn" style="padding: 4px 8px; border-radius: 4px; background: var(--paper-sunk); color: var(--ink-800); font-size: 11px; border: 1px solid var(--line); cursor: pointer;">🖐️ Select</button>
-              <button id="toolErase" class="btn" style="padding: 4px 8px; border-radius: 4px; background: var(--paper-sunk); color: var(--ink-800); font-size: 11px; border: 1px solid var(--line); cursor: pointer;">🧹 Erase</button>
+          <!-- File strip -->
+          <div class="studio-strip">
+            <div class="s-seg">
+              <button id="studioTabGridBtn" class="s-btn active">🎹 Piano Roll</button>
+              <button id="studioTabSheetBtn" class="s-btn">📝 Sheet Editor</button>
             </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 11px; color: var(--ink-600);">Snap:</span>
-              <select id="studioSnapSelect" style="padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; outline: none;">
-                <option value="125">1/16 (125ms)</option>
-                <option value="250">1/8 (250ms)</option>
-                <option value="500">1/4 (500ms)</option>
-                <option value="1">Free</option>
+            <div class="sep"></div>
+            <span class="s-label">Title</span>
+            <input id="studioTitleInput" class="s-field s-title-input" type="text" spellcheck="false" placeholder="Untitled composition">
+            <span class="push"></span>
+            <button id="studioNewSongBtn" class="s-btn" title="Start an empty composition">＋ New</button>
+            <button id="studioClearNotesBtn" class="s-btn" title="Delete every note but keep the song">🗑 Clear</button>
+            <div class="sep"></div>
+            <button id="studioSaveBtn" class="s-btn primary" title="Push the edit to the player and the library (Ctrl+S)"><span class="s-dirty-dot"></span>💾 Save &amp; Load</button>
+            <button id="studioExportMidiBtn" class="s-btn" title="Download as a .mid file">⬇ Export .mid</button>
+          </div>
+
+          <!-- ── PIANO ROLL PANE ── -->
+          <div id="studioGridView" class="studio-pane active">
+
+            <!-- Transport -->
+            <div class="studio-strip">
+              <button id="prToStartBtn" class="s-btn icon" title="Rewind to start (Home)">⏮</button>
+              <button id="prPlayBtn" class="s-btn" title="Play / pause — unsaved edits are pushed first (Space)">▶ Play</button>
+              <button id="prStopBtn" class="s-btn icon" title="Stop">⏹</button>
+              <span class="s-read" id="prTimeRead"><b>0:00.0</b> / 0:00</span>
+              <span class="s-chip muted" id="prBarRead">Bar 1 · beat 1</span>
+              <div class="sep"></div>
+              <button id="prFollowBtn" class="s-btn active" title="Scroll the roll to keep the playhead visible">⟲ Follow</button>
+              <div class="sep"></div>
+              <span class="s-label">Tempo</span>
+              <input id="prBpmInput" class="s-field s-num" type="number" min="20" max="400" step="1" value="120" title="Song tempo — drives the whole musical grid">
+              <span class="s-label">Beats/Bar</span>
+              <select id="prBeatsPerBar" class="s-field" title="Bar length used by the grid and the ruler">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
               </select>
+              <span class="push"></span>
+              <span class="s-chip" id="prNoteCount">0 notes</span>
+              <span class="s-chip muted" id="prSelCount">nothing selected</span>
             </div>
-            <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <span style="font-size: 11px; color: var(--ink-600);">Transpose:</span>
-              <button id="studioTransUpBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">+1 st</button>
-              <button id="studioTransDownBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">-1 st</button>
-              <button id="studioOctUpBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">+12 (Oct)</button>
-              <button id="studioOctDownBtn" style="padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-size: 11px; cursor: pointer;">-12 (Oct)</button>
+
+            <!-- Tools -->
+            <div class="studio-strip">
+              <span class="s-label">Tool</span>
+              <div class="s-seg" id="prToolGroup">
+                <button class="s-btn" data-tool="select" title="Move, resize, marquee-select">↖ Select <span class="kb">1</span></button>
+                <button class="s-btn active" data-tool="draw" title="Click or drag to write notes">✏ Draw <span class="kb">2</span></button>
+                <button class="s-btn" data-tool="erase" title="Click or sweep to delete">⌫ Erase <span class="kb">3</span></button>
+              </div>
+              <div class="sep"></div>
+              <span class="s-label">Snap</span>
+              <select id="prSnapSelect" class="s-field" title="Grid the notes lock to — always computed from the tempo"></select>
+              <span class="s-label">Length</span>
+              <select id="prLengthSelect" class="s-field" title="Length given to a newly drawn note"></select>
+              <div class="sep"></div>
+              <span class="s-label">Vel</span>
+              <input id="prVelInput" class="s-range" type="range" min="1" max="127" step="1" value="100" title="Velocity for new notes — drag on the lane below to edit existing ones">
+              <span class="s-read" id="prVelRead"><b>100</b></span>
+              <div class="sep"></div>
+              <span class="s-label">Zoom</span>
+              <button id="prZoomOutBtn" class="s-btn icon" title="Zoom out (Ctrl+Scroll)">−</button>
+              <button id="prZoomInBtn" class="s-btn icon" title="Zoom in (Ctrl+Scroll)">＋</button>
+              <button id="prZoomFitBtn" class="s-btn" title="Fit the whole song">Fit</button>
+              <button id="prRowDownBtn" class="s-btn icon" title="Shorter note rows">⇣</button>
+              <button id="prRowUpBtn" class="s-btn icon" title="Taller note rows">⇡</button>
+              <button id="prVelLaneBtn" class="s-btn active" title="Show / hide the velocity lane">▥ Lane</button>
+              <span class="push"></span>
+              <button id="prUndoBtn" class="s-btn icon" title="Undo (Ctrl+Z)" disabled>↶</button>
+              <button id="prRedoBtn" class="s-btn icon" title="Redo (Ctrl+Shift+Z)" disabled>↷</button>
+            </div>
+
+            <!-- Edit operations -->
+            <div class="studio-strip">
+              <span class="s-chip muted" id="prScopeChip">whole song</span>
+              <button id="prSelectAllBtn" class="s-btn" title="Select every note (Ctrl+A)">Select all</button>
+              <button id="prSelectNoneBtn" class="s-btn" title="Clear the selection (Esc)">Deselect</button>
+              <div class="sep"></div>
+              <button id="prQuantizeBtn" class="s-btn" title="Pull note starts onto the snap grid">⏱ Quantize</button>
+              <button id="prLegatoBtn" class="s-btn" title="Stretch every note up to the next one">⟷ Legato</button>
+              <button id="prHumanizeBtn" class="s-btn" title="Add a little timing and velocity jitter">✨ Humanize</button>
+              <div class="sep"></div>
+              <span class="s-label">Transpose</span>
+              <button class="s-btn" data-transpose="1" title="Up a semitone (↑)">+1</button>
+              <button class="s-btn" data-transpose="-1" title="Down a semitone (↓)">−1</button>
+              <button class="s-btn" data-transpose="12" title="Up an octave (Shift+↑)">+12</button>
+              <button class="s-btn" data-transpose="-12" title="Down an octave (Shift+↓)">−12</button>
+              <div class="sep"></div>
+              <button id="prDuplicateBtn" class="s-btn" title="Duplicate right after the selection (Ctrl+D)">⧉ Duplicate</button>
+              <button id="prDeleteBtn" class="s-btn" title="Delete the selection (Del)">🗑 Delete</button>
+            </div>
+
+            <!-- Editor stage -->
+            <div class="pr-stage" id="prStage">
+              <div class="pr-corner">BAR</div>
+              <div class="pr-cell pr-ruler" id="prRulerCell"><canvas id="prRulerCanvas"></canvas></div>
+              <div class="pr-cell pr-keys" id="prKeysCell"><canvas id="prKeysCanvas"></canvas></div>
+              <div class="pr-cell pr-grid">
+                <canvas id="prGridCanvas"></canvas>
+                <div class="pr-scroll" id="prScroll" tabindex="0"><div class="pr-spacer" id="prSpacer"></div></div>
+              </div>
+              <div class="pr-vel-head">VEL</div>
+              <div class="pr-cell pr-vel" id="prVelCell"><canvas id="prVelCanvas"></canvas></div>
+            </div>
+
+            <div class="studio-hint">
+              <span><kbd>Drag</kbd> move</span>
+              <span><kbd>Alt</kbd>+drag copy</span>
+              <span><kbd>Right edge</kbd> resize</span>
+              <span><kbd>Right-click</kbd> erase</span>
+              <span><kbd>Ctrl</kbd>+wheel zoom</span>
+              <span><kbd>Shift</kbd>+wheel pan</span>
+              <span><kbd>Space</kbd> play</span>
+              <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</span>
+              <span class="cursor-read" id="prCursorRead">—</span>
             </div>
           </div>
 
-          <div class="piano-roll-container">
-            <div class="piano-roll-ruler" id="pianoRollRuler"></div>
-            <div class="piano-roll-canvas-wrap" id="pianoRollWrap">
-              <canvas id="pianoRollCanvas" width="2400" height="1408"></canvas>
+          <!-- ── SHEET PANE ── -->
+          <div id="studioSheetView" class="studio-pane">
+            <div class="studio-strip">
+              <span class="s-label">Virtual Piano sheet — bracketed chords &amp; spacing</span>
+              <span class="push"></span>
+              <span class="s-chip muted" id="studioSheetStats">0 lines · 0 chars</span>
+              <button id="studioSheetFromRollBtn" class="s-btn" title="Convert the notes currently on the roll into sheet text">🎹 From roll</button>
+              <button id="studioFormatSheetBtn" class="s-btn" title="Normalise brackets and spacing">✨ Beautify</button>
+              <button id="studioSheetCopyBtn" class="s-btn" title="Copy the sheet to the clipboard">⧉ Copy</button>
+              <button id="studioLoadSheetToPlayerBtn" class="s-btn primary" title="Convert to MIDI and load it into the player">▶ Load to Player</button>
             </div>
+            <textarea id="studioSheetTextarea" spellcheck="false" placeholder="// Paste Virtual Piano sheet text here…&#10;// Example: [tuo] [tuo] [tuo] w e t y"></textarea>
           </div>
-        </div>
 
-        <div id="studioSheetView" style="display: none; flex-direction: column; flex: 1;">
-          <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 14px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <span style="font-size: 12px; font-weight: 600; color: var(--ink-900);">Virtual Piano Sheet Notation (Bracketed Chords & Timing):</span>
-              <button id="studioFormatSheetBtn" style="padding: 4px 10px; border-radius: var(--r-sm); background: var(--paper-sunk); border: 1px solid var(--line); font-size: 11px; cursor: pointer; color: var(--ink-900);">✨ Beautify / Fix Sheet</button>
-            </div>
-            <textarea id="studioSheetTextarea" placeholder="// Paste Virtual Piano sheet text here... Example: [tuo] [tuo] [tuo]" style="flex: 1; width: 100%; min-height: 380px; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--paper-sunk); color: var(--ink-900); font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.6; resize: none; outline: none;"></textarea>
-            <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px;">
-              <button id="studioLoadSheetToPlayerBtn" style="padding: 8px 16px; border-radius: var(--r-sm); background: var(--accent); color: #fff; border: 1px solid var(--accent); font-weight: 600; cursor: pointer;">▶️ Load Sheet to Player</button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -3925,8 +4278,8 @@
       syncVisualKeyHighlights(null);
     }
 
-    // The Studio roll repaints a multi-thousand-pixel canvas from scratch; at
-    // 60fps it starves the cascade sharing this loop, so cap it near 20fps.
+    // The Studio roll only needs to move its playhead while the song runs, and
+    // it shares this loop with the cascade, so keep it near 20fps.
     const studioV = document.getElementById('view-studio');
     if (studioV && studioV.classList.contains('active') && playbackState === PlaybackState.Playing) {
       if (now - visLastRollRenderMs >= 48) {
@@ -3997,35 +4350,6 @@
 
   applyPaletteToKeyboard();
 
-  // ── 13. Piano Roll Studio Editor & MIDI Builder ──
-  const prCanvas = document.getElementById('pianoRollCanvas');
-  const prCtx = prCanvas ? prCanvas.getContext('2d') : null;
-  const prRuler = document.getElementById('pianoRollRuler');
-  const prWrap = document.getElementById('pianoRollWrap');
-
-  if (prWrap && prRuler) {
-    prWrap.addEventListener('scroll', () => {
-      prRuler.scrollTop = prWrap.scrollTop;
-    });
-  }
-
-  function initPianoRollRuler() {
-    if (!prRuler) return;
-    prRuler.innerHTML = '';
-    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    for (let p = 108; p >= 21; p--) {
-      const row = document.createElement('div');
-      row.className = 'ruler-key';
-      const isBlack = isMidiNoteBlack(p);
-      if (isBlack) row.classList.add('black-key');
-      if (p % 12 === 0) row.classList.add('c-key');
-      const octave = Math.floor(p / 12) - 1;
-      row.textContent = `${noteNames[p % 12]}${octave}`;
-      prRuler.appendChild(row);
-    }
-  }
-  initPianoRollRuler();
-
   // Fullscreen Visualizer Button
   const toggleFullscreenVisBtn = document.getElementById('toggle-fullscreen-vis-btn');
   if (toggleFullscreenVisBtn) {
@@ -4035,236 +4359,1628 @@
     });
   }
 
-  // Piano Roll Tools State
-  let activeStudioTool = 'draw';
-  const toolBtns = {
-    draw: document.getElementById('toolDraw'),
-    select: document.getElementById('toolSelect'),
-    erase: document.getElementById('toolErase')
-  };
-  Object.entries(toolBtns).forEach(([tool, btn]) => {
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      activeStudioTool = tool;
-      Object.values(toolBtns).forEach(b => {
-        if (b) {
-          b.classList.remove('active');
-          b.style.background = 'var(--paper-sunk)';
-          b.style.color = 'var(--ink-800)';
-          b.style.borderColor = 'var(--line)';
-        }
-      });
-      btn.classList.add('active');
-      btn.style.background = 'var(--accent)';
-      btn.style.color = '#fff';
-      btn.style.borderColor = 'var(--accent)';
-    });
-  });
+  // ── 13. Piano Roll Studio — MIDI Builder ────────────────────────────────
+  // The roll is virtualised: the scroll pane owns a spacer sized to the whole
+  // song while every canvas stays exactly the size of the viewport. A twenty
+  // minute black-MIDI file therefore costs the same to paint as a four bar
+  // sketch, and we never ask the browser for a canvas wider than it can make.
+  const prStage       = document.getElementById('prStage');
+  const prScroll      = document.getElementById('prScroll');
+  const prSpacer      = document.getElementById('prSpacer');
+  const prGridCanvas  = document.getElementById('prGridCanvas');
+  const prRulerCanvas = document.getElementById('prRulerCanvas');
+  const prKeysCanvas  = document.getElementById('prKeysCanvas');
+  const prVelCanvas   = document.getElementById('prVelCanvas');
+  const prHasStudio   = !!(prStage && prScroll && prGridCanvas);
 
-  function ensureEditableSong() {
-    if (!currentSong) {
-      currentSong = {
-        title: 'New Composition',
-        artist: 'VITL Studio',
-        bpm: 120,
-        duration_ms: 60000,
-        total_notes: 0,
-        min_note: 60,
-        max_note: 60,
-        tracks: [{ name: 'Piano Track', channel: 0, notes: [], is_drum: false }],
-        tempo_events: [{ time_ms: 0, bpm: 120, us_per_beat: 500000 }],
-        control_events: []
-      };
-      recomputeCurrentSongMetadata();
+  const PR_LO = 21;                 // A0
+  const PR_HI = 108;                // C8
+  const PR_ROWS = PR_HI - PR_LO + 1;
+  const PR_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const PR_TRACK_COLORS = ['#34d399', '#38bdf8', '#fbbf24', '#f472b6', '#a78bfa', '#fb7185', '#4ade80', '#22d3ee'];
+  const PR_MIN_NOTE_MS = 15;
+  const PR_DENSE_LIMIT = 45000;     // beyond this many visible notes, draw flat
+
+  // beats === 0 means "no grid", -1 means "one bar" (follows the meter).
+  const PR_GRIDS = [
+    { id: 'off',   label: 'Off (free)',   beats: 0 },
+    { id: 'bar',   label: '1 Bar',        beats: -1 },
+    { id: '1/2',   label: '1/2',          beats: 2 },
+    { id: '1/4',   label: '1/4',          beats: 1 },
+    { id: '1/8',   label: '1/8',          beats: 0.5 },
+    { id: '1/16',  label: '1/16',         beats: 0.25 },
+    { id: '1/32',  label: '1/32',         beats: 0.125 },
+    { id: '1/4T',  label: '1/4 triplet',  beats: 2 / 3 },
+    { id: '1/8T',  label: '1/8 triplet',  beats: 1 / 3 },
+    { id: '1/16T', label: '1/16 triplet', beats: 1 / 6 }
+  ];
+
+  const prState = {
+    tool: 'draw',
+    snapId: '1/16',
+    lenId: 'snap',
+    velocity: 100,
+    beatsPerBar: 4,
+    pxPerBeat: 60,
+    rowH: 13,
+    follow: true,
+    showVel: true
+  };
+
+  let prSelection = new Set();
+  let prViewX = 0;
+  let prViewY = 0;
+  let prGridW = 1;
+  let prGridH = 1;
+  let prPaintQueued = false;
+  let prPaintFull = true;
+  let prDirty = false;
+  let prDrag = null;
+  let prHoverPitch = null;
+  let prHoverMs = null;
+  let prPlayMarkerMs = 0;
+  let prLastSongRevision = -1;
+  let prEditToken = 0;              // bumped by every note mutation
+  let prHeldPreview = null;
+
+  const prGridCtx  = prGridCanvas ? prGridCanvas.getContext('2d') : null;
+  const prRulerCtx = prRulerCanvas ? prRulerCanvas.getContext('2d') : null;
+  const prKeysCtx  = prKeysCanvas ? prKeysCanvas.getContext('2d') : null;
+  const prVelCtx   = prVelCanvas ? prVelCanvas.getContext('2d') : null;
+
+  const prClamp = (v, lo, hi) => (v < lo ? lo : (v > hi ? hi : v));
+  const prIsStudioVisible = () => {
+    const v = document.getElementById('view-studio');
+    return !!(v && v.classList.contains('active') && prStage && prStage.clientWidth > 0);
+  };
+
+  // ── 13a. Tempo map: every x coordinate on the roll is a beat, not a second,
+  // so the grid stays musically true even through tempo changes.
+  let prTempoSegs = null;
+  let prTempoKey = '';
+
+  function prTempo() {
+    const song = currentSong;
+    const baseBpm = (song && Number(song.bpm) > 0) ? Number(song.bpm) : 120;
+    const events = (song && Array.isArray(song.tempo_events) ? song.tempo_events : [])
+      .filter(e => Number.isFinite(Number(e.time_ms)) && Number(e.bpm) > 0)
+      .map(e => ({ ms: Math.max(0, Number(e.time_ms)), bpm: Number(e.bpm) }))
+      .sort((a, b) => a.ms - b.ms);
+    const key = `${baseBpm}|${events.map(e => `${e.ms}:${e.bpm}`).join(',')}`;
+    if (prTempoSegs && key === prTempoKey) return prTempoSegs;
+
+    const segs = [];
+    if (!events.length || events[0].ms > 0) segs.push({ ms: 0, beat: 0, mpb: 60000 / baseBpm });
+    events.forEach(e => {
+      const mpb = 60000 / e.bpm;
+      const last = segs[segs.length - 1];
+      if (!last) { segs.push({ ms: 0, beat: 0, mpb }); return; }
+      if (e.ms <= last.ms) { last.mpb = mpb; return; }
+      segs.push({ ms: e.ms, beat: last.beat + (e.ms - last.ms) / last.mpb, mpb });
+    });
+    if (!segs.length) segs.push({ ms: 0, beat: 0, mpb: 500 });
+    prTempoSegs = segs;
+    prTempoKey = key;
+    return segs;
+  }
+
+  function prSegByMs(ms) {
+    const segs = prTempo();
+    let lo = 0, hi = segs.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (segs[mid].ms <= ms) lo = mid; else hi = mid - 1;
     }
+    return segs[lo];
+  }
+
+  function prSegByBeat(beat) {
+    const segs = prTempo();
+    let lo = 0, hi = segs.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (segs[mid].beat <= beat) lo = mid; else hi = mid - 1;
+    }
+    return segs[lo];
+  }
+
+  function prMsToBeat(ms) {
+    const segs = prTempo();
+    if (segs.length === 1) return ms / segs[0].mpb;
+    const s = prSegByMs(ms);
+    return s.beat + (ms - s.ms) / s.mpb;
+  }
+
+  function prBeatToMs(beat) {
+    const segs = prTempo();
+    if (segs.length === 1) return beat * segs[0].mpb;
+    const s = prSegByBeat(beat);
+    return s.ms + (beat - s.beat) * s.mpb;
+  }
+
+  function prSnapBeats() {
+    const entry = PR_GRIDS.find(g => g.id === prState.snapId) || PR_GRIDS[5];
+    return entry.beats === -1 ? prState.beatsPerBar : entry.beats;
+  }
+
+  function prNewNoteBeats() {
+    if (prState.lenId === 'snap') {
+      const snap = prSnapBeats();
+      return snap > 0 ? snap : 0.5;
+    }
+    const entry = PR_GRIDS.find(g => g.id === prState.lenId);
+    if (!entry || entry.beats === 0) return 0.5;
+    return entry.beats === -1 ? prState.beatsPerBar : entry.beats;
+  }
+
+  function prSnapBeat(beat) {
+    const grid = prSnapBeats();
+    if (grid <= 0) return beat;
+    return Math.round(beat / grid) * grid;
+  }
+
+  const prBeatToX = (beat) => beat * prState.pxPerBeat;
+  const prXToBeat = (x) => x / prState.pxPerBeat;
+  const prMsToX = (ms) => prBeatToX(prMsToBeat(ms));
+  const prXToMs = (x) => prBeatToMs(prXToBeat(x));
+  const prPitchToY = (pitch) => (PR_HI - pitch) * prState.rowH;
+  const prYToPitch = (y) => PR_HI - Math.floor(y / prState.rowH);
+
+  // ── 13b. Song access ────────────────────────────────────────────────────
+  function ensureEditableSong() {
+    let repaired = false;
+    if (!currentSong || typeof currentSong !== 'object') {
+      currentSong = prBlankSong();
+      repaired = true;
+    }
+    if (!Array.isArray(currentSong.tracks) || currentSong.tracks.length === 0) {
+      currentSong.tracks = [{ name: 'Piano Track', channel: 0, notes: [], is_drum: false }];
+      repaired = true;
+    }
+    // `Song` carries no serde defaults, so a single missing field makes the
+    // backend drop the whole save_song frame on the floor without a word.
+    if (typeof currentSong.title !== 'string' || !currentSong.title) { currentSong.title = 'New Composition'; repaired = true; }
+    if (typeof currentSong.artist !== 'string') { currentSong.artist = 'VITL Studio'; repaired = true; }
+    if (!(Number(currentSong.bpm) > 0)) { currentSong.bpm = 120; repaired = true; }
+    if (!Array.isArray(currentSong.control_events)) { currentSong.control_events = []; repaired = true; }
+    if (!Array.isArray(currentSong.tempo_events) || !currentSong.tempo_events.length) {
+      currentSong.tempo_events = [{ time_ms: 0, bpm: currentSong.bpm, us_per_beat: Math.round(60000000 / currentSong.bpm) }];
+      repaired = true;
+    }
+    if (!currentSong.source_type) { currentSong.source_type = 'Generated'; repaired = true; }
+    if (!Number.isFinite(Number(currentSong.total_notes))) repaired = true;
+    if (repaired) recomputeCurrentSongMetadata();
     return currentSong;
   }
 
-  function renderPianoRoll() {
-    if (!prCanvas || !prCtx) return;
-    const ctx = prCtx;
-    const pxPerSec = 80;
-    const rowH = 16;
-    const songDurationSec = (currentSong && currentSong.duration_ms) ? (currentSong.duration_ms / 1000) : 120;
-    const neededWidth = Math.max(2400, Math.ceil(songDurationSec * pxPerSec) + 400);
-    if (prCanvas.width !== neededWidth) prCanvas.width = neededWidth;
-
-    const w = prCanvas.width;
-    const h = prCanvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    // Pitch grid lines
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-    ctx.lineWidth = 1;
-    for (let p = 108; p >= 21; p--) {
-      const y = (108 - p) * rowH;
-      if (p % 12 === 0) {
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
-        ctx.fillRect(0, y, w, rowH);
-      } else if (isMidiNoteBlack(p)) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
-        ctx.fillRect(0, y, w, rowH);
-      }
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-
-    // Measure & Second vertical lines
-    const totalSeconds = Math.ceil(w / pxPerSec);
-    for (let sec = 0; sec <= totalSeconds; sec++) {
-      const x = sec * pxPerSec;
-      ctx.strokeStyle = (sec % 4 === 0) ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.03)';
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-
-    // Render Note Blocks
-    if (currentSong && currentSong.tracks) {
-      const isBlack = (currentSong.total_notes >= 15000) || (currentSong.duration_ms > 0 && (currentSong.total_notes / (currentSong.duration_ms / 1000)) >= 200);
-      currentSong.tracks.forEach((track, tIdx) => {
-        ctx.fillStyle = (tIdx % 2 === 1) ? '#00f0ff' : '#10b981';
-        (track.notes || []).forEach(n => {
-          const x = (n.start_ms / 1000) * pxPerSec;
-          const nw = Math.max(isBlack ? 2 : 6, (n.duration_ms / 1000) * pxPerSec);
-          const y = (108 - n.note) * rowH;
-
-          if (isBlack) {
-            ctx.fillRect(x, y + 1, nw - 1, rowH - 2);
-          } else {
-            ctx.beginPath();
-            if (ctx.roundRect) {
-              ctx.roundRect(x, y + 1, nw - 1, rowH - 2, 3);
-            } else {
-              ctx.rect(x, y + 1, nw - 1, rowH - 2);
-            }
-            ctx.fill();
-          }
-        });
-      });
-    }
-
-    // Render Playhead Cursor
-    if (currentPlaybackMs >= 0) {
-      const playheadX = (currentPlaybackMs / 1000) * pxPerSec;
-      ctx.save();
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = 'rgba(239, 68, 68, 0.8)';
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.moveTo(playheadX, 0);
-      ctx.lineTo(playheadX, h);
-      ctx.stroke();
-      ctx.restore();
-    }
+  function prBlankSong() {
+    return {
+      title: 'New Composition',
+      artist: 'VITL Studio',
+      bpm: 120,
+      duration_ms: 8000,
+      total_notes: 0,
+      min_note: 60,
+      max_note: 60,
+      tracks: [{ name: 'Piano Track', channel: 0, notes: [], is_drum: false }],
+      tempo_events: [{ time_ms: 0, bpm: 120, us_per_beat: 500000 }],
+      control_events: [],
+      source_type: 'Generated'
+    };
   }
 
   function recomputeCurrentSongMetadata() {
     if (!currentSong || !Array.isArray(currentSong.tracks)) return;
     let totalNotes = 0;
     let durationMs = 0;
+    let minNote = 127;
+    let maxNote = 0;
     currentSong.tracks.forEach((track, trackIndex) => {
       if (!Array.isArray(track.notes)) track.notes = [];
       track.notes.forEach(note => {
         note.track = trackIndex;
+        note.note = prClamp(Math.round(Number(note.note) || 0), 0, 127);
+        note.velocity = prClamp(Math.round(Number(note.velocity) || 1), 1, 127);
+        note.start_ms = Math.max(0, Number(note.start_ms) || 0);
+        note.duration_ms = Math.max(PR_MIN_NOTE_MS, Number(note.duration_ms) || 0);
         totalNotes++;
-        durationMs = Math.max(durationMs, (Number(note.start_ms) || 0) + (Number(note.duration_ms) || 0));
+        if (note.note < minNote) minNote = note.note;
+        if (note.note > maxNote) maxNote = note.note;
+        durationMs = Math.max(durationMs, note.start_ms + note.duration_ms);
       });
     });
     currentSong.total_notes = totalNotes;
     currentSong.duration_ms = Math.max(1000, durationMs);
+    currentSong.min_note = totalNotes ? minNote : 60;
+    currentSong.max_note = totalNotes ? maxNote : 60;
   }
 
-  // Piano Roll Interactive Editing (Draw, Select & Erase)
-  if (prCanvas) {
-    prCanvas.addEventListener('pointerdown', (event) => {
-      if (activeStudioTool === 'select') return;
-      ensureEditableSong();
+  function prTracks() {
+    return (currentSong && Array.isArray(currentSong.tracks)) ? currentSong.tracks : [];
+  }
 
-      const rect = prCanvas.getBoundingClientRect();
-      const clickX = event.clientX - rect.left;
-      const clickY = event.clientY - rect.top;
-      const rowH = 16;
-      const pxPerSec = 80;
-      const pitch = 108 - Math.floor(clickY / rowH);
-      if (pitch < 21 || pitch > 108) return;
+  function prAllNotes() {
+    const out = [];
+    prTracks().forEach(t => { if (Array.isArray(t.notes)) out.push(...t.notes); });
+    return out;
+  }
 
-      const rawTimeMs = (clickX / pxPerSec) * 1000;
-      const snapSelect = document.getElementById('studioSnapSelect');
-      const snapMs = snapSelect ? (parseFloat(snapSelect.value) || 125) : 125;
-      const timeMs = snapMs > 1 ? Math.round(rawTimeMs / snapMs) * snapMs : rawTimeMs;
+  function prTotalNotes() {
+    let n = 0;
+    prTracks().forEach(t => { n += Array.isArray(t.notes) ? t.notes.length : 0; });
+    return n;
+  }
 
-      if (!Array.isArray(currentSong.tracks) || currentSong.tracks.length === 0) {
-        currentSong.tracks = [{ name: 'Piano Track', channel: 0, notes: [], is_drum: false }];
+  // Sorted views used for viewport culling; rebuilt only when notes change.
+  let prIndex = { token: -1, lanes: [] };
+
+  function prNoteIndex() {
+    if (prIndex.token === prEditToken) return prIndex.lanes;
+    const lanes = prTracks().map(track => {
+      const notes = (Array.isArray(track.notes) ? track.notes.slice() : []).sort((a, b) => a.start_ms - b.start_ms);
+      let maxDur = 0;
+      for (let i = 0; i < notes.length; i++) if (notes[i].duration_ms > maxDur) maxDur = notes[i].duration_ms;
+      return { notes, maxDur };
+    });
+    prIndex = { token: prEditToken, lanes };
+    return lanes;
+  }
+
+  function prLowerBound(notes, ms) {
+    let lo = 0, hi = notes.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (notes[mid].start_ms < ms) lo = mid + 1; else hi = mid;
+    }
+    return lo;
+  }
+
+  /** Every note whose body overlaps [fromMs, toMs]. */
+  function prNotesInRange(fromMs, toMs) {
+    const out = [];
+    prNoteIndex().forEach((lane, trackIndex) => {
+      const notes = lane.notes;
+      let i = prLowerBound(notes, fromMs - lane.maxDur - 1);
+      for (; i < notes.length; i++) {
+        const n = notes[i];
+        if (n.start_ms > toMs) break;
+        if (n.start_ms + n.duration_ms >= fromMs) out.push({ n, trackIndex });
+      }
+    });
+    return out;
+  }
+
+  function prMarkEdited() {
+    prEditToken++;
+    recomputeCurrentSongMetadata();
+    prDirty = true;
+    prSyncChrome();
+    prUpdateSpacer();
+    renderPianoRoll();
+  }
+
+  /** Mid-gesture update: the sorted index holds the very same note objects, so
+      a drag only needs a repaint — re-sorting 100k notes per mousemove would
+      make the roll crawl. The index is rebuilt once, on pointerup. */
+  function prTouchDragging() {
+    prDirty = true;
+    renderPianoRoll();
+  }
+
+  // ── 13c. Undo history ───────────────────────────────────────────────────
+  const prUndoStack = [];
+  const prRedoStack = [];
+
+  function prHistoryDepth() {
+    return prTotalNotes() > 20000 ? 6 : 80;
+  }
+
+  function prSnapshot() {
+    const tracks = prTracks().map(t => ({
+      name: t.name,
+      channel: t.channel,
+      is_drum: !!t.is_drum,
+      notes: (t.notes || []).map(n => ({
+        note: n.note, velocity: n.velocity, start_ms: n.start_ms,
+        duration_ms: n.duration_ms, track: n.track, channel: n.channel
+      }))
+    }));
+    const selected = [];
+    prTracks().forEach((t, ti) => (t.notes || []).forEach((n, ni) => { if (prSelection.has(n)) selected.push([ti, ni]); }));
+    return { tracks, selected };
+  }
+
+  function prRestore(snap) {
+    ensureEditableSong();
+    currentSong.tracks = snap.tracks.map(t => ({
+      name: t.name,
+      channel: t.channel,
+      is_drum: !!t.is_drum,
+      notes: t.notes.map(n => ({ ...n }))
+    }));
+    prSelection = new Set();
+    snap.selected.forEach(([ti, ni]) => {
+      const track = currentSong.tracks[ti];
+      if (track && track.notes[ni]) prSelection.add(track.notes[ni]);
+    });
+    prMarkEdited();
+  }
+
+  function prPushHistory() {
+    ensureEditableSong();
+    prUndoStack.push(prSnapshot());
+    while (prUndoStack.length > prHistoryDepth()) prUndoStack.shift();
+    prRedoStack.length = 0;
+  }
+
+  function prUndo() {
+    if (!prUndoStack.length) return;
+    prRedoStack.push(prSnapshot());
+    prRestore(prUndoStack.pop());
+    showToast('Undo', 'info');
+  }
+
+  function prRedo() {
+    if (!prRedoStack.length) return;
+    prUndoStack.push(prSnapshot());
+    prRestore(prRedoStack.pop());
+    showToast('Redo', 'info');
+  }
+
+  // ── 13d. Note preview ───────────────────────────────────────────────────
+  const prPreviewTimers = new Map();
+
+  function prPreview(pitch, velocity, holdMs = 240) {
+    const p = prClamp(Math.round(pitch), 0, 127);
+    const v = prClamp(Math.round(velocity || prState.velocity), 1, 127);
+    const running = prPreviewTimers.get(p);
+    if (running) clearTimeout(running);
+    sendNoteTrigger(p, v, true);
+    prPreviewTimers.set(p, setTimeout(() => {
+      prPreviewTimers.delete(p);
+      sendNoteTrigger(p, 0, false);
+    }, holdMs));
+  }
+
+  function prHoldNote(pitch) {
+    const p = prClamp(Math.round(pitch), 0, 127);
+    if (prHeldPreview === p) return;
+    prReleaseHeld();
+    sendNoteTrigger(p, prState.velocity, true);
+    prHeldPreview = p;
+  }
+
+  function prReleaseHeld() {
+    if (prHeldPreview === null) return;
+    sendNoteTrigger(prHeldPreview, 0, false);
+    prHeldPreview = null;
+  }
+
+  // ── 13e. Layout & scrolling ─────────────────────────────────────────────
+  function prContentWidth() {
+    const durMs = currentSong ? Number(currentSong.duration_ms) || 0 : 0;
+    // A blank song still gets eight bars of room to write in.
+    const beats = Math.max(prMsToBeat(durMs), prState.beatsPerBar * 8) + prState.beatsPerBar * 2;
+    return Math.max(prGridW, Math.ceil(prBeatToX(beats)));
+  }
+
+  function prContentHeight() {
+    return PR_ROWS * prState.rowH;
+  }
+
+  function prUpdateSpacer() {
+    if (!prHasStudio) return;
+    prSpacer.style.width = `${prContentWidth()}px`;
+    prSpacer.style.height = `${prContentHeight()}px`;
+  }
+
+  function prFitCanvas(canvas, ctx) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(rect.width));
+    const h = Math.max(1, Math.round(rect.height));
+    const pw = Math.max(1, Math.round(w * dpr));
+    const ph = Math.max(1, Math.round(h * dpr));
+    if (canvas.width !== pw) canvas.width = pw;
+    if (canvas.height !== ph) canvas.height = ph;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { w, h };
+  }
+
+  function prScrollTo(x, y) {
+    prScroll.scrollLeft = Math.max(0, x);
+    prScroll.scrollTop = Math.max(0, y);
+  }
+
+  function prMeasure() {
+    if (!prHasStudio) return;
+    prGridW = Math.max(1, prScroll.clientWidth);
+    prGridH = Math.max(1, prScroll.clientHeight);
+  }
+
+  function prCenterOnPitch(pitch) {
+    prMeasure();
+    prScrollTo(prScroll.scrollLeft, prPitchToY(pitch) - prGridH / 2 + prState.rowH / 2);
+  }
+
+  /** Zoom horizontally while pinning the beat under `anchorPx` (viewport px). */
+  function prZoomX(factor, anchorPx) {
+    prMeasure();
+    const anchor = anchorPx === undefined ? prGridW / 2 : anchorPx;
+    const beatAtAnchor = prXToBeat(prViewX + anchor);
+    const totalBeats = Math.max(1, prMsToBeat(Math.max(currentSong ? currentSong.duration_ms : 0, 8000)));
+    const maxPx = Math.min(600, Math.max(12, 4000000 / totalBeats));
+    prState.pxPerBeat = prClamp(prState.pxPerBeat * factor, 3, maxPx);
+    prUpdateSpacer();
+    prScrollTo(prBeatToX(beatAtAnchor) - anchor, prScroll.scrollTop);
+    prSyncChrome();
+    renderPianoRoll();
+  }
+
+  function prZoomY(delta, anchorPx) {
+    prMeasure();
+    const anchor = anchorPx === undefined ? prGridH / 2 : anchorPx;
+    const pitchAtAnchor = (prViewY + anchor) / prState.rowH;
+    prState.rowH = prClamp(prState.rowH + delta, 5, 34);
+    prUpdateSpacer();
+    prScrollTo(prScroll.scrollLeft, pitchAtAnchor * prState.rowH - anchor);
+    renderPianoRoll();
+  }
+
+  function prZoomFit() {
+    prMeasure();
+    const durMs = Math.max(currentSong ? Number(currentSong.duration_ms) || 0 : 0, 4000);
+    const beats = Math.max(1, prMsToBeat(durMs));
+    prState.pxPerBeat = prClamp((prGridW - 8) / beats, 3, 600);
+    prUpdateSpacer();
+    const notes = prAllNotes();
+    if (notes.length) {
+      let lo = 127, hi = 0;
+      notes.forEach(n => { if (n.note < lo) lo = n.note; if (n.note > hi) hi = n.note; });
+      const span = Math.max(12, hi - lo + 4);
+      prState.rowH = prClamp(Math.floor(prGridH / span), 5, 34);
+      prUpdateSpacer();
+      prScrollTo(0, prPitchToY(Math.min(PR_HI, hi + 2)));
+    } else {
+      prScrollTo(0, prPitchToY(84));
+    }
+    prSyncChrome();
+    renderPianoRoll();
+  }
+
+  // ── 13f. Painting ───────────────────────────────────────────────────────
+  /** `scope === 'keys'` repaints only the keybed — used for plain hover, which
+      must not re-rasterise a dense roll sixty times a second. */
+  function renderPianoRoll(scope) {
+    if (!prHasStudio) return;
+    if (scope !== 'keys') prPaintFull = true;
+    if (prPaintQueued) return;
+    prPaintQueued = true;
+    requestAnimationFrame(() => {
+      prPaintQueued = false;
+      const full = prPaintFull;
+      prPaintFull = false;
+      prPaintNow(full);
+    });
+  }
+
+  function prPaintNow(full) {
+    if (!prHasStudio) return;
+    if (currentSongRevision !== prLastSongRevision) prOnSongReplaced();
+    if (!prIsStudioVisible()) return;
+
+    prViewX = prScroll.scrollLeft;
+    prViewY = prScroll.scrollTop;
+
+    if (!full) { prPaintKeys(); return; }
+
+    // Keep the playhead on screen while the song runs.
+    if (prState.follow && playbackState === PlaybackState.Playing && !prDrag) {
+      prMeasure();
+      const headX = prMsToX(currentPlaybackMs);
+      if (headX < prViewX + 24 || headX > prViewX + prGridW - 72) {
+        prScroll.scrollLeft = Math.max(0, headX - prGridW * 0.2);
+        prViewX = prScroll.scrollLeft;
+      }
+    }
+
+    const grid = prFitCanvas(prGridCanvas, prGridCtx);
+    prGridW = grid.w;
+    prGridH = grid.h;
+
+    prPaintGrid(prGridCtx, grid.w, grid.h);
+    prPaintRuler();
+    prPaintKeys();
+    prPaintVelocity();
+    prSyncChrome();
+  }
+
+  function prPaintGrid(ctx, w, h) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#12131a';
+    ctx.fillRect(0, 0, w, h);
+
+    const rowH = prState.rowH;
+    const firstPitch = prClamp(PR_HI - Math.floor(prViewY / rowH), PR_LO, PR_HI);
+    const lastPitch = prClamp(PR_HI - Math.floor((prViewY + h) / rowH), PR_LO, PR_HI);
+
+    // Pitch lanes
+    for (let p = firstPitch; p >= lastPitch; p--) {
+      const y = prPitchToY(p) - prViewY;
+      if (isMidiNoteBlack(p)) {
+        ctx.fillStyle = 'rgba(0,0,0,0.34)';
+        ctx.fillRect(0, y, w, rowH);
+      } else if (p % 12 === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.045)';
+        ctx.fillRect(0, y, w, rowH);
+      }
+      if (rowH >= 7) {
+        ctx.fillStyle = (p % 12 === 0) ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.05)';
+        ctx.fillRect(0, y, w, 1);
+      }
+    }
+
+    // Musical grid
+    const beatsPerBar = prState.beatsPerBar;
+    const snap = prSnapBeats();
+    const startBeat = prXToBeat(prViewX);
+    const endBeat = prXToBeat(prViewX + w);
+    const beatPx = prState.pxPerBeat;
+    const drawSub = snap > 0 && snap < 1 && snap * beatPx >= 6;
+    const drawBeat = beatPx >= 7;
+
+    if (drawSub) {
+      ctx.fillStyle = 'rgba(255,255,255,0.045)';
+      const first = Math.ceil(startBeat / snap) * snap;
+      for (let b = first; b <= endBeat; b += snap) {
+        const x = Math.round(prBeatToX(b) - prViewX);
+        ctx.fillRect(x, 0, 1, h);
+      }
+    }
+    if (drawBeat) {
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      for (let b = Math.ceil(startBeat); b <= endBeat; b++) {
+        if (b % beatsPerBar === 0) continue;
+        ctx.fillRect(Math.round(prBeatToX(b) - prViewX), 0, 1, h);
+      }
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    const firstBar = Math.floor(startBeat / beatsPerBar) * beatsPerBar;
+    for (let b = firstBar; b <= endBeat; b += beatsPerBar) {
+      if (b < 0) continue;
+      ctx.fillRect(Math.round(prBeatToX(b) - prViewX), 0, 1, h);
+    }
+
+    // Notes — culled to the viewport, with a margin so a note being dragged
+    // never blinks out of the sorted index it no longer belongs in.
+    const margin = prDrag ? beatPx * 8 : 0;
+    const fromMs = prXToMs(Math.max(0, prViewX - margin));
+    const toMs = prXToMs(prViewX + w + margin);
+    const visible = prNotesInRange(fromMs, toMs);
+    const dense = visible.length > PR_DENSE_LIMIT;
+    const rounded = !dense && rowH >= 9 && typeof ctx.roundRect === 'function';
+
+    const paintNote = (n, trackIndex, selected) => {
+      if (n.note < lastPitch - 1 || n.note > firstPitch + 1) return;
+      const x = prMsToX(n.start_ms) - prViewX;
+      if (x > w) return;
+      const x2 = prMsToX(n.start_ms + n.duration_ms) - prViewX;
+      if (x2 < 0) return;
+      const nw = Math.max(dense ? 1 : 2, x2 - x);
+      const y = prPitchToY(n.note) - prViewY;
+
+      ctx.fillStyle = selected ? '#ffffff' : PR_TRACK_COLORS[trackIndex % PR_TRACK_COLORS.length];
+      ctx.globalAlpha = dense ? 0.9 : (0.55 + 0.45 * (n.velocity / 127));
+      if (rounded) {
+        ctx.beginPath();
+        ctx.roundRect(x, y + 1, nw, rowH - 2, Math.min(3, rowH / 4));
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y + (rowH > 4 ? 1 : 0), nw, Math.max(1, rowH - (rowH > 4 ? 2 : 0)));
+      }
+      ctx.globalAlpha = 1;
+      if (selected && !dense) {
+        ctx.strokeStyle = '#0f1015';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 1.5, Math.max(1, nw - 1), Math.max(1, rowH - 3));
+      }
+    };
+
+    for (let i = 0; i < visible.length; i++) {
+      if (prSelection.has(visible[i].n)) continue;
+      paintNote(visible[i].n, visible[i].trackIndex, false);
+    }
+    // Selected notes are drawn from the live selection rather than the index,
+    // so a freshly drawn or just-moved note is always on screen.
+    if (prSelection.size) prSelection.forEach(n => paintNote(n, n.track || 0, true));
+    ctx.globalAlpha = 1;
+
+    // Marquee
+    if (prDrag && prDrag.mode === 'marquee') {
+      const x0 = Math.min(prDrag.originX, prDrag.curX) - prViewX;
+      const x1 = Math.max(prDrag.originX, prDrag.curX) - prViewX;
+      const y0 = Math.min(prDrag.originY, prDrag.curY) - prViewY;
+      const y1 = Math.max(prDrag.originY, prDrag.curY) - prViewY;
+      ctx.fillStyle = 'rgba(56,189,248,0.16)';
+      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+      ctx.strokeStyle = 'rgba(125,211,252,0.85)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
+    }
+
+    // Start marker + playhead
+    const markerX = prMsToX(prPlayMarkerMs) - prViewX;
+    if (markerX >= -1 && markerX <= w) {
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.fillRect(Math.round(markerX), 0, 1, h);
+    }
+    const headX = prMsToX(currentPlaybackMs) - prViewX;
+    if (headX >= -2 && headX <= w + 2) {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(Math.round(headX), 0, 2, h);
+    }
+  }
+
+  function prPaintRuler() {
+    if (!prRulerCtx) return;
+    const { w, h } = prFitCanvas(prRulerCanvas, prRulerCtx);
+    const ctx = prRulerCtx;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#16171d';
+    ctx.fillRect(0, 0, w, h);
+
+    const beatsPerBar = prState.beatsPerBar;
+    const startBeat = prXToBeat(prViewX);
+    const endBeat = prXToBeat(prViewX + w);
+    const barPx = beatsPerBar * prState.pxPerBeat;
+    const barStep = Math.max(1, Math.pow(2, Math.ceil(Math.log2(Math.max(1, 52 / Math.max(1, barPx))))));
+
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'middle';
+    const firstBar = Math.floor(startBeat / beatsPerBar);
+    for (let bar = Math.max(0, firstBar); bar * beatsPerBar <= endBeat; bar++) {
+      const x = Math.round(prBeatToX(bar * beatsPerBar) - prViewX);
+      const major = bar % barStep === 0;
+      ctx.fillStyle = major ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.12)';
+      ctx.fillRect(x, major ? 0 : h * 0.55, 1, h);
+      if (major) {
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText(String(bar + 1), x + 4, h / 2);
+      }
+      if (prState.pxPerBeat >= 26) {
+        for (let b = 1; b < beatsPerBar; b++) {
+          const bx = Math.round(prBeatToX(bar * beatsPerBar + b) - prViewX);
+          ctx.fillStyle = 'rgba(255,255,255,0.10)';
+          ctx.fillRect(bx, h * 0.68, 1, h);
+        }
+      }
+    }
+
+    const markerX = prMsToX(prPlayMarkerMs) - prViewX;
+    if (markerX >= -6 && markerX <= w + 6) {
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.beginPath();
+      ctx.moveTo(markerX - 4, 0);
+      ctx.lineTo(markerX + 4, 0);
+      ctx.lineTo(markerX, 7);
+      ctx.closePath();
+      ctx.fill();
+    }
+    const headX = prMsToX(currentPlaybackMs) - prViewX;
+    if (headX >= -6 && headX <= w + 6) {
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(headX - 5, 0);
+      ctx.lineTo(headX + 5, 0);
+      ctx.lineTo(headX, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillRect(Math.round(headX), 0, 1.5, h);
+    }
+  }
+
+  function prPaintKeys() {
+    if (!prKeysCtx) return;
+    const { w, h } = prFitCanvas(prKeysCanvas, prKeysCtx);
+    const ctx = prKeysCtx;
+    const rowH = prState.rowH;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#e9e6de';
+    ctx.fillRect(0, 0, w, h);
+
+    const first = prClamp(PR_HI - Math.floor(prViewY / rowH), PR_LO, PR_HI);
+    const last = prClamp(PR_HI - Math.floor((prViewY + h) / rowH), PR_LO, PR_HI);
+    const blackW = Math.round(w * 0.62);
+    const sounding = (typeof serverActiveNotes !== 'undefined' && serverActiveNotes) ? serverActiveNotes : new Set();
+
+    ctx.font = `${Math.min(10, Math.max(7, rowH - 4))}px "JetBrains Mono", monospace`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+
+    for (let p = first; p >= last; p--) {
+      const y = prPitchToY(p) - prViewY;
+      const black = isMidiNoteBlack(p);
+      const lit = sounding.has(p) || prHoverPitch === p;
+
+      if (black) {
+        ctx.fillStyle = lit ? '#6ee7b7' : '#1c1d24';
+        ctx.fillRect(0, y + 0.5, blackW, rowH - 1);
+      } else {
+        if (lit) {
+          ctx.fillStyle = 'rgba(52,211,153,0.55)';
+          ctx.fillRect(0, y, w, rowH);
+        }
+        // Separator only between two adjacent white keys (B|C and E|F).
+        const nextDown = p - 1;
+        if (nextDown >= PR_LO && !isMidiNoteBlack(nextDown)) {
+          ctx.fillStyle = 'rgba(30,28,24,0.32)';
+          ctx.fillRect(0, y + rowH - 1, w, 1);
+        }
       }
 
-      if (activeStudioTool === 'erase') {
-        let deletedNotes = 0;
-        currentSong.tracks.forEach(track => {
-          const notes = Array.isArray(track.notes) ? track.notes : [];
-          const remaining = notes.filter(note => {
-            const matches = note.note === pitch
-              && rawTimeMs >= note.start_ms - 50
-              && rawTimeMs <= note.start_ms + note.duration_ms + 50;
-            if (matches) deletedNotes++;
-            return !matches;
-          });
-          track.notes = remaining;
-        });
-        if (deletedNotes > 0) {
-          recomputeCurrentSongMetadata();
-          renderPianoRoll();
-          showToast(`${deletedNotes} note${deletedNotes === 1 ? '' : 's'} removed`, 'info');
+      // Only white keys are labelled: a name printed beside a black key lands
+      // on its neighbour's tail and just smudges the keybed.
+      if (!black && (p % 12 === 0 || rowH >= 12)) {
+        ctx.fillStyle = (p % 12 === 0) ? '#1a1916' : 'rgba(26,25,22,0.42)';
+        ctx.fillText(`${PR_NAMES[p % 12]}${Math.floor(p / 12) - 1}`, w - 5, y + rowH / 2);
+      }
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function prPaintVelocity() {
+    if (!prVelCtx || !prState.showVel) return;
+    const { w, h } = prFitCanvas(prVelCanvas, prVelCtx);
+    const ctx = prVelCtx;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#101116';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    for (let i = 1; i < 4; i++) ctx.fillRect(0, Math.round(h * i / 4), w, 1);
+
+    const beatsPerBar = prState.beatsPerBar;
+    const startBeat = prXToBeat(prViewX);
+    const endBeat = prXToBeat(prViewX + w);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    for (let b = Math.floor(startBeat / beatsPerBar) * beatsPerBar; b <= endBeat; b += beatsPerBar) {
+      if (b < 0) continue;
+      ctx.fillRect(Math.round(prBeatToX(b) - prViewX), 0, 1, h);
+    }
+
+    const visible = prNotesInRange(Math.max(0, prXToMs(prViewX)), prXToMs(prViewX + w));
+    if (visible.length <= PR_DENSE_LIMIT) {
+      // Past a few hundred stems the round caps merge into one solid slab, so
+      // they are dropped and the lane reads as a density band instead.
+      const caps = visible.length <= 400;
+      for (let i = 0; i < visible.length; i++) {
+        const n = visible[i].n;
+        const x = Math.round(prMsToX(n.start_ms) - prViewX);
+        const barH = Math.max(2, (n.velocity / 127) * (h - 4));
+        const selected = prSelection.has(n);
+        ctx.fillStyle = selected ? '#ffffff' : PR_TRACK_COLORS[visible[i].trackIndex % PR_TRACK_COLORS.length];
+        ctx.globalAlpha = (prSelection.size && !selected) ? 0.3 : (caps ? 0.95 : 0.6);
+        ctx.fillRect(x, h - barH - 1, caps ? 2 : 1, barH);
+        if (caps) ctx.fillRect(x - 1, h - barH - 3, 4, 3);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    const headX = prMsToX(currentPlaybackMs) - prViewX;
+    if (headX >= -2 && headX <= w + 2) {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(Math.round(headX), 0, 1.5, h);
+    }
+  }
+
+  // ── 13g. Hit testing ────────────────────────────────────────────────────
+  function prHitTest(contentX, contentY) {
+    const pitch = prYToPitch(contentY);
+    if (pitch < PR_LO || pitch > PR_HI) return null;
+    const ms = prXToMs(contentX);
+    const pad = prXToMs(prViewX + 4) - prXToMs(prViewX);
+    let best = null;
+    // Selected notes win ties: mid-drag they may not sit in the sorted index.
+    prSelection.forEach(n => {
+      if (n.note !== pitch) return;
+      if (ms < n.start_ms - pad || ms > n.start_ms + n.duration_ms + pad) return;
+      if (!best || n.start_ms > best.n.start_ms) best = { n, trackIndex: n.track || 0 };
+    });
+    prNotesInRange(ms - pad, ms + pad).forEach(({ n, trackIndex }) => {
+      if (n.note !== pitch) return;
+      if (ms < n.start_ms - pad || ms > n.start_ms + n.duration_ms + pad) return;
+      if (!best || n.start_ms > best.n.start_ms) best = { n, trackIndex };
+    });
+    if (!best) return null;
+    const rightPx = prMsToX(best.n.start_ms + best.n.duration_ms);
+    const widthPx = rightPx - prMsToX(best.n.start_ms);
+    const onHandle = widthPx > 10 && contentX >= rightPx - 6;
+    return { note: best.n, trackIndex: best.trackIndex, onHandle };
+  }
+
+  function prPointerContent(event, element) {
+    const rect = element.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left + prViewX,
+      y: event.clientY - rect.top + prViewY,
+      vx: event.clientX - rect.left,
+      vy: event.clientY - rect.top
+    };
+  }
+
+  // ── 13h. Editing operations ─────────────────────────────────────────────
+  function prAddNote(pitch, startMs, durationMs, velocity, trackIndex) {
+    ensureEditableSong();
+    const index = (Number.isInteger(trackIndex) && currentSong.tracks[trackIndex]) ? trackIndex : 0;
+    const track = currentSong.tracks[index];
+    const note = {
+      note: prClamp(Math.round(pitch), PR_LO, PR_HI),
+      velocity: prClamp(Math.round(velocity), 1, 127),
+      start_ms: Math.max(0, startMs),
+      duration_ms: Math.max(PR_MIN_NOTE_MS, durationMs),
+      track: index,
+      channel: track.channel || 0
+    };
+    track.notes.push(note);
+    return note;
+  }
+
+  function prDeleteNotes(notes) {
+    const doomed = notes instanceof Set ? notes : new Set(notes);
+    if (!doomed.size) return 0;
+    let removed = 0;
+    prTracks().forEach(track => {
+      const before = track.notes.length;
+      track.notes = track.notes.filter(n => !doomed.has(n));
+      removed += before - track.notes.length;
+    });
+    doomed.forEach(n => prSelection.delete(n));
+    return removed;
+  }
+
+  function prTargetNotes() {
+    return prSelection.size ? Array.from(prSelection) : prAllNotes();
+  }
+
+  function prTransposeTargets(semitones) {
+    const targets = prTargetNotes();
+    if (!targets.length) { showToast('Nothing to transpose', 'info'); return; }
+    prPushHistory();
+    targets.forEach(n => { n.note = prClamp(n.note + semitones, PR_LO, PR_HI); });
+    prMarkEdited();
+    if (targets.length <= 8) targets.forEach(n => prPreview(n.note, n.velocity, 180));
+    showToast(`Transposed ${targets.length} note${targets.length === 1 ? '' : 's'} by ${semitones > 0 ? '+' : ''}${semitones}`, 'success');
+  }
+
+  function prNudgeTargets(beats) {
+    const targets = prTargetNotes();
+    if (!targets.length) return;
+    prPushHistory();
+    targets.forEach(n => {
+      const b = Math.max(0, prMsToBeat(n.start_ms) + beats);
+      n.start_ms = Math.max(0, prBeatToMs(b));
+    });
+    prMarkEdited();
+  }
+
+  function prQuantizeTargets() {
+    const grid = prSnapBeats();
+    if (grid <= 0) { showToast('Pick a snap grid first — quantize needs one', 'info'); return; }
+    const targets = prTargetNotes();
+    if (!targets.length) { showToast('Nothing to quantize', 'info'); return; }
+    prPushHistory();
+    targets.forEach(n => {
+      n.start_ms = Math.max(0, prBeatToMs(Math.round(prMsToBeat(n.start_ms) / grid) * grid));
+      const durBeats = Math.max(grid, Math.round((prMsToBeat(n.start_ms + n.duration_ms) - prMsToBeat(n.start_ms)) / grid) * grid);
+      n.duration_ms = Math.max(PR_MIN_NOTE_MS, prBeatToMs(prMsToBeat(n.start_ms) + durBeats) - n.start_ms);
+    });
+    prMarkEdited();
+    showToast(`Quantized ${targets.length} note${targets.length === 1 ? '' : 's'} to ${prState.snapId}`, 'success');
+  }
+
+  function prLegatoTargets() {
+    const targets = prTargetNotes();
+    if (!targets.length) return;
+    prPushHistory();
+    const byTrack = new Map();
+    targets.forEach(n => {
+      const list = byTrack.get(n.track) || [];
+      list.push(n);
+      byTrack.set(n.track, list);
+    });
+    byTrack.forEach(list => {
+      list.sort((a, b) => a.start_ms - b.start_ms);
+      for (let i = 0; i < list.length; i++) {
+        let nextStart = null;
+        for (let j = i + 1; j < list.length; j++) {
+          if (list[j].start_ms > list[i].start_ms + 1) { nextStart = list[j].start_ms; break; }
+        }
+        if (nextStart !== null) list[i].duration_ms = Math.max(PR_MIN_NOTE_MS, nextStart - list[i].start_ms - 1);
+      }
+    });
+    prMarkEdited();
+    showToast('Legato applied', 'success');
+  }
+
+  function prHumanizeTargets() {
+    const targets = prTargetNotes();
+    if (!targets.length) return;
+    prPushHistory();
+    const grid = prSnapBeats() > 0 ? prSnapBeats() : 0.25;
+    const jitterMs = Math.min(40, prBeatToMs(grid) / 6);
+    targets.forEach(n => {
+      n.start_ms = Math.max(0, n.start_ms + (Math.random() * 2 - 1) * jitterMs);
+      n.velocity = prClamp(Math.round(n.velocity + (Math.random() * 2 - 1) * 12), 1, 127);
+    });
+    prMarkEdited();
+    showToast('Humanized timing & velocity', 'success');
+  }
+
+  function prDuplicateSelection() {
+    if (!prSelection.size) { showToast('Select some notes to duplicate', 'info'); return; }
+    prPushHistory();
+    const notes = Array.from(prSelection);
+    let minStart = Infinity, maxEnd = 0;
+    notes.forEach(n => {
+      minStart = Math.min(minStart, n.start_ms);
+      maxEnd = Math.max(maxEnd, n.start_ms + n.duration_ms);
+    });
+    const grid = prSnapBeats();
+    const spanBeats = prMsToBeat(maxEnd) - prMsToBeat(minStart);
+    const shiftBeats = grid > 0 ? Math.max(grid, Math.ceil(spanBeats / grid) * grid) : spanBeats;
+    const copies = [];
+    notes.forEach(n => {
+      const startBeat = prMsToBeat(n.start_ms) + shiftBeats;
+      const endBeat = prMsToBeat(n.start_ms + n.duration_ms) + shiftBeats;
+      copies.push(prAddNote(n.note, prBeatToMs(startBeat), prBeatToMs(endBeat) - prBeatToMs(startBeat), n.velocity, n.track));
+    });
+    prSelection = new Set(copies);
+    prMarkEdited();
+    showToast(`Duplicated ${copies.length} note${copies.length === 1 ? '' : 's'}`, 'success');
+  }
+
+  let prClipboard = [];
+
+  function prCopySelection(cut) {
+    if (!prSelection.size) return;
+    const notes = Array.from(prSelection).sort((a, b) => a.start_ms - b.start_ms);
+    const originBeat = prMsToBeat(notes[0].start_ms);
+    prClipboard = notes.map(n => ({
+      note: n.note,
+      velocity: n.velocity,
+      offsetBeats: prMsToBeat(n.start_ms) - originBeat,
+      lengthBeats: prMsToBeat(n.start_ms + n.duration_ms) - prMsToBeat(n.start_ms)
+    }));
+    if (cut) {
+      prPushHistory();
+      prDeleteNotes(prSelection);
+      prSelection = new Set();
+      prMarkEdited();
+    }
+    showToast(`${cut ? 'Cut' : 'Copied'} ${prClipboard.length} note${prClipboard.length === 1 ? '' : 's'}`, 'info');
+  }
+
+  function prPasteClipboard() {
+    if (!prClipboard.length) return;
+    prPushHistory();
+    const anchorBeat = prSnapBeat(prMsToBeat(prHoverMs !== null ? prHoverMs : prPlayMarkerMs));
+    const pasted = prClipboard.map(c => {
+      const startMs = prBeatToMs(anchorBeat + c.offsetBeats);
+      const endMs = prBeatToMs(anchorBeat + c.offsetBeats + c.lengthBeats);
+      return prAddNote(c.note, startMs, endMs - startMs, c.velocity);
+    });
+    prSelection = new Set(pasted);
+    prMarkEdited();
+    showToast(`Pasted ${pasted.length} note${pasted.length === 1 ? '' : 's'}`, 'success');
+  }
+
+  // ── 13i. Pointer interaction on the roll ────────────────────────────────
+  if (prHasStudio) {
+    prScroll.addEventListener('scroll', () => {
+      prViewX = prScroll.scrollLeft;
+      prViewY = prScroll.scrollTop;
+      renderPianoRoll();
+    }, { passive: true });
+
+    prScroll.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    prScroll.addEventListener('pointerdown', (event) => {
+      ensureEditableSong();
+      prScroll.focus({ preventScroll: true });
+      const pt = prPointerContent(event, prScroll);
+      const hit = prHitTest(pt.x, pt.y);
+      const pitch = prYToPitch(pt.y);
+      if (pitch < PR_LO || pitch > PR_HI) return;
+
+      // Middle button (or space held) pans.
+      if (event.button === 1) {
+        event.preventDefault();
+        prDrag = { mode: 'pan', startX: event.clientX, startY: event.clientY, fromX: prViewX, fromY: prViewY };
+        prScroll.setPointerCapture(event.pointerId);
+        prScroll.classList.add('grabbing');
+        return;
+      }
+
+      const eraseGesture = event.button === 2 || prState.tool === 'erase';
+      if (eraseGesture) {
+        event.preventDefault();
+        prPushHistory();
+        prDrag = { mode: 'erase', removed: 0, lastPoint: { x: pt.x, y: pt.y } };
+        prScroll.setPointerCapture(event.pointerId);
+        if (hit) {
+          prDeleteNotes([hit.note]);
+          prDrag.removed = 1;
+          prMarkEdited();
+        }
+        return;
+      }
+      if (event.button !== 0) return;
+
+      if (hit) {
+        const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+        if (additive) {
+          if (prSelection.has(hit.note)) prSelection.delete(hit.note);
+          else prSelection.add(hit.note);
+        } else if (!prSelection.has(hit.note)) {
+          prSelection = new Set([hit.note]);
+        }
+        prSyncChrome();
+
+        prPushHistory();
+        let cloned = false;
+        if (event.altKey && prSelection.size) {
+          // Alt-drag leaves the originals behind and moves the duplicates.
+          const clones = Array.from(prSelection).map(n => prAddNote(n.note, n.start_ms, n.duration_ms, n.velocity, n.track));
+          prSelection = new Set(clones);
+          cloned = true;
+          prEditToken++;
+        }
+        const moving = Array.from(prSelection.size ? prSelection : [hit.note]);
+        prDrag = {
+          mode: hit.onHandle ? 'resize' : 'move',
+          anchor: cloned ? moving[0] : hit.note,
+          notes: moving,
+          origin: moving.map(n => ({ n, start: n.start_ms, dur: n.duration_ms, pitch: n.note })),
+          startBeat: prXToBeat(pt.x),
+          startPitch: pitch,
+          moved: false,
+          cloned
+        };
+        prScroll.setPointerCapture(event.pointerId);
+        if (!hit.onHandle) prPreview(hit.note.note, hit.note.velocity, 200);
+        renderPianoRoll();
+        return;
+      }
+
+      if (prState.tool === 'draw') {
+        prPushHistory();
+        const startBeat = prSnapBeat(prXToBeat(pt.x));
+        const lenBeats = prNewNoteBeats();
+        const startMs = Math.max(0, prBeatToMs(startBeat));
+        const note = prAddNote(pitch, startMs, prBeatToMs(startBeat + lenBeats) - startMs, prState.velocity);
+        prSelection = new Set([note]);
+        prDrag = {
+          mode: 'draw',
+          note,
+          startBeat,
+          minLenBeats: lenBeats,
+          origin: [{ n: note, start: note.start_ms, dur: note.duration_ms, pitch: note.note }]
+        };
+        prScroll.setPointerCapture(event.pointerId);
+        prPreview(pitch, prState.velocity, 220);
+        prMarkEdited();
+        return;
+      }
+
+      // Select tool on empty space → marquee.
+      if (!(event.shiftKey || event.metaKey || event.ctrlKey)) prSelection = new Set();
+      prDrag = { mode: 'marquee', originX: pt.x, originY: pt.y, curX: pt.x, curY: pt.y, base: new Set(prSelection) };
+      prScroll.setPointerCapture(event.pointerId);
+      prSyncChrome();
+      renderPianoRoll();
+    });
+
+    prScroll.addEventListener('pointermove', (event) => {
+      const pt = prPointerContent(event, prScroll);
+      prHoverPitch = prYToPitch(pt.y);
+      prHoverMs = Math.max(0, prXToMs(pt.x));
+      prUpdateCursorReadout();
+
+      if (!prDrag) {
+        const hit = prHitTest(pt.x, pt.y);
+        prScroll.style.cursor = hit
+          ? (hit.onHandle ? 'ew-resize' : 'move')
+          : (prState.tool === 'draw' ? 'crosshair' : (prState.tool === 'erase' ? 'not-allowed' : 'default'));
+        renderPianoRoll('keys');
+        return;
+      }
+
+      if (prDrag.mode === 'pan') {
+        prScrollTo(prDrag.fromX - (event.clientX - prDrag.startX), prDrag.fromY - (event.clientY - prDrag.startY));
+        return;
+      }
+
+      if (prDrag.mode === 'erase') {
+        // Sample along the whole segment: a fast sweep only reports a handful
+        // of points, and every note between them would survive otherwise.
+        const from = prDrag.lastPoint || pt;
+        const dist = Math.hypot(pt.x - from.x, pt.y - from.y);
+        const steps = Math.min(64, Math.max(1, Math.ceil(dist / Math.max(3, prState.rowH / 2))));
+        let removed = 0;
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          const hit = prHitTest(from.x + (pt.x - from.x) * t, from.y + (pt.y - from.y) * t);
+          if (hit) { prDeleteNotes([hit.note]); removed++; }
+        }
+        prDrag.lastPoint = { x: pt.x, y: pt.y };
+        if (removed) {
+          prDrag.removed += removed;
+          prEditToken++;
+          prTouchDragging();
         }
         return;
       }
 
-      // Draw Tool
-      const track = currentSong.tracks[0];
-      const noteDurationMs = snapMs > 1 ? Math.max(snapMs, 250) : 250;
-      track.notes.push({
-        note: pitch,
-        velocity: 100,
-        start_ms: Math.max(0, timeMs),
-        duration_ms: noteDurationMs,
-        track: 0,
-        channel: track.channel || 0
-      });
-      recomputeCurrentSongMetadata();
-      sendNoteTrigger(pitch, 100, true);
-      setTimeout(() => sendNoteTrigger(pitch, 0, false), 180);
+      if (prDrag.mode === 'marquee') {
+        prDrag.curX = pt.x;
+        prDrag.curY = pt.y;
+        const x0 = Math.min(prDrag.originX, prDrag.curX);
+        const x1 = Math.max(prDrag.originX, prDrag.curX);
+        const p0 = prYToPitch(Math.max(prDrag.originY, prDrag.curY));
+        const p1 = prYToPitch(Math.min(prDrag.originY, prDrag.curY));
+        const fromMs = prXToMs(x0);
+        const toMs = prXToMs(x1);
+        prSelection = new Set(prDrag.base);
+        prNotesInRange(fromMs, toMs).forEach(({ n }) => {
+          if (n.note >= p0 && n.note <= p1) prSelection.add(n);
+        });
+        prSyncChrome();
+        renderPianoRoll();
+        return;
+      }
+
+      if (prDrag.mode === 'draw') {
+        const rawEnd = prXToBeat(pt.x);
+        const snapped = prSnapBeat(rawEnd);
+        const lenBeats = Math.max(prDrag.minLenBeats, snapped - prDrag.startBeat);
+        const startMs = prDrag.note.start_ms;
+        prDrag.note.duration_ms = Math.max(PR_MIN_NOTE_MS, prBeatToMs(prDrag.startBeat + lenBeats) - startMs);
+        prTouchDragging();
+        return;
+      }
+
+      if (prDrag.mode === 'resize') {
+        const deltaBeats = prXToBeat(pt.x) - prDrag.startBeat;
+        const grid = prSnapBeats();
+        prDrag.origin.forEach(o => {
+          const endBeat = prMsToBeat(o.start + o.dur) + deltaBeats;
+          const snappedEnd = grid > 0 ? Math.round(endBeat / grid) * grid : endBeat;
+          const minEnd = prMsToBeat(o.start) + (grid > 0 ? grid : 0.05);
+          o.n.duration_ms = Math.max(PR_MIN_NOTE_MS, prBeatToMs(Math.max(snappedEnd, minEnd)) - o.start);
+        });
+        prDrag.moved = true;
+        prTouchDragging();
+        return;
+      }
+
+      if (prDrag.mode === 'move') {
+        const grid = prSnapBeats();
+        const rawDelta = prXToBeat(pt.x) - prDrag.startBeat;
+        const anchorOrigin = prDrag.origin.find(o => o.n === prDrag.anchor) || prDrag.origin[0];
+        let deltaBeats = rawDelta;
+        if (grid > 0 && anchorOrigin) {
+          const anchorBeat = prMsToBeat(anchorOrigin.start);
+          deltaBeats = Math.round((anchorBeat + rawDelta) / grid) * grid - anchorBeat;
+        }
+        const deltaPitch = prYToPitch(pt.y) - prDrag.startPitch;
+
+        let lowest = 127, highest = 0, earliest = Infinity;
+        prDrag.origin.forEach(o => {
+          lowest = Math.min(lowest, o.pitch);
+          highest = Math.max(highest, o.pitch);
+          earliest = Math.min(earliest, prMsToBeat(o.start));
+        });
+        const pitchShift = prClamp(deltaPitch, PR_LO - lowest, PR_HI - highest);
+        const beatShift = Math.max(deltaBeats, -earliest);
+
+        prDrag.origin.forEach(o => {
+          const startBeat = prMsToBeat(o.start) + beatShift;
+          const endBeat = prMsToBeat(o.start + o.dur) + beatShift;
+          o.n.start_ms = Math.max(0, prBeatToMs(startBeat));
+          o.n.duration_ms = Math.max(PR_MIN_NOTE_MS, prBeatToMs(endBeat) - o.n.start_ms);
+          o.n.note = prClamp(o.pitch + pitchShift, PR_LO, PR_HI);
+        });
+        if (pitchShift !== prDrag.lastPitchShift) {
+          prDrag.lastPitchShift = pitchShift;
+          if (prDrag.anchor) prPreview(prDrag.anchor.note, prDrag.anchor.velocity, 160);
+        }
+        prDrag.moved = true;
+        prTouchDragging();
+      }
+    });
+
+    const endDrag = (event) => {
+      if (!prDrag) return;
+      if (event && event.pointerId !== undefined) {
+        try { prScroll.releasePointerCapture(event.pointerId); } catch (_) {}
+      }
+      prScroll.classList.remove('grabbing');
+      const drag = prDrag;
+      prDrag = null;
+
+      if (drag.mode === 'erase' && drag.removed) {
+        showToast(`${drag.removed} note${drag.removed === 1 ? '' : 's'} erased`, 'info');
+      }
+      // A click that turned out not to be a drag leaves no history behind.
+      if ((drag.mode === 'move' || drag.mode === 'resize') && !drag.moved && !drag.cloned) {
+        prUndoStack.pop();
+      }
+      if (drag.mode === 'erase' && !drag.removed) prUndoStack.pop();
+
+      if (drag.mode === 'pan' || drag.mode === 'marquee') {
+        prSyncChrome();
+        renderPianoRoll();
+      } else {
+        prMarkEdited();
+      }
+    };
+    prScroll.addEventListener('pointerup', endDrag);
+    prScroll.addEventListener('pointercancel', endDrag);
+    prScroll.addEventListener('pointerleave', () => {
+      if (!prDrag) { prHoverPitch = null; prHoverMs = null; prUpdateCursorReadout(); renderPianoRoll(); }
+    });
+
+    // Ctrl = zoom, Shift = pan sideways, plain wheel = vertical scroll.
+    prScroll.addEventListener('wheel', (event) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const rect = prScroll.getBoundingClientRect();
+        if (event.shiftKey || event.altKey) prZoomY(event.deltaY < 0 ? 1 : -1, event.clientY - rect.top);
+        else prZoomX(event.deltaY < 0 ? 1.18 : 1 / 1.18, event.clientX - rect.left);
+        return;
+      }
+      if (event.shiftKey && event.deltaX === 0) {
+        event.preventDefault();
+        prScrollTo(prScroll.scrollLeft + event.deltaY, prScroll.scrollTop);
+      }
+    }, { passive: false });
+
+    // ── Ruler: click or drag to place the start marker and seek. ──
+    const rulerSeek = (event) => {
+      const rect = prRulerCanvas.getBoundingClientRect();
+      const ms = Math.max(0, prXToMs(event.clientX - rect.left + prViewX));
+      prPlayMarkerMs = ms;
+      sendAction({ action: 'seek', time_ms: ms });
+      currentPlaybackMs = ms;
+      prSyncChrome();
       renderPianoRoll();
+    };
+    prRulerCanvas.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      prRulerCanvas.setPointerCapture(event.pointerId);
+      prRulerCanvas.dataset.seeking = '1';
+      rulerSeek(event);
+    });
+    prRulerCanvas.addEventListener('pointermove', (event) => {
+      if (prRulerCanvas.dataset.seeking === '1') rulerSeek(event);
+    });
+    const rulerUp = (event) => {
+      delete prRulerCanvas.dataset.seeking;
+      try { prRulerCanvas.releasePointerCapture(event.pointerId); } catch (_) {}
+    };
+    prRulerCanvas.addEventListener('pointerup', rulerUp);
+    prRulerCanvas.addEventListener('pointercancel', rulerUp);
+
+    // ── Keybed: press to audition, drag for a glissando. ──
+    prKeysCanvas.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      prKeysCanvas.setPointerCapture(event.pointerId);
+      const rect = prKeysCanvas.getBoundingClientRect();
+      prHoldNote(prYToPitch(event.clientY - rect.top + prViewY));
+      renderPianoRoll();
+    });
+    prKeysCanvas.addEventListener('pointermove', (event) => {
+      const rect = prKeysCanvas.getBoundingClientRect();
+      const pitch = prYToPitch(event.clientY - rect.top + prViewY);
+      if (prHeldPreview !== null) prHoldNote(pitch);
+      prHoverPitch = pitch;
+      renderPianoRoll();
+    });
+    const keysUp = (event) => {
+      prReleaseHeld();
+      try { prKeysCanvas.releasePointerCapture(event.pointerId); } catch (_) {}
+      renderPianoRoll();
+    };
+    prKeysCanvas.addEventListener('pointerup', keysUp);
+    prKeysCanvas.addEventListener('pointercancel', keysUp);
+    prKeysCanvas.addEventListener('pointerleave', () => {
+      if (prHeldPreview === null) { prHoverPitch = null; renderPianoRoll(); }
+    });
+    prKeysCanvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      prScrollTo(prScroll.scrollLeft, prScroll.scrollTop + event.deltaY);
+    }, { passive: false });
+
+    // ── Velocity lane: drag to sculpt velocities. ──
+    const velEdit = (event, pushed) => {
+      const rect = prVelCanvas.getBoundingClientRect();
+      const x = event.clientX - rect.left + prViewX;
+      const ratio = 1 - prClamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1);
+      const velocity = prClamp(Math.round(ratio * 127), 1, 127);
+      const grabMs = prXToMs(prViewX + 5) - prXToMs(prViewX);
+      const ms = prXToMs(x);
+      const near = prNotesInRange(ms - grabMs, ms + grabMs)
+        .map(v => v.n)
+        .filter(n => !prSelection.size || prSelection.has(n));
+      if (!near.length) return pushed;
+      if (!pushed) prPushHistory();
+      near.forEach(n => { n.velocity = velocity; });
+      prDirty = true;
+      renderPianoRoll();
+      return true;
+    };
+    let velDragging = false;
+    let velPushed = false;
+    prVelCanvas.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      prVelCanvas.setPointerCapture(event.pointerId);
+      velDragging = true;
+      velPushed = velEdit(event, false);
+    });
+    prVelCanvas.addEventListener('pointermove', (event) => {
+      if (velDragging) velPushed = velEdit(event, velPushed);
+    });
+    const velUp = (event) => {
+      if (velDragging && velPushed) prMarkEdited();
+      velDragging = false;
+      velPushed = false;
+      try { prVelCanvas.releasePointerCapture(event.pointerId); } catch (_) {}
+    };
+    prVelCanvas.addEventListener('pointerup', velUp);
+    prVelCanvas.addEventListener('pointercancel', velUp);
+  }
+
+  // ── 13j. Chrome (toolbar readouts) ──────────────────────────────────────
+  const prTimeRead    = document.getElementById('prTimeRead');
+  const prBarRead     = document.getElementById('prBarRead');
+  const prNoteCountEl = document.getElementById('prNoteCount');
+  const prSelCountEl  = document.getElementById('prSelCount');
+  const prScopeChip   = document.getElementById('prScopeChip');
+  const prCursorRead  = document.getElementById('prCursorRead');
+  const prUndoBtn     = document.getElementById('prUndoBtn');
+  const prRedoBtn     = document.getElementById('prRedoBtn');
+  const prPlayBtn     = document.getElementById('prPlayBtn');
+  const prBpmInput    = document.getElementById('prBpmInput');
+  const prVelInput    = document.getElementById('prVelInput');
+  const prVelRead     = document.getElementById('prVelRead');
+  const studioSaveBtn = document.getElementById('studioSaveBtn');
+  const studioTitleInput = document.getElementById('studioTitleInput');
+
+  function prFormatTime(ms) {
+    const total = Math.max(0, ms) / 1000;
+    const m = Math.floor(total / 60);
+    const s = Math.floor(total % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function prUpdateCursorReadout() {
+    if (!prCursorRead) return;
+    if (prHoverPitch === null || prHoverMs === null) { prCursorRead.textContent = '—'; return; }
+    const beat = prMsToBeat(prHoverMs);
+    const bar = Math.floor(beat / prState.beatsPerBar) + 1;
+    const beatInBar = (beat % prState.beatsPerBar + prState.beatsPerBar) % prState.beatsPerBar + 1;
+    prCursorRead.textContent = `${PR_NAMES[prHoverPitch % 12]}${Math.floor(prHoverPitch / 12) - 1} · bar ${bar} beat ${beatInBar.toFixed(2)} · ${prFormatTime(prHoverMs)}`;
+  }
+
+  function prSyncChrome() {
+    if (!prHasStudio) return;
+    const notes = prTotalNotes();
+    if (prNoteCountEl) prNoteCountEl.textContent = `${notes.toLocaleString()} note${notes === 1 ? '' : 's'}`;
+    if (prSelCountEl) {
+      prSelCountEl.textContent = prSelection.size ? `${prSelection.size} selected` : 'nothing selected';
+      prSelCountEl.classList.toggle('muted', prSelection.size === 0);
+    }
+    if (prScopeChip) {
+      prScopeChip.textContent = prSelection.size ? `selection · ${prSelection.size}` : 'whole song';
+      prScopeChip.classList.toggle('muted', prSelection.size === 0);
+    }
+    if (prUndoBtn) prUndoBtn.disabled = prUndoStack.length === 0;
+    if (prRedoBtn) prRedoBtn.disabled = prRedoStack.length === 0;
+    if (studioSaveBtn) studioSaveBtn.classList.toggle('s-dirty', prDirty);
+    if (prPlayBtn) {
+      const label = playbackState === PlaybackState.Playing ? '⏸ Pause' : '▶ Play';
+      if (prPlayBtn.dataset.label !== label) {
+        prPlayBtn.dataset.label = label;
+        prPlayBtn.textContent = label;
+      }
+    }
+
+    const beat = prMsToBeat(currentPlaybackMs);
+    const bar = Math.floor(beat / prState.beatsPerBar) + 1;
+    const beatInBar = Math.floor((beat % prState.beatsPerBar + prState.beatsPerBar) % prState.beatsPerBar) + 1;
+    if (prBarRead) prBarRead.textContent = `Bar ${bar} · beat ${beatInBar}`;
+    if (prTimeRead) {
+      const total = currentSong ? Number(currentSong.duration_ms) || 0 : 0;
+      prTimeRead.innerHTML = `<b>${prFormatTime(currentPlaybackMs)}</b> / ${prFormatTime(total)}`;
+    }
+    if (prBpmInput && document.activeElement !== prBpmInput && currentSong) {
+      prBpmInput.value = Math.round(Number(currentSong.bpm) || 120);
+    }
+    if (studioTitleInput && document.activeElement !== studioTitleInput && currentSong) {
+      studioTitleInput.value = currentSong.title || '';
+    }
+  }
+
+  /** The backend replaced the song object — keep the selection alive by value. */
+  function prOnSongReplaced() {
+    prLastSongRevision = currentSongRevision;
+    prEditToken++;
+    prTempoSegs = null;
+    prDirty = false;
+    if (prSelection.size) {
+      const keys = new Set(Array.from(prSelection).map(n => `${n.note}|${Math.round(n.start_ms)}`));
+      const next = new Set();
+      prAllNotes().forEach(n => { if (keys.has(`${n.note}|${Math.round(n.start_ms)}`)) next.add(n); });
+      prSelection = next;
+    }
+    prUpdateSpacer();
+    prSyncChrome();
+  }
+
+  // ── 13k. Toolbar wiring ─────────────────────────────────────────────────
+  function prFillSelect(select, options, selectedId) {
+    if (!select) return;
+    select.innerHTML = '';
+    options.forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.id;
+      opt.textContent = o.label;
+      if (o.id === selectedId) opt.selected = true;
+      select.appendChild(opt);
     });
   }
 
-  // Studio Sub-Tabs & Actions
-  const studioTabGridBtn = document.getElementById('studioTabGridBtn');
-  const studioTabSheetBtn = document.getElementById('studioTabSheetBtn');
-  const studioGridView = document.getElementById('studioGridView');
-  const studioSheetView = document.getElementById('studioSheetView');
+  const prSnapSelect = document.getElementById('prSnapSelect');
+  const prLengthSelect = document.getElementById('prLengthSelect');
+  prFillSelect(prSnapSelect, PR_GRIDS, prState.snapId);
+  prFillSelect(prLengthSelect, [{ id: 'snap', label: 'Follow snap' }].concat(PR_GRIDS.filter(g => g.beats !== 0)), prState.lenId);
 
-  if (studioTabGridBtn) {
-    studioTabGridBtn.onclick = () => {
-      studioGridView.style.display = 'flex';
-      studioSheetView.style.display = 'none';
-      studioTabGridBtn.classList.add('active');
-      studioTabSheetBtn.classList.remove('active');
+  if (prSnapSelect) prSnapSelect.onchange = () => { prState.snapId = prSnapSelect.value; renderPianoRoll(); };
+  if (prLengthSelect) prLengthSelect.onchange = () => { prState.lenId = prLengthSelect.value; };
+
+  const prToolGroup = document.getElementById('prToolGroup');
+  function prSetTool(tool) {
+    prState.tool = tool;
+    if (prToolGroup) {
+      prToolGroup.querySelectorAll('[data-tool]').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tool') === tool);
+      });
+    }
+    if (prScroll) prScroll.style.cursor = tool === 'draw' ? 'crosshair' : (tool === 'erase' ? 'not-allowed' : 'default');
+  }
+  if (prToolGroup) {
+    prToolGroup.querySelectorAll('[data-tool]').forEach(btn => {
+      btn.onclick = () => prSetTool(btn.getAttribute('data-tool'));
+    });
+  }
+
+  if (prVelInput) {
+    let velSliderPushed = false;
+    prVelInput.addEventListener('pointerdown', () => {
+      if (prSelection.size && !velSliderPushed) { prPushHistory(); velSliderPushed = true; }
+    });
+    prVelInput.oninput = () => {
+      prState.velocity = prClamp(parseInt(prVelInput.value, 10) || 100, 1, 127);
+      if (prVelRead) prVelRead.innerHTML = `<b>${prState.velocity}</b>`;
+      if (prSelection.size) {
+        prSelection.forEach(n => { n.velocity = prState.velocity; });
+        prDirty = true;
+        renderPianoRoll();
+      }
+    };
+    prVelInput.onchange = () => {
+      velSliderPushed = false;
+      if (prSelection.size) prMarkEdited();
+    };
+  }
+
+  if (prBpmInput) {
+    const applyTempo = () => {
+      ensureEditableSong();
+      const next = prClamp(parseFloat(prBpmInput.value) || 120, 20, 400);
+      const current = Number(currentSong.bpm) || 120;
+      const ratio = next / current;
+      if (!Number.isFinite(ratio) || Math.abs(ratio - 1) < 1e-6) return;
+      prPushHistory();
+      // Mirrors Song::set_bpm — the notes keep their beat positions, the beats
+      // themselves get shorter, so the roll never shifts under the grid.
+      prAllNotes().forEach(n => { n.start_ms /= ratio; n.duration_ms /= ratio; });
+      currentSong.tempo_events = (currentSong.tempo_events || []).map(e => ({
+        time_ms: (Number(e.time_ms) || 0) / ratio,
+        bpm: (Number(e.bpm) || current) * ratio,
+        us_per_beat: Math.round(60000000 / Math.max(1, (Number(e.bpm) || current) * ratio))
+      }));
+      (currentSong.control_events || []).forEach(c => { c.time_ms = (Number(c.time_ms) || 0) / ratio; });
+      currentSong.bpm = next;
+      prTempoSegs = null;
+      prMarkEdited();
+      showToast(`Tempo set to ${Math.round(next)} BPM`, 'success');
+    };
+    prBpmInput.onchange = applyTempo;
+    prBpmInput.onkeydown = (e) => { if (e.key === 'Enter') prBpmInput.blur(); };
+  }
+
+  const prBeatsPerBarSelect = document.getElementById('prBeatsPerBar');
+  if (prBeatsPerBarSelect) {
+    prBeatsPerBarSelect.onchange = () => {
+      prState.beatsPerBar = prClamp(parseInt(prBeatsPerBarSelect.value, 10) || 4, 2, 7);
+      prSyncChrome();
       renderPianoRoll();
     };
   }
-  if (studioTabSheetBtn) {
-    studioTabSheetBtn.onclick = () => {
-      studioGridView.style.display = 'none';
-      studioSheetView.style.display = 'flex';
-      studioTabGridBtn.classList.remove('active');
-      studioTabSheetBtn.classList.add('active');
+
+  const prBind = (id, handler) => {
+    const el = document.getElementById(id);
+    if (el) el.onclick = handler;
+  };
+
+  prBind('prZoomInBtn', () => prZoomX(1.3));
+  prBind('prZoomOutBtn', () => prZoomX(1 / 1.3));
+  prBind('prZoomFitBtn', () => prZoomFit());
+  prBind('prRowUpBtn', () => prZoomY(2));
+  prBind('prRowDownBtn', () => prZoomY(-2));
+  prBind('prUndoBtn', () => prUndo());
+  prBind('prRedoBtn', () => prRedo());
+  prBind('prQuantizeBtn', () => prQuantizeTargets());
+  prBind('prLegatoBtn', () => prLegatoTargets());
+  prBind('prHumanizeBtn', () => prHumanizeTargets());
+  prBind('prDuplicateBtn', () => prDuplicateSelection());
+  prBind('prSelectAllBtn', () => { prSelection = new Set(prAllNotes()); prSyncChrome(); renderPianoRoll(); });
+  prBind('prSelectNoneBtn', () => { prSelection = new Set(); prSyncChrome(); renderPianoRoll(); });
+  prBind('prDeleteBtn', () => {
+    if (!prSelection.size) { showToast('Select some notes first', 'info'); return; }
+    prPushHistory();
+    const n = prDeleteNotes(prSelection);
+    prSelection = new Set();
+    prMarkEdited();
+    showToast(`Deleted ${n} note${n === 1 ? '' : 's'}`, 'info');
+  });
+
+  document.querySelectorAll('#view-studio [data-transpose]').forEach(btn => {
+    btn.onclick = () => prTransposeTargets(parseInt(btn.getAttribute('data-transpose'), 10) || 0);
+  });
+
+  const prVelLaneBtn = document.getElementById('prVelLaneBtn');
+  if (prVelLaneBtn) {
+    prVelLaneBtn.onclick = () => {
+      prState.showVel = !prState.showVel;
+      prVelLaneBtn.classList.toggle('active', prState.showVel);
+      if (prStage) prStage.classList.toggle('no-vel', !prState.showVel);
+      renderPianoRoll();
     };
   }
 
+  const prFollowBtn = document.getElementById('prFollowBtn');
+  if (prFollowBtn) {
+    prFollowBtn.onclick = () => {
+      prState.follow = !prState.follow;
+      prFollowBtn.classList.toggle('active', prState.follow);
+    };
+  }
+
+  if (studioTitleInput) {
+    studioTitleInput.onchange = () => {
+      ensureEditableSong();
+      const next = studioTitleInput.value.trim() || 'New Composition';
+      if (next !== currentSong.title) {
+        currentSong.title = next;
+        prDirty = true;
+        prSyncChrome();
+      }
+    };
+  }
+
+  // ── 13l. Transport ──────────────────────────────────────────────────────
   const nextTask = () => new Promise(resolve => setTimeout(resolve, 0));
   let studioOperationQueue = Promise.resolve();
 
@@ -4277,26 +5993,49 @@
 
   async function syncCurrentSongToBackend() {
     ensureEditableSong();
-    recomputeCurrentSongMetadata();
     const beforeRevision = currentSongRevision;
     if (!sendAction({ action: 'save_song', song: currentSong })) {
       throw new Error('Backend is not connected');
     }
     await waitForCurrentSongRevision(beforeRevision);
     await nextTask();
+    prDirty = false;
+    prSyncChrome();
     return currentSong;
   }
 
-  async function runStudioSongAction(action) {
+  async function prPushIfDirty() {
+    if (!prDirty) return;
     await syncCurrentSongToBackend();
-    const beforeRevision = currentSongRevision;
-    if (!sendAction(action)) throw new Error('Backend is not connected');
-    await waitForCurrentSongRevision(beforeRevision);
-    await nextTask();
   }
 
+  function prTransportPlay() {
+    if (playbackState === PlaybackState.Playing) {
+      sendAction({ action: 'pause' });
+      return;
+    }
+    const resumeAt = prPlayMarkerMs;
+    queueStudioOperation(async () => {
+      await prPushIfDirty();
+      if (resumeAt > 0) sendAction({ action: 'seek', time_ms: resumeAt });
+      sendAction({ action: 'play' });
+    });
+  }
+
+  prBind('prPlayBtn', () => prTransportPlay());
+  prBind('prStopBtn', () => { sendAction({ action: 'stop' }); prPlayMarkerMs = 0; });
+  prBind('prToStartBtn', () => {
+    prPlayMarkerMs = 0;
+    currentPlaybackMs = 0;
+    sendAction({ action: 'seek', time_ms: 0 });
+    prScrollTo(0, prScroll ? prScroll.scrollTop : 0);
+    prSyncChrome();
+    renderPianoRoll();
+  });
+
   async function exportCurrentSongAsMidi() {
-    const song = await syncCurrentSongToBackend();
+    ensureEditableSong();
+    const song = currentSong;
     const response = await fetch('/api/export_midi', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -4316,72 +6055,149 @@
     anchor.click();
     anchor.remove();
     setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    showToast(`Exported ${filename}`, 'success');
   }
 
-  const studioNewSongBtn = document.getElementById('studioNewSongBtn');
-  if (studioNewSongBtn) {
-    studioNewSongBtn.onclick = () => {
-      currentSong = {
-        title: 'New Composition',
-        artist: 'VITL Studio',
-        bpm: 120,
-        duration_ms: 60000,
-        total_notes: 0,
-        min_note: 60,
-        max_note: 60,
-        tracks: [{ name: 'Piano Track', channel: 0, notes: [], is_drum: false }],
-        tempo_events: [{ time_ms: 0, bpm: 120, us_per_beat: 500000 }],
-        control_events: []
-      };
-      recomputeCurrentSongMetadata();
+  prBind('studioSaveBtn', () => queueStudioOperation(async () => {
+    const song = await syncCurrentSongToBackend();
+    showToast(`Saved '${song.title}' — loaded into the player`, 'success');
+  }));
+  prBind('studioExportMidiBtn', () => queueStudioOperation(exportCurrentSongAsMidi));
+
+  prBind('studioNewSongBtn', () => {
+    prPushHistory();
+    currentSong = prBlankSong();
+    prSelection = new Set();
+    prTempoSegs = null;
+    prPlayMarkerMs = 0;
+    prMarkEdited();
+    prScrollTo(0, prPitchToY(84));
+    showToast('Started a blank composition', 'info');
+  });
+
+  prBind('studioClearNotesBtn', () => {
+    ensureEditableSong();
+    if (!prTotalNotes()) return;
+    prPushHistory();
+    prTracks().forEach(t => { t.notes = []; });
+    prSelection = new Set();
+    prMarkEdited();
+    showToast('Cleared every note — Ctrl+Z brings them back', 'info');
+  });
+
+  // ── 13m. Keyboard shortcuts ─────────────────────────────────────────────
+  document.addEventListener('keydown', (event) => {
+    const view = document.getElementById('view-studio');
+    if (!view || !view.classList.contains('active')) return;
+    const gridPane = document.getElementById('studioGridView');
+    if (!gridPane || !gridPane.classList.contains('active')) return;
+    const target = event.target;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key;
+    // Space and Escape are also app-wide transport hotkeys (section 11, bound
+    // on window). This listener sits on document, so it runs first — it has to
+    // stop propagation or every shortcut it handles fires twice.
+    const claim = () => { event.preventDefault(); event.stopPropagation(); };
+
+    if (mod && (key === 'z' || key === 'Z')) { claim(); event.shiftKey ? prRedo() : prUndo(); return; }
+    if (mod && (key === 'y' || key === 'Y')) { claim(); prRedo(); return; }
+    if (mod && (key === 'a' || key === 'A')) { claim(); prSelection = new Set(prAllNotes()); prSyncChrome(); renderPianoRoll(); return; }
+    if (mod && (key === 'c' || key === 'C')) { claim(); prCopySelection(false); return; }
+    if (mod && (key === 'x' || key === 'X')) { claim(); prCopySelection(true); return; }
+    if (mod && (key === 'v' || key === 'V')) { claim(); prPasteClipboard(); return; }
+    if (mod && (key === 'd' || key === 'D')) { claim(); prDuplicateSelection(); return; }
+    if (mod && (key === 's' || key === 'S')) {
+      claim();
+      queueStudioOperation(async () => {
+        const song = await syncCurrentSongToBackend();
+        showToast(`Saved '${song.title}'`, 'success');
+      });
+      return;
+    }
+    if (mod) return;
+
+    if (key === '1') { claim(); prSetTool('select'); return; }
+    if (key === '2') { claim(); prSetTool('draw'); return; }
+    if (key === '3') { claim(); prSetTool('erase'); return; }
+    if (key === 'Escape') {
+      claim();
+      prSelection = new Set();
+      prSyncChrome();
       renderPianoRoll();
-      showToast('Started new blank composition', 'info');
-    };
-  }
+      return;
+    }
+    if (key === 'Delete' || key === 'Backspace') {
+      if (!prSelection.size) return;
+      claim();
+      prPushHistory();
+      prDeleteNotes(prSelection);
+      prSelection = new Set();
+      prMarkEdited();
+      return;
+    }
+    if (key === ' ' || event.code === 'Space') { claim(); prTransportPlay(); return; }
+    if (key === 'Home') {
+      claim();
+      prPlayMarkerMs = 0;
+      currentPlaybackMs = 0;
+      sendAction({ action: 'seek', time_ms: 0 });
+      prScrollTo(0, prScroll.scrollTop);
+      renderPianoRoll();
+      return;
+    }
+    if (key === 'ArrowUp' || key === 'ArrowDown') {
+      if (!prSelection.size) return;
+      claim();
+      prTransposeTargets((key === 'ArrowUp' ? 1 : -1) * (event.shiftKey ? 12 : 1));
+      return;
+    }
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      if (!prSelection.size) return;
+      claim();
+      const grid = prSnapBeats() > 0 ? prSnapBeats() : 0.25;
+      prNudgeTargets((key === 'ArrowRight' ? 1 : -1) * grid);
+      return;
+    }
+    if (key === '+' || key === '=') { claim(); prZoomX(1.3); return; }
+    if (key === '-' || key === '_') { claim(); prZoomX(1 / 1.3); return; }
+  });
 
-  const studioClearNotesBtn = document.getElementById('studioClearNotesBtn');
-  if (studioClearNotesBtn) {
-    studioClearNotesBtn.onclick = () => {
-      if (currentSong && Array.isArray(currentSong.tracks)) {
-        currentSong.tracks.forEach(t => { t.notes = []; });
-        recomputeCurrentSongMetadata();
-        renderPianoRoll();
-        showToast('Cleared all notes in composition', 'info');
-      }
-    };
-  }
+  // ── 13n. Studio tabs & sheet editor ─────────────────────────────────────
+  const studioTabGridBtn = document.getElementById('studioTabGridBtn');
+  const studioTabSheetBtn = document.getElementById('studioTabSheetBtn');
+  const studioGridView = document.getElementById('studioGridView');
+  const studioSheetView = document.getElementById('studioSheetView');
+  const studioSheetTextarea = document.getElementById('studioSheetTextarea');
+  const studioSheetStats = document.getElementById('studioSheetStats');
 
-  const studioSaveBtn = document.getElementById('studioSaveBtn');
-  if (studioSaveBtn) {
-    studioSaveBtn.onclick = () => queueStudioOperation(async () => {
-      const song = await syncCurrentSongToBackend();
-      showToast(`Saved '${song.title}' to library!`, 'success');
-    });
+  function prShowPane(which) {
+    const grid = which === 'grid';
+    if (studioGridView) studioGridView.classList.toggle('active', grid);
+    if (studioSheetView) studioSheetView.classList.toggle('active', !grid);
+    if (studioTabGridBtn) studioTabGridBtn.classList.toggle('active', grid);
+    if (studioTabSheetBtn) studioTabSheetBtn.classList.toggle('active', !grid);
+    if (grid) { prUpdateSpacer(); renderPianoRoll(); } else prUpdateSheetStats();
   }
-  const studioQuantBtn = document.getElementById('studioQuantizeBtn');
-  if (studioQuantBtn) {
-    studioQuantBtn.onclick = () => queueStudioOperation(() => runStudioSongAction({ action: 'quantize_song', grid_ms: 125.0 }));
-  }
-  const transUp = document.getElementById('studioTransUpBtn');
-  if (transUp) transUp.onclick = () => queueStudioOperation(() => runStudioSongAction({ action: 'transpose_song', semitones: 1 }));
-  const transDown = document.getElementById('studioTransDownBtn');
-  if (transDown) transDown.onclick = () => queueStudioOperation(() => runStudioSongAction({ action: 'transpose_song', semitones: -1 }));
-  const octUp = document.getElementById('studioOctUpBtn');
-  if (octUp) octUp.onclick = () => queueStudioOperation(() => runStudioSongAction({ action: 'transpose_song', semitones: 12 }));
-  const octDown = document.getElementById('studioOctDownBtn');
-  if (octDown) octDown.onclick = () => queueStudioOperation(() => runStudioSongAction({ action: 'transpose_song', semitones: -12 }));
-  const expMidi = document.getElementById('studioExportMidiBtn');
-  if (expMidi) expMidi.onclick = () => queueStudioOperation(exportCurrentSongAsMidi);
+  if (studioTabGridBtn) studioTabGridBtn.onclick = () => prShowPane('grid');
+  if (studioTabSheetBtn) studioTabSheetBtn.onclick = () => prShowPane('sheet');
 
-  // Sheet Beautifier / Formatter
+  function prUpdateSheetStats() {
+    if (!studioSheetStats || !studioSheetTextarea) return;
+    const text = studioSheetTextarea.value;
+    const lines = text ? text.split(/\r?\n/).length : 0;
+    studioSheetStats.textContent = `${lines} line${lines === 1 ? '' : 's'} · ${text.length} chars`;
+  }
+  if (studioSheetTextarea) studioSheetTextarea.addEventListener('input', prUpdateSheetStats);
+
   const studioFormatSheetBtn = document.getElementById('studioFormatSheetBtn');
   if (studioFormatSheetBtn) {
     studioFormatSheetBtn.onclick = () => {
-      const ta = document.getElementById('studioSheetTextarea');
-      if (!ta || !ta.value.trim()) return;
-      const text = ta.value;
+      if (!studioSheetTextarea || !studioSheetTextarea.value.trim()) return;
+      const text = studioSheetTextarea.value;
       const newline = text.includes('\r\n') ? '\r\n' : '\n';
-      ta.value = text.split(/\r?\n/).map(line => {
+      studioSheetTextarea.value = text.split(/\r?\n/).map(line => {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#')) return line;
 
@@ -4396,28 +6212,104 @@
         const commentSeparator = formattedNotation && inlineComment ? ' ' : '';
         return `${leadingWhitespace}${formattedNotation}${commentSeparator}${inlineComment}`;
       }).join(newline);
-      showToast('Sheet notation cleaned & formatted!', 'success');
+      prUpdateSheetStats();
+      showToast('Sheet notation cleaned & formatted', 'success');
     };
+  }
+
+  const studioSheetCopyBtn = document.getElementById('studioSheetCopyBtn');
+  if (studioSheetCopyBtn) {
+    studioSheetCopyBtn.onclick = async () => {
+      if (!studioSheetTextarea) return;
+      try {
+        await navigator.clipboard.writeText(studioSheetTextarea.value);
+        showToast('Sheet copied to clipboard', 'success');
+      } catch (_) {
+        studioSheetTextarea.select();
+        showToast('Press Ctrl+C to copy the selection', 'info');
+      }
+    };
+  }
+
+  const studioSheetFromRollBtn = document.getElementById('studioSheetFromRollBtn');
+  if (studioSheetFromRollBtn) {
+    studioSheetFromRollBtn.onclick = () => queueStudioOperation(async () => {
+      ensureEditableSong();
+      if (!prTotalNotes()) { showToast('The roll is empty — draw something first', 'info'); return; }
+      const res = await fetch('/api/export_sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentSong)
+      });
+      if (!res.ok) throw new Error((await res.text()) || 'Sheet conversion failed');
+      if (studioSheetTextarea) studioSheetTextarea.value = await res.text();
+      prUpdateSheetStats();
+      showToast('Converted the roll into sheet notation', 'success');
+    });
   }
 
   const studioLoadSheetBtn = document.getElementById('studioLoadSheetToPlayerBtn');
   if (studioLoadSheetBtn) {
     studioLoadSheetBtn.onclick = async () => {
-      const text = document.getElementById('studioSheetTextarea').value;
-      const blob = new Blob([text], { type: 'text/plain' });
+      if (!studioSheetTextarea || !studioSheetTextarea.value.trim()) {
+        showToast('Nothing to load — the sheet is empty', 'info');
+        return;
+      }
+      const blob = new Blob([studioSheetTextarea.value], { type: 'text/plain' });
       const formData = new FormData();
       formData.append('file', blob, 'sheet.txt');
       try {
         const res = await fetch('/api/upload_midi', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-          showToast('Loaded converted sheet into Player!', 'success');
-          const playerTab = document.querySelector('[data-view="view-player"]');
-          if (playerTab) playerTab.click();
-          sendAction({ action: "get_current_song" });
+          showToast('Loaded the converted sheet into the player', 'success');
+          prDirty = false;
+          sendAction({ action: 'get_current_song' });
+        } else {
+          showToast(data.error || 'Sheet conversion failed', 'error');
         }
-      } catch (err) { showToast(`Sheet conversion error: ${err.message}`, 'error'); }
+      } catch (err) {
+        showToast(`Sheet conversion error: ${err.message}`, 'error');
+      }
     };
+  }
+
+  // ── 13o. Studio boot ────────────────────────────────────────────────────
+  if (prHasStudio) {
+    prSetTool('draw');
+    if (prVelRead) prVelRead.innerHTML = `<b>${prState.velocity}</b>`;
+    prUpdateSpacer();
+    prSyncChrome();
+
+    // Fires the first time the view is switched on (0 → real size), which is
+    // exactly when the canvases need their first correct layout.
+    if (typeof ResizeObserver !== 'undefined') {
+      let lastW = 0, lastH = 0;
+      new ResizeObserver(() => {
+        const w = prStage.clientWidth;
+        const h = prStage.clientHeight;
+        if (w === lastW && h === lastH) return;
+        const firstReveal = lastW === 0 && w > 0;
+        lastW = w; lastH = h;
+        prUpdateSpacer();
+        if (firstReveal) prCenterOnPitch(72);
+        renderPianoRoll();
+      }).observe(prStage);
+    }
+
+    const themeWatcher = new MutationObserver(() => renderPianoRoll());
+    themeWatcher.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
+
+    // While the song is playing the visualizer loop already drives the roll;
+    // this cheap tick is what catches seeks, pauses and stops.
+    let prLastStatusKey = '';
+    setInterval(() => {
+      if (!prIsStudioVisible()) return;
+      const key = `${playbackState}|${Math.round(currentPlaybackMs / 100)}|${currentSongRevision}`;
+      if (key === prLastStatusKey) return;
+      prLastStatusKey = key;
+      renderPianoRoll();
+    }, 200);
   }
 
   // ── 15. Themes & Custom CSS Manager ──
@@ -4660,12 +6552,6 @@
   scheduleVisualizerLoop();
   fetchLibrary();
 
-  // Scroll piano roll wrap to Middle C area initially
-  setTimeout(() => {
-    if (prWrap) {
-      prWrap.scrollTop = Math.max(0, (108 - 60) * 16 - (prWrap.clientHeight / 2));
-    }
-  }, 100);
 </script>
 </body>
 </html>

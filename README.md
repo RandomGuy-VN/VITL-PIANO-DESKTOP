@@ -43,7 +43,18 @@
 - Live search by title, artist, or uploader.
 - Instant download and streaming into the local library (`~/.vitl-piano/midis/`).
 
-### 6. 🎨 High-End LiquidGlass GUI & WebSocket IPC
+### 6. 🎛️ Piano Roll Studio (MIDI Builder)
+- **Virtualised Roll**: The grid, ruler, keybed and velocity lane are viewport-sized canvases driven by a scroll spacer, so a twenty-minute black-MIDI file opens as fast as a four-bar sketch.
+- **Musical Grid**: Bars and beats are derived from the song's tempo map (tempo changes included), with snap from `1/1` down to `1/32` plus triplets, or free.
+- **Full Editing**: Draw, drag to set length, move, resize from the right edge, marquee-select, `Alt`-drag to duplicate, sweep to erase, right-click to erase in any tool.
+- **Selection-Aware Operations**: Quantize, legato, humanize, transpose and nudge apply to the selection, or to the whole song when nothing is selected.
+- **Velocity Lane**: Paint velocities by dragging across the lane under the roll.
+- **Unlimited Undo/Redo** plus copy, cut, paste and duplicate.
+- **Audible Editing**: Every note you draw, move or click on the keybed is auditioned through the synthesizer.
+- **Transport in Place**: Play, pause, scrub the ruler and follow the playhead without leaving the editor; unsaved edits are pushed to the player automatically before playback.
+- **Shortcuts**: `1`/`2`/`3` tools · `Space` play · `Ctrl+Z`/`Ctrl+Shift+Z` undo/redo · `Ctrl+A/C/X/V/D` · `Del` · arrows nudge & transpose · `Ctrl+Wheel` zoom · `Shift+Wheel` pan · `Ctrl+S` save.
+
+### 7. 🎨 High-End LiquidGlass GUI & WebSocket IPC
 - Real-time bidirectional WebSocket IPC server (`127.0.0.1:4242`).
 - Interactive 88-key piano visualizer showing live active notes.
 - LiquidGlass warm paper UI design with moss green accents.
