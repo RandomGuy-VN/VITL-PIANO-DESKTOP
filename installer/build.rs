@@ -13,7 +13,9 @@ fn main() {
     // 1. Locate the main executable
     let exe_candidates = [
         "../src-tauri/target/release/vitl-piano.exe",
+        "../src-tauri/target/x86_64-pc-windows-msvc/release/vitl-piano.exe",
         "../src-tauri/target/release/app.exe",
+        "../src-tauri/target/x86_64-pc-windows-msvc/release/app.exe",
         "../src-tauri/target/debug/vitl-piano.exe",
     ];
     let mut exe_data = None;
@@ -39,6 +41,7 @@ fn main() {
     let dll_candidates = [
         "../src-tauri/WebView2Loader.dll",
         "../src-tauri/target/release/WebView2Loader.dll",
+        "../src-tauri/target/x86_64-pc-windows-msvc/release/WebView2Loader.dll",
     ];
     for cand in dll_candidates {
         if Path::new(cand).exists() {

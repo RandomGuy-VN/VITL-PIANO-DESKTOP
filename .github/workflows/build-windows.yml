@@ -1,0 +1,107 @@
+name: Build Windows Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_release:
+        description: 'Release tag to upload binaries to (e.g. v1.0-beta.2 or leave empty for artifact only)'
+        required: false
+        default: ''
+        type: string
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'vitl-piano-desktop'
+      - 'vitl-piano-linux.zip'
+      - 'web/vitl-piano-linux.zip'
+      - 'vitl-piano.sh'
+      - 'README.md'
+      - 'LICENSE'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows (x86_64-pc-windows-msvc)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Set up Cargo Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            src-tauri
+            installer
+
+      - name: Build Main Application (vitl-piano.exe)
+        working-directory: src-tauri
+        env:
+          RUST_MIN_STACK: "67108864"
+        run: cargo build --release
+
+      - name: Build Installer (vitl-piano-setup.exe)
+        working-directory: installer
+        env:
+          RUST_MIN_STACK: "67108864"
+        run: cargo build --release
+
+      - name: Package Distribution Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+
+          # Copy compiled binaries
+          Copy-Item -Path src-tauri/target/release/vitl-piano.exe -Destination dist/vitl-piano.exe
+          Copy-Item -Path installer/target/release/vitl-piano-setup.exe -Destination dist/vitl-piano-setup.exe
+          Copy-Item -Path src-tauri/WebView2Loader.dll -Destination dist/WebView2Loader.dll
+
+          # Create portable distribution package
+          $portableStage = "dist/portable_stage"
+          New-Item -ItemType Directory -Path $portableStage -Force | Out-Null
+          Copy-Item -Path src-tauri/target/release/vitl-piano.exe -Destination "$portableStage/vitl-piano.exe"
+          Copy-Item -Path src-tauri/WebView2Loader.dll -Destination "$portableStage/WebView2Loader.dll"
+          Copy-Item -Path desktop.html -Destination "$portableStage/desktop.html"
+          Copy-Item -Path vitl-brand-logo.png -Destination "$portableStage/vitl-brand-logo.png"
+          Copy-Item -Path vitl-brand-logo.svg -Destination "$portableStage/vitl-brand-logo.svg"
+          Copy-Item -Path README.md -Destination "$portableStage/README.md"
+          Copy-Item -Path samples -Destination "$portableStage/samples" -Recurse
+          Copy-Item -Path soundfonts -Destination "$portableStage/soundfonts" -Recurse
+
+          Compress-Archive -Path "$portableStage/*" -DestinationPath "dist/vitl-piano-windows-portable.zip" -Force
+          Remove-Item -Path $portableStage -Recurse -Force
+
+          Write-Host "Generated Distribution Files:" -ForegroundColor Green
+          Get-ChildItem -Path dist | Format-Table -AutoSize
+          Get-FileHash -Algorithm SHA256 dist/* | Format-Table -AutoSize
+
+      - name: Upload Artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitl-piano-windows
+          path: |
+            dist/vitl-piano.exe
+            dist/vitl-piano-setup.exe
+            dist/WebView2Loader.dll
+            dist/vitl-piano-windows-portable.zip
+          retention-days: 14
+
+      - name: Upload to GitHub Release
+        if: ${{ inputs.upload_to_release != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.upload_to_release }}
+        run: |
+          Write-Host "Uploading binaries to release $env:RELEASE_TAG..." -ForegroundColor Cyan
+          gh release upload $env:RELEASE_TAG dist/vitl-piano.exe dist/vitl-piano-setup.exe dist/WebView2Loader.dll dist/vitl-piano-windows-portable.zip --clobber
