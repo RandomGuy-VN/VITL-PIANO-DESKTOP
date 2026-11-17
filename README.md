@@ -156,4 +156,4 @@ vitl-piano-desktop/
 ---
 
 ## 📜 License
-MIT License - VITL Piano Team.
+GPL 3.0 License - VITL Piano Team.
